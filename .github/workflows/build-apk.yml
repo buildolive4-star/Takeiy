@@ -1,0 +1,86 @@
+name: Build & Download Zipora APK
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-apk:
+    name: Build Installable Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Accept SDK licenses & install Android 36.1 platform
+        run: |
+          yes | sdkmanager --licenses > /dev/null || true
+          sdkmanager "platform-tools" "platforms;android-36" "platforms;android-36.1" "build-tools;36.0.0" || sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Prepare debug.keystore for APK signing
+        run: |
+          if [ -f "debug.keystore.base64" ]; then
+            base64 -d debug.keystore.base64 > debug.keystore
+            echo "Decoded debug.keystore from debug.keystore.base64"
+          elif [ ! -f "debug.keystore" ]; then
+            keytool -genkeypair -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Android Debug,O=Zipora,C=IN"
+            echo "Generated fresh debug.keystore"
+          fi
+
+      - name: Set up Gradle 9.3.1
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Build Debug APK
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Prepare downloadable Zipora-App.apk
+        run: |
+          mkdir -p release-apk
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/Zipora-App.apk
+          ls -lh release-apk/Zipora-App.apk
+
+      - name: Upload APK Artifact (Download from Actions tab)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zipora-App-APK
+          path: release-apk/Zipora-App.apk
+          retention-days: 30
+
+      - name: Publish Latest Downloadable Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-apk
+          name: Zipora Super App (Latest APK)
+          body: |
+            ### Download & Install Zipora Super App
+            Tap **Zipora-App.apk** below to download and install directly on your Android phone!
+
+            - **All 9 Panels in One App** via the `☰` menu (Admin demo passcode: `2026`)
+            - Built automatically on commit `${{ github.sha }}`
+          files: release-apk/Zipora-App.apk
+          make_latest: true
+        continue-on-error: true

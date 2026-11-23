@@ -59,24 +59,23 @@ fun UniversalPanelDrawerContent(
                 ),
             contentPadding = PaddingValues(bottom = 28.dp)
         ) {
-            // Drawer Header with User Profile & Verified Badge
+            // Drawer Header with Atmospheric Glow, User Profile & Verified Badge
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.linearGradient(listOf(Color(0xFF153B5E), DeepNavy))
-                        )
-                        .statusBarsPadding()
-                        .padding(horizontal = 18.dp, vertical = 18.dp)
-                ) {
-                    Column {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    AtmosphericMeshHeaderBackground(modifier = Modifier.matchParentSize())
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 18.dp, vertical = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
                                     .size(62.dp)
                                     .clip(CircleShape)
-                                    .border(2.dp, PremiumYellow, CircleShape)
+                                    .border(2.2.dp, PremiumYellow, CircleShape)
                                     .background(SkyBlue.copy(alpha = 0.25f)),
                                 contentAlignment = Alignment.Center
                             ) {
@@ -114,14 +113,10 @@ fun UniversalPanelDrawerContent(
                                     Box(
                                         modifier = Modifier
                                             .clip(RoundedCornerShape(50))
-                                            .background(SuccessGreen.copy(alpha = 0.2f))
+                                            .background(SuccessGreen.copy(alpha = 0.22f))
                                             .padding(horizontal = 8.dp, vertical = 3.dp)
                                     ) {
-                                        Text(
-                                            text = "KYC Verified",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = SuccessGreen
-                                        )
+                                        Text("KYC Verified", style = MaterialTheme.typography.labelSmall, color = SuccessGreen)
                                     }
                                     Box(
                                         modifier = Modifier
@@ -134,14 +129,47 @@ fun UniversalPanelDrawerContent(
                                             .padding(horizontal = 10.dp, vertical = 3.dp)
                                             .testTag("drawer_edit_profile")
                                     ) {
-                                        Text(
-                                            text = "Edit Profile",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = DeepNavy,
-                                            fontWeight = FontWeight.Bold
-                                        )
+                                        Text("Edit Profile", style = MaterialTheme.typography.labelSmall, color = DeepNavy, fontWeight = FontWeight.Bold)
                                     }
                                 }
+                            }
+                        }
+
+                        // Mini Wallet & Points Glass Strip inside Drawer
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SoftWhite.copy(alpha = 0.10f))
+                                    .border(1.dp, SkyBlue.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        onCloseDrawer()
+                                        onNavigate(AppRoute.Wallet)
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Rounded.AccountBalanceWallet, null, tint = PremiumYellow, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("₹${appState.walletBalance.toInt()}", style = MaterialTheme.typography.labelLarge, color = SoftWhite)
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(SoftWhite.copy(alpha = 0.10f))
+                                    .border(1.dp, PremiumYellow.copy(alpha = 0.3f), RoundedCornerShape(12.dp))
+                                    .clickable {
+                                        onCloseDrawer()
+                                        onNavigate(AppRoute.ReferEarn)
+                                    }
+                                    .padding(horizontal = 10.dp, vertical = 7.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Rounded.WorkspacePremium, null, tint = SkyBlue, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("${appState.rewardPoints} Pts", style = MaterialTheme.typography.labelLarge, color = SoftWhite)
                             }
                         }
                     }

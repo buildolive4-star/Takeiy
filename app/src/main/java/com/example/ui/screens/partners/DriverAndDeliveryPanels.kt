@@ -426,13 +426,15 @@ fun FoodDeliveryPartnerPanelScreen(
 fun DarkKpiTile(label: String, value: String, accent: Color, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .background(DarkCardSurface)
-            .border(1.dp, accent.copy(alpha = 0.35f), RoundedCornerShape(14.dp))
-            .padding(10.dp),
+            .clip(RoundedCornerShape(16.dp))
+            .background(Brush.verticalGradient(listOf(DarkCardElevated, DarkCardSurface)))
+            .glassSheenOverlay(0.12f)
+            .border(1.1.dp, accent.copy(alpha = 0.42f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 8.dp, vertical = 11.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(value, style = MaterialTheme.typography.titleMedium, color = accent, fontWeight = FontWeight.ExtraBold)
+        Spacer(Modifier.height(2.dp))
         Text(label, style = MaterialTheme.typography.labelSmall, color = Color(0xFFA7C6E0), maxLines = 1)
     }
 }

@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -35,6 +36,7 @@ import com.example.R
 import com.example.ui.components.Character3DPortrait
 import com.example.ui.components.SimulatedMapCanvas
 import com.example.ui.theme.*
+import com.example.util.DeviceActions
 import com.example.viewmodel.SuperAppUiState
 
 private val TransportNavy = Color(0xFF0B2154)
@@ -790,7 +792,14 @@ private fun TransportSuccessContent(
             textAlign = TextAlign.Center
         )
         Spacer(Modifier.height(18.dp))
-        Surface(shape = RoundedCornerShape(16.dp), color = Color(0xFFEFF6FF), modifier = Modifier.fillMaxWidth()) {
+        val context = LocalContext.current
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFFEFF6FF),
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { DeviceActions.copyToClipboard(context, "Booking ID", bookingId) }
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -897,10 +906,19 @@ private fun TransportLiveTrackingContent(
                     }
                 }
 
+                val context = LocalContext.current
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    TransportCircleAction(Icons.Rounded.Call, "Call") {}
-                    TransportCircleAction(Icons.Rounded.Chat, "Chat") {}
-                    TransportCircleAction(Icons.Rounded.Share, "Share", onAdvanceStep)
+                    TransportCircleAction(Icons.Rounded.Call, "Call") {
+                        DeviceActions.dialPhoneNumber(context, "+919876500112")
+                    }
+                    TransportCircleAction(Icons.Rounded.Chat, "Chat", onAdvanceStep)
+                    TransportCircleAction(Icons.Rounded.Share, "Share") {
+                        DeviceActions.shareText(
+                            context,
+                            "Take It Goods Transport Live Tracking",
+                            "Tracking my ${vehicle.name} (UP16BT8421) with Driver Rajesh Singh from $pickup to $drop. ETA 18 min."
+                        )
+                    }
                 }
 
                 // 3-Step Blue Check Timeline

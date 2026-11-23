@@ -4,7 +4,12 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.*
+import com.example.firebase.TakeItCloudRepository
 import com.example.model.*
+import com.example.util.GpsLocationResult
+import com.google.firebase.firestore.FirebaseFirestoreException
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -12,9 +17,14 @@ import java.util.UUID
 
 data class SuperAppUiState(
     val isSplashVisible: Boolean = true,
+    val isCloudSynced: Boolean = false,
+    val cloudError: String? = null,
+    val userAvatarUrl: String = "",
+    val dishImageUrls: Map<String, String> = emptyMap(),
+    val groceryImageUrls: Map<String, String> = emptyMap(),
     val appState: AppStateEntity = AppStateEntity(),
     val activePanel: AppPanel = AppPanel.CUSTOMER,
-    val backStack: List<AppRoute> = listOf(AppRoute.PanelHome),
+    val backStack: List<AppRoute> = listOf(TakeItBuildConfig.rootRoute),
     val orders: List<OrderEntity> = emptyList(),
     val transactions: List<WalletTxEntity> = emptyList(),
     val menuItems: List<MenuItemEntity> = emptyList(),
@@ -58,17 +68,39 @@ data class SuperAppUiState(
 class SuperAppViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = SuperAppRepository(SuperAppRepository.getDatabase(application))
+    private val cloudRepo = TakeItCloudRepository(application.applicationContext)
 
-    private val _localState = MutableStateFlow(SuperAppUiState())
+    private val _localState = MutableStateFlow(SuperAppUiState(isSplashVisible = false))
+    private val _cloudOrders = MutableStateFlow<List<OrderEntity>?>(null)
+    private val _cloudTransactions = MutableStateFlow<List<WalletTxEntity>?>(null)
+    private val _cloudNotifications = MutableStateFlow<List<NotificationEntity>?>(null)
+    private val _cloudMenuItems = MutableStateFlow<List<MenuItemEntity>?>(null)
+    private val _cloudGroceries = MutableStateFlow<List<GroceryProductEntity>?>(null)
+
+    private var activeCloudUid: String? = null
+    private val cloudJobs = mutableListOf<Job>()
 
     val uiState: StateFlow<SuperAppUiState> = combine(
         _localState,
         repository.appState,
-        repository.orders,
-        repository.transactions,
-        repository.menuItems
+        combine(repository.orders, _cloudOrders) { local, cloud ->
+            if (cloud != null && cloud.isNotEmpty()) cloud else local
+        },
+        combine(repository.transactions, _cloudTransactions) { local, cloud ->
+            if (cloud != null && cloud.isNotEmpty()) cloud else local
+        },
+        combine(repository.menuItems, _cloudMenuItems) { local, cloud ->
+            if (cloud != null && cloud.isNotEmpty()) {
+                val cloudIds = cloud.map { it.id }.toSet()
+                cloud + local.filterNot { it.id in cloudIds }
+            } else local
+        }
     ) { local, appState, orders, txs, menu ->
-        val panel = runCatching { AppPanel.valueOf(appState.activePanelName) }.getOrDefault(AppPanel.CUSTOMER)
+        val panel = if (!TakeItBuildConfig.showPanelSwitcher) {
+            AppPanel.CUSTOMER
+        } else {
+            runCatching { AppPanel.valueOf(appState.activePanelName) }.getOrDefault(AppPanel.CUSTOMER)
+        }
         local.copy(
             appState = appState,
             activePanel = if (panel == AppPanel.ADMIN && !appState.isAdminAuthorized) AppPanel.CUSTOMER else panel,
@@ -77,9 +109,18 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
             menuItems = menu
         )
     }.combine(
-        combine(repository.groceryProducts, repository.notifications, repository.managedUsers) { g, n, u ->
-            Triple(g, n, u)
-        }
+        combine(
+            combine(repository.groceryProducts, _cloudGroceries) { local, cloud ->
+                if (cloud != null && cloud.isNotEmpty()) {
+                    val cloudIds = cloud.map { it.id }.toSet()
+                    cloud + local.filterNot { it.id in cloudIds }
+                } else local
+            },
+            combine(repository.notifications, _cloudNotifications) { local, cloud ->
+                if (cloud != null && cloud.isNotEmpty()) cloud else local
+            },
+            repository.managedUsers
+        ) { g, n, u -> Triple(g, n, u) }
     ) { merged, (groceries, notifs, users) ->
         merged.copy(
             groceryProducts = groceries,
@@ -89,15 +130,138 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
-        initialValue = SuperAppUiState()
+        initialValue = SuperAppUiState(isSplashVisible = false)
     )
 
     init {
         viewModelScope.launch {
             repository.ensureSeeded()
-            delay(1750)
-            _localState.update { it.copy(isSplashVisible = false) }
         }
+    }
+
+    /**
+     * Attaches real-time Firestore snapshot listeners ONLY for an authenticated user UID.
+     */
+    fun attachCloudSession(uid: String, displayName: String, email: String) {
+        if (uid.isBlank() || activeCloudUid == uid) return
+        detachCloudSession()
+        activeCloudUid = uid
+
+        viewModelScope.launch {
+            val initResult = cloudRepo.ensureProfileInitialized(displayName, email)
+            if (initResult.isFailure) {
+                _localState.update {
+                    it.copy(cloudError = initResult.exceptionOrNull()?.localizedMessage ?: "Cloud sync unavailable")
+                }
+            } else {
+                _localState.update { it.copy(isCloudSynced = true, cloudError = null) }
+            }
+        }
+
+        // 1. Live User Profile listener
+        cloudJobs += viewModelScope.launch {
+            cloudRepo.observeUserProfile(uid)
+                .catch { error -> handleStreamError(error, "profile") }
+                .collect { cloudProfile ->
+                    if (cloudProfile != null) {
+                        repository.updateAppState { current ->
+                            current.copy(
+                                userName = cloudProfile.userName.ifBlank { current.userName },
+                                userPhone = cloudProfile.userPhone.ifBlank { current.userPhone },
+                                userEmail = cloudProfile.userEmail.ifBlank { current.userEmail },
+                                activeAddressLabel = cloudProfile.activeAddressLabel.ifBlank { current.activeAddressLabel },
+                                activeAddressLine = cloudProfile.activeAddressLine.ifBlank { current.activeAddressLine },
+                                walletBalance = cloudProfile.walletBalance,
+                                rewardPoints = cloudProfile.rewardPoints.toInt(),
+                                activePanelName = cloudProfile.activePanelName.ifBlank { current.activePanelName },
+                                driverOnline = cloudProfile.driverOnline,
+                                deliveryPartnerOnline = cloudProfile.deliveryPartnerOnline,
+                                language = cloudProfile.language.ifBlank { current.language },
+                                notificationsEnabled = cloudProfile.notificationsEnabled
+                            )
+                        }
+                        _localState.update {
+                            it.copy(
+                                isCloudSynced = true,
+                                cloudError = null,
+                                userAvatarUrl = cloudProfile.avatarUrl.ifBlank { it.userAvatarUrl }
+                            )
+                        }
+                    }
+                }
+        }
+
+        // 2. Live Orders listener
+        cloudJobs += viewModelScope.launch {
+            cloudRepo.observeOrders(uid)
+                .catch { error -> handleStreamError(error, "orders") }
+                .collect { list -> _cloudOrders.value = list }
+        }
+
+        // 3. Live Wallet Transactions listener
+        cloudJobs += viewModelScope.launch {
+            cloudRepo.observeTransactions(uid)
+                .catch { error -> handleStreamError(error, "wallet") }
+                .collect { list -> _cloudTransactions.value = list }
+        }
+
+        // 4. Live Notifications listener
+        cloudJobs += viewModelScope.launch {
+            cloudRepo.observeNotifications(uid)
+                .catch { error -> handleStreamError(error, "notifications") }
+                .collect { list -> _cloudNotifications.value = list }
+        }
+
+        // 5. Live Restaurant Menu listener (with ImgBB photo URLs)
+        cloudJobs += viewModelScope.launch {
+            cloudRepo.observeMenuItemsWithImages(uid)
+                .catch { error -> handleStreamError(error, "menu") }
+                .collect { (list, imgMap) ->
+                    _cloudMenuItems.value = list
+                    _localState.update { it.copy(dishImageUrls = it.dishImageUrls + imgMap) }
+                }
+        }
+
+        // 6. Live Grocery Inventory listener (with ImgBB photo URLs)
+        cloudJobs += viewModelScope.launch {
+            cloudRepo.observeGroceryProductsWithImages(uid)
+                .catch { error -> handleStreamError(error, "grocery") }
+                .collect { (list, imgMap) ->
+                    _cloudGroceries.value = list
+                    _localState.update { it.copy(groceryImageUrls = it.groceryImageUrls + imgMap) }
+                }
+        }
+    }
+
+    private fun handleStreamError(error: Throwable, section: String) {
+        val firestoreError = generateSequence(error) { it.cause }
+            .filterIsInstance<FirebaseFirestoreException>()
+            .firstOrNull()
+        if (firestoreError == null && error is CancellationException) throw error
+        val rootError = firestoreError ?: error
+        _localState.update {
+            it.copy(cloudError = "Cloud sync ($section): ${rootError.message ?: "Offline mode"}")
+        }
+    }
+
+    /**
+     * Cancels all active Firestore listeners cleanly before sign-out.
+     */
+    fun detachCloudSession() {
+        activeCloudUid = null
+        cloudJobs.forEach { it.cancel() }
+        cloudJobs.clear()
+        _cloudOrders.value = null
+        _cloudTransactions.value = null
+        _cloudNotifications.value = null
+        _cloudMenuItems.value = null
+        _cloudGroceries.value = null
+        _localState.update { it.copy(isCloudSynced = false) }
+    }
+
+    override fun onCleared() {
+        detachCloudSession()
+        super.onCleared()
     }
 
     fun dismissSplash() {
@@ -136,7 +300,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun resetToHome() {
-        _localState.update { it.copy(backStack = listOf(AppRoute.PanelHome)) }
+        _localState.update { it.copy(backStack = listOf(TakeItBuildConfig.rootRoute)) }
     }
 
     // Universal Panel Switcher
@@ -148,6 +312,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
         }
         viewModelScope.launch {
             repository.updateAppState { it.copy(activePanelName = panel.name) }
+            cloudRepo.updateProfileFields(mapOf("activePanelName" to panel.name))
             _localState.update {
                 it.copy(
                     backStack = listOf(AppRoute.PanelHome),
@@ -167,6 +332,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
                 repository.updateAppState {
                     it.copy(isAdminAuthorized = true, activePanelName = AppPanel.ADMIN.name)
                 }
+                cloudRepo.updateProfileFields(mapOf("activePanelName" to AppPanel.ADMIN.name))
                 _localState.update {
                     it.copy(
                         showAdminGate = false,
@@ -186,6 +352,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
             repository.updateAppState {
                 it.copy(isAdminAuthorized = false, activePanelName = AppPanel.CUSTOMER.name)
             }
+            cloudRepo.updateProfileFields(mapOf("activePanelName" to AppPanel.CUSTOMER.name))
             _localState.update {
                 it.copy(
                     backStack = listOf(AppRoute.PanelHome),
@@ -195,13 +362,41 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // Location & Search
+    // Location & GPS Sync
     fun selectAddress(address: SavedAddress) {
         viewModelScope.launch {
             repository.updateAppState {
                 it.copy(activeAddressLabel = address.label, activeAddressLine = address.fullAddress)
             }
+            cloudRepo.updateProfileFields(
+                mapOf(
+                    "activeAddressLabel" to address.label,
+                    "activeAddressLine" to address.fullAddress
+                )
+            )
             showMessage("Location set to ${address.label}")
+        }
+    }
+
+    fun saveGpsLocation(gps: GpsLocationResult) {
+        viewModelScope.launch {
+            repository.updateAppState {
+                it.copy(activeAddressLabel = gps.label, activeAddressLine = gps.fullAddress)
+            }
+            cloudRepo.updateProfileFields(
+                mapOf(
+                    "activeAddressLabel" to gps.label,
+                    "activeAddressLine" to gps.fullAddress
+                )
+            )
+            cloudRepo.saveGpsAddress(
+                label = gps.label,
+                fullAddress = gps.fullAddress,
+                landmark = "Live GPS Location",
+                lat = gps.latitude,
+                lng = gps.longitude
+            )
+            showMessage("Live GPS detected: ${gps.label}")
         }
     }
 
@@ -264,7 +459,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
 
     fun placeCartOrder(paymentMethod: String, simulateFailure: Boolean): Boolean {
         if (simulateFailure) {
-            showMessage("Simulated payment declined ($paymentMethod). Please retry or switch method.")
+            showMessage("Payment declined ($paymentMethod). Please retry or choose Wallet/COD.")
             return false
         }
         val state = uiState.value
@@ -272,7 +467,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
         val total = state.cartGrandTotal.toDouble()
         val isWallet = paymentMethod.contains("Wallet", ignoreCase = true)
         if (isWallet && state.appState.walletBalance < total) {
-            showMessage("Insufficient Take It Wallet balance. Please top up or select UPI/Card.")
+            showMessage("Insufficient Take It Wallet balance. Please top up or select Cash on Delivery.")
             return false
         }
         val primaryType = state.cart.first().categoryType
@@ -295,14 +490,28 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
         )
         viewModelScope.launch {
             repository.createOrder(order, deductFromWallet = isWallet)
+            cloudRepo.createOrder(order)
+            if (isWallet) {
+                val newBalance = (state.appState.walletBalance - total).coerceAtLeast(0.0)
+                cloudRepo.updateProfileFields(mapOf("walletBalance" to newBalance))
+                cloudRepo.recordWalletTransaction(
+                    WalletTxEntity("TX_${System.currentTimeMillis()}", "Paid for ${order.title}", "DEBIT", total, paymentMethod, System.currentTimeMillis())
+                )
+            }
+            cloudRepo.pushNotification(
+                id = "N_${System.currentTimeMillis()}",
+                category = "ORDER",
+                title = "Order ${order.id} Confirmed",
+                body = "${order.title} • ${order.subtitle} is now live."
+            )
             _localState.update { it.copy(cart = emptyList(), appliedCoupon = null) }
             triggerConfetti()
-            showMessage("Order ${order.id} placed! Delivery OTP: $otp")
+            showMessage("Order ${order.id} synced to cloud! Delivery PIN: $otp")
         }
         return true
     }
 
-    // Ride / Parcel / Transport Order Recording
+    // Ride / Parcel / Transport Order Recording (Cloud + Local)
     fun recordServiceOrder(
         type: String,
         title: String,
@@ -331,8 +540,24 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
             partnerName = partnerName,
             timestamp = System.currentTimeMillis()
         )
+        val isWallet = paymentMethod.contains("Wallet", ignoreCase = true)
+        val currentBalance = uiState.value.appState.walletBalance
         viewModelScope.launch {
-            repository.createOrder(order, deductFromWallet = paymentMethod.contains("Wallet", ignoreCase = true))
+            repository.createOrder(order, deductFromWallet = isWallet)
+            cloudRepo.createOrder(order)
+            if (isWallet) {
+                val newBal = (currentBalance - amount).coerceAtLeast(0.0)
+                cloudRepo.updateProfileFields(mapOf("walletBalance" to newBal))
+                cloudRepo.recordWalletTransaction(
+                    WalletTxEntity("TX_${System.currentTimeMillis()}", title, "DEBIT", amount, paymentMethod, System.currentTimeMillis())
+                )
+            }
+            cloudRepo.pushNotification(
+                id = "N_${System.currentTimeMillis()}",
+                category = type,
+                title = "$title Confirmed",
+                body = "$pickup → $drop • Partner: $partnerName"
+            )
             onCreated(id)
         }
     }
@@ -340,6 +565,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
     fun updateOrderStatus(orderId: String, newStatus: String) {
         viewModelScope.launch {
             repository.updateOrderStatus(orderId, newStatus)
+            cloudRepo.updateOrderStatus(orderId, newStatus)
             if (newStatus == "COMPLETED") triggerConfetti()
         }
     }
@@ -347,20 +573,26 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
     fun rateOrder(orderId: String, stars: Int) {
         viewModelScope.launch {
             repository.rateOrder(orderId, stars)
-            showMessage("Rated $stars★ • Thank you for your feedback!")
+            cloudRepo.rateOrder(orderId, stars)
+            showMessage("Rated $stars★ • Saved to your Take It account!")
         }
     }
 
     // Wallet
     fun topUpWallet(amount: Double, method: String, simulateFailure: Boolean): Boolean {
         if (simulateFailure) {
-            showMessage("Simulated $method top-up failed. No money was charged.")
+            showMessage("$method top-up declined. No money was charged.")
             return false
         }
+        val newBalance = (uiState.value.appState.walletBalance + amount).coerceAtMost(1_000_000.0)
         viewModelScope.launch {
             repository.addWalletMoney(amount, method)
+            cloudRepo.updateProfileFields(mapOf("walletBalance" to newBalance))
+            cloudRepo.recordWalletTransaction(
+                WalletTxEntity("TX_${System.currentTimeMillis()}", "Wallet Top-up ($method)", "CREDIT", amount, method, System.currentTimeMillis())
+            )
             triggerConfetti()
-            showMessage("₹${amount.toInt()} added to Take It Wallet (Simulated)")
+            showMessage("₹${amount.toInt()} added to Take It Wallet & synced")
         }
         return true
     }
@@ -377,13 +609,31 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
                     emergencyContactPhone = emergencyPhone.ifBlank { it.emergencyContactPhone }
                 )
             }
-            showMessage("Profile saved locally")
+            cloudRepo.updateProfileFields(
+                mapOf(
+                    "userName" to name.ifBlank { null },
+                    "userPhone" to phone.ifBlank { null },
+                    "userEmail" to email.ifBlank { null }
+                )
+            )
+            showMessage("Profile saved to cloud")
+        }
+    }
+
+    fun updateProfileAvatarUrl(url: String) {
+        val safeUrl = url.trim()
+        if (!safeUrl.startsWith("https://")) return
+        _localState.update { it.copy(userAvatarUrl = safeUrl) }
+        viewModelScope.launch {
+            cloudRepo.updateProfileFields(mapOf("avatarUrl" to safeUrl))
+            showMessage("Profile photo uploaded via ImgBB & synced!")
         }
     }
 
     fun updateLanguage(lang: String) {
         viewModelScope.launch {
             repository.updateAppState { it.copy(language = lang) }
+            cloudRepo.updateProfileFields(mapOf("language" to lang))
             showMessage("Language set to $lang")
         }
     }
@@ -391,17 +641,23 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
     fun toggleNotificationsEnabled(enabled: Boolean) {
         viewModelScope.launch {
             repository.updateAppState { it.copy(notificationsEnabled = enabled) }
+            cloudRepo.updateProfileFields(mapOf("notificationsEnabled" to enabled))
         }
     }
 
     fun markAllNotificationsRead() {
-        viewModelScope.launch { repository.markAllNotificationsRead() }
+        val unreadIds = uiState.value.notifications.filter { !it.isRead }.map { it.id }
+        viewModelScope.launch {
+            repository.markAllNotificationsRead()
+            if (unreadIds.isNotEmpty()) cloudRepo.markAllNotificationsRead(unreadIds)
+        }
     }
 
     // Partner Mode Actions
     fun toggleDriverOnline(online: Boolean) {
         viewModelScope.launch {
             repository.updateAppState { it.copy(driverOnline = online) }
+            cloudRepo.updateProfileFields(mapOf("driverOnline" to online))
             showMessage(if (online) "You are now ONLINE & receiving trips" else "You are now OFFLINE")
         }
     }
@@ -409,6 +665,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
     fun toggleDeliveryPartnerOnline(online: Boolean) {
         viewModelScope.launch {
             repository.updateAppState { it.copy(deliveryPartnerOnline = online) }
+            cloudRepo.updateProfileFields(mapOf("deliveryPartnerOnline" to online))
             showMessage(if (online) "Delivery radar ACTIVE" else "Delivery radar PAUSED")
         }
     }
@@ -433,8 +690,13 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
             )
         }
         if (completedEarnings > 0) {
+            val newBalance = uiState.value.appState.walletBalance + completedEarnings
             viewModelScope.launch {
                 repository.addWalletMoney(completedEarnings.toDouble(), "Captain Payout", "CREDIT", "Completed Trip Earnings")
+                cloudRepo.updateProfileFields(mapOf("walletBalance" to newBalance))
+                cloudRepo.recordWalletTransaction(
+                    WalletTxEntity("TX_${System.currentTimeMillis()}", "Completed Trip Earnings", "CREDIT", completedEarnings.toDouble(), "Captain Payout", System.currentTimeMillis())
+                )
             }
             triggerConfetti()
         }
@@ -449,8 +711,13 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
             )
         }
         if (completedEarnings > 0) {
+            val newBalance = uiState.value.appState.walletBalance + completedEarnings
             viewModelScope.launch {
                 repository.addWalletMoney(completedEarnings.toDouble(), "Delivery Payout", "CREDIT", "Food Delivery Earnings")
+                cloudRepo.updateProfileFields(mapOf("walletBalance" to newBalance))
+                cloudRepo.recordWalletTransaction(
+                    WalletTxEntity("TX_${System.currentTimeMillis()}", "Food Delivery Earnings", "CREDIT", completedEarnings.toDouble(), "Delivery Payout", System.currentTimeMillis())
+                )
             }
             triggerConfetti()
         }
@@ -463,14 +730,19 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
             )
         }
         if (completedEarnings > 0) {
+            val newBalance = uiState.value.appState.walletBalance + completedEarnings
             viewModelScope.launch {
                 repository.addWalletMoney(completedEarnings.toDouble(), "Logistics Payout", "CREDIT", "Parcel/Transport Earnings")
+                cloudRepo.updateProfileFields(mapOf("walletBalance" to newBalance))
+                cloudRepo.recordWalletTransaction(
+                    WalletTxEntity("TX_${System.currentTimeMillis()}", "Parcel/Transport Earnings", "CREDIT", completedEarnings.toDouble(), "Logistics Payout", System.currentTimeMillis())
+                )
             }
             triggerConfetti()
         }
     }
 
-    // Restaurant Owner Actions (live persisted!)
+    // Restaurant Owner Actions (live synced to Firestore + ImgBB photo!)
     fun addOrUpdateMenuItem(
         id: String?,
         restaurantId: String,
@@ -478,31 +750,40 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
         name: String,
         description: String,
         price: Int,
-        isVeg: Boolean
+        isVeg: Boolean,
+        imageUrl: String? = null
     ) {
+        val itemId = id ?: "m_${UUID.randomUUID().toString().take(6)}"
+        val item = MenuItemEntity(
+            id = itemId,
+            restaurantId = restaurantId,
+            category = category.ifBlank { "Chef Specials" },
+            name = name,
+            description = description.ifBlank { "Freshly crafted signature recipe" },
+            price = price.coerceAtLeast(25),
+            isVeg = isVeg,
+            isAvailable = true,
+            isBestseller = false
+        )
+        if (!imageUrl.isNullOrBlank()) {
+            _localState.update { it.copy(dishImageUrls = it.dishImageUrls + (itemId to imageUrl)) }
+        }
         viewModelScope.launch {
-            repository.upsertMenuItem(
-                MenuItemEntity(
-                    id = id ?: "m-${UUID.randomUUID().toString().take(5)}",
-                    restaurantId = restaurantId,
-                    category = category.ifBlank { "Chef Specials" },
-                    name = name,
-                    description = description.ifBlank { "Freshly crafted signature recipe" },
-                    price = price.coerceAtLeast(25),
-                    isVeg = isVeg,
-                    isAvailable = true,
-                    isBestseller = false
-                )
-            )
-            showMessage("Menu updated: $name (₹$price)")
+            repository.upsertMenuItem(item)
+            cloudRepo.upsertMenuItem(item, imageUrl)
+            showMessage("Menu synced: $name (₹$price)")
         }
     }
 
     fun toggleMenuItemAvailability(id: String, available: Boolean) {
-        viewModelScope.launch { repository.setMenuItemAvailable(id, available) }
+        val target = uiState.value.menuItems.find { it.id == id }
+        viewModelScope.launch {
+            repository.setMenuItemAvailable(id, available)
+            if (target != null) cloudRepo.upsertMenuItem(target.copy(isAvailable = available), uiState.value.dishImageUrls[id])
+        }
     }
 
-    // Grocery Owner Actions (live persisted!)
+    // Grocery Owner Actions (live synced to Firestore + ImgBB photo!)
     fun addOrUpdateGroceryProduct(
         id: String?,
         name: String,
@@ -510,29 +791,38 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
         unit: String,
         mrp: Int,
         sellingPrice: Int,
-        stock: Int
+        stock: Int,
+        imageUrl: String? = null
     ) {
+        val prodId = id ?: "g_${UUID.randomUUID().toString().take(6)}"
+        val prod = GroceryProductEntity(
+            id = prodId,
+            name = name,
+            category = category.ifBlank { "Daily Essentials" },
+            unit = unit.ifBlank { "1 Pack" },
+            mrp = mrp.coerceAtLeast(sellingPrice),
+            sellingPrice = sellingPrice.coerceAtLeast(10),
+            stockCount = stock.coerceAtLeast(0),
+            deliveryMins = 9,
+            isFeatured = true
+        )
+        if (!imageUrl.isNullOrBlank()) {
+            _localState.update { it.copy(groceryImageUrls = it.groceryImageUrls + (prodId to imageUrl)) }
+        }
         viewModelScope.launch {
-            repository.upsertGroceryProduct(
-                GroceryProductEntity(
-                    id = id ?: "g-${UUID.randomUUID().toString().take(5)}",
-                    name = name,
-                    category = category.ifBlank { "Daily Essentials" },
-                    unit = unit.ifBlank { "1 Pack" },
-                    mrp = mrp.coerceAtLeast(sellingPrice),
-                    sellingPrice = sellingPrice.coerceAtLeast(10),
-                    stockCount = stock.coerceAtLeast(0),
-                    deliveryMins = 9,
-                    isFeatured = true
-                )
-            )
-            showMessage("Inventory saved: $name")
+            repository.upsertGroceryProduct(prod)
+            cloudRepo.upsertGroceryProduct(prod, imageUrl)
+            showMessage("Inventory synced: $name")
         }
     }
 
     fun adjustGroceryStock(id: String, stock: Int, price: Int) {
+        val target = uiState.value.groceryProducts.find { it.id == id }
         viewModelScope.launch {
             repository.updateGroceryStockAndPrice(id, stock.coerceAtLeast(0), price.coerceAtLeast(10))
+            if (target != null) {
+                cloudRepo.upsertGroceryProduct(target.copy(stockCount = stock.coerceAtLeast(0), sellingPrice = price.coerceAtLeast(10)))
+            }
         }
     }
 
@@ -552,9 +842,15 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
     }
 
     fun refundOrder(order: OrderEntity) {
+        val newBalance = uiState.value.appState.walletBalance + order.amount
         viewModelScope.launch {
             repository.updateOrderStatus(order.id, "REFUNDED")
+            cloudRepo.updateOrderStatus(order.id, "REFUNDED")
             repository.addWalletMoney(order.amount, "Admin Refund", "REFUND", "Refund for ${order.id}")
+            cloudRepo.updateProfileFields(mapOf("walletBalance" to newBalance))
+            cloudRepo.recordWalletTransaction(
+                WalletTxEntity("TX_${System.currentTimeMillis()}", "Refund for ${order.id}", "REFUND", order.amount, "Admin Refund", System.currentTimeMillis())
+            )
             showMessage("Refunded ₹${order.amount.toInt()} for ${order.id}")
         }
     }
@@ -566,7 +862,8 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
     fun sendAdminBroadcast(title: String, message: String) {
         viewModelScope.launch {
             repository.pushNotification("Promotional Offers", title, message)
-            showMessage("Broadcast sent to all active users")
+            cloudRepo.pushNotification("N_${System.currentTimeMillis()}", "PROMO", title, message)
+            showMessage("Broadcast synced to cloud")
         }
     }
 }

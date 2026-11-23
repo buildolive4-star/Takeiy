@@ -1,0 +1,165 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated user profile, active address, wallet balance, panel state, and preferences for Take It Super App.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the owner." },
+        "userName": { "type": "string", "description": "Display name." },
+        "userPhone": { "type": "string", "description": "Contact phone number." },
+        "userEmail": { "type": "string", "description": "Verified email address." },
+        "activeAddressLabel": { "type": "string", "description": "Short selected address label." },
+        "activeAddressLine": { "type": "string", "description": "Full selected address line." },
+        "walletBalance": { "type": "number", "description": "In-app Take It wallet balance in INR." },
+        "rewardPoints": { "type": "integer", "description": "Loyalty reward points." },
+        "activePanelName": { "type": "string", "description": "Current active panel identifier." },
+        "driverOnline": { "type": "boolean", "description": "Driver/Captain online availability flag." },
+        "deliveryPartnerOnline": { "type": "boolean", "description": "Delivery partner online availability flag." },
+        "language": { "type": "string", "description": "Selected display language." },
+        "notificationsEnabled": { "type": "boolean", "description": "Notification toggle state." },
+        "avatarUrl": { "type": "string", "description": "Optional ImgBB HTTPS profile photo URL." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation (FieldValue.serverTimestamp())." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "userName", "walletBalance", "rewardPoints", "activePanelName", "createdAt", "updatedAt"]
+    },
+    "ServiceOrder": {
+      "title": "ServiceOrder",
+      "description": "Unified super app order for Ride, Food, Grocery, Parcel, Goods Transport, or Local Shopping.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner UID." },
+        "orderType": { "type": "string", "enum": ["RIDE", "FOOD", "GROCERY", "PARCEL", "TRANSPORT", "SHOPPING"] },
+        "title": { "type": "string", "description": "Order headline." },
+        "subtitle": { "type": "string", "description": "Order details summary." },
+        "status": { "type": "string", "enum": ["PENDING", "ACCEPTED", "PREPARING", "ON_THE_WAY", "COMPLETED", "CANCELLED", "REFUNDED"] },
+        "amount": { "type": "number", "description": "Total order amount in INR." },
+        "paymentMethod": { "type": "string", "description": "Payment mode such as Wallet, COD, or UPI." },
+        "pickupLocation": { "type": "string", "description": "Pickup point." },
+        "dropLocation": { "type": "string", "description": "Drop or delivery point." },
+        "otp": { "type": "string", "description": "4-digit verification code." },
+        "partnerName": { "type": "string", "description": "Assigned partner or captain name." },
+        "rating": { "type": "integer", "description": "Customer rating 0-5." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation (FieldValue.serverTimestamp())." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "orderType", "title", "subtitle", "status", "amount", "paymentMethod", "pickupLocation", "dropLocation", "otp", "partnerName", "rating", "createdAt", "updatedAt"]
+    },
+    "WalletTransaction": {
+      "title": "WalletTransaction",
+      "description": "Immutable wallet ledger entry for top-ups, debits, cashback, and refunds.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "txType": { "type": "string", "enum": ["CREDIT", "DEBIT", "CASHBACK", "REFUND", "PROMO"] },
+        "amount": { "type": "number" },
+        "method": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "title", "txType", "amount", "method", "createdAt"]
+    },
+    "AppNotification": {
+      "title": "AppNotification",
+      "description": "User notification item for live order updates and offers.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string" },
+        "readFlag": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "title", "body", "category", "readFlag", "createdAt", "updatedAt"]
+    },
+    "MenuItemRecord": {
+      "title": "MenuItemRecord",
+      "description": "Restaurant owner menu dish stored in Firestore.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "restaurantId": { "type": "string" },
+        "category": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "price": { "type": "integer" },
+        "vegFlag": { "type": "boolean" },
+        "availableFlag": { "type": "boolean" },
+        "bestsellerFlag": { "type": "boolean" },
+        "rating": { "type": "number" },
+        "imageUrl": { "type": "string", "description": "Optional ImgBB HTTPS dish photo URL." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "restaurantId", "category", "name", "description", "price", "vegFlag", "availableFlag", "bestsellerFlag", "rating", "createdAt", "updatedAt"]
+    },
+    "GroceryProductRecord": {
+      "title": "GroceryProductRecord",
+      "description": "Grocery store product inventory record stored in Firestore.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "unit": { "type": "string" },
+        "price": { "type": "integer" },
+        "mrp": { "type": "integer" },
+        "stockCount": { "type": "integer" },
+        "badge": { "type": "string" },
+        "imageUrl": { "type": "string", "description": "Optional ImgBB HTTPS product photo URL." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "name", "category", "unit", "price", "mrp", "stockCount", "badge", "createdAt", "updatedAt"]
+    },
+    "SavedAddressRecord": {
+      "title": "SavedAddressRecord",
+      "description": "Saved user delivery and pickup address with optional GPS coordinates.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "label": { "type": "string" },
+        "fullAddress": { "type": "string" },
+        "landmark": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp (FieldValue.serverTimestamp())." }
+      },
+      "required": ["userId", "label", "fullAddress", "landmark", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profile, wallet balance, address selection, and panel settings."
+    },
+    "/users/{userId}/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/ServiceOrder" },
+      "description": "All rides, food, grocery, parcel, transport, and local shopping orders owned by the user."
+    },
+    "/users/{userId}/wallet_transactions/{txId}": {
+      "schema": { "$ref": "#/entities/WalletTransaction" },
+      "description": "Append-only wallet ledger for the user."
+    },
+    "/users/{userId}/notifications/{notifId}": {
+      "schema": { "$ref": "#/entities/AppNotification" },
+      "description": "User alerts and promotional notifications."
+    },
+    "/users/{userId}/menu_items/{itemId}": {
+      "schema": { "$ref": "#/entities/MenuItemRecord" },
+      "description": "Restaurant owner menu catalog managed by the user."
+    },
+    "/users/{userId}/grocery_products/{productId}": {
+      "schema": { "$ref": "#/entities/GroceryProductRecord" },
+      "description": "Grocery inventory catalog managed by the user."
+    },
+    "/users/{userId}/addresses/{addressId}": {
+      "schema": { "$ref": "#/entities/SavedAddressRecord" },
+      "description": "Saved user delivery/pickup addresses including GPS-captured spots."
+    }
+  }
+}

@@ -26,10 +26,16 @@ import androidx.compose.ui.unit.dp
 import com.example.data.ManagedUserEntity
 import com.example.data.OrderEntity
 import com.example.model.AdminPlatformConfig
+import com.example.network.TakeItAdminTransaction
+import com.example.network.TakeItPaymentGateway
 import com.example.ui.components.StatusPill
 import com.example.ui.screens.partners.DarkKpiTile
 import com.example.ui.theme.*
 import com.example.viewmodel.SuperAppUiState
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @Composable
 fun AdminPanelScreen(
@@ -43,12 +49,38 @@ fun AdminPanelScreen(
     onUpdateConfig: ((AdminPlatformConfig) -> AdminPlatformConfig) -> Unit,
     onSendBroadcast: (String, String) -> Unit
 ) {
-    var selectedTab by remember { mutableIntStateOf(0) } // 0 Overview, 1 Users, 2 Orders, 3 Finance & Control
+    val scope = rememberCoroutineScope()
+    var selectedTab by remember { mutableIntStateOf(0) } // 0 Overview, 1 Payments (Take It Only), 2 Users, 3 Orders, 4 Control
     var userRoleFilter by remember { mutableStateOf("All") }
     var broadcastTitle by remember { mutableStateOf("Weekend Super Flash Sale!") }
     var broadcastBody by remember { mutableStateOf("Enjoy ₹50 OFF on Rides, Food & 9-min Grocery with code ZIP50.") }
 
-    val totalOrderRevenue = uiState.orders.sumOf { it.amount }.toInt() + 1_248_900
+    var takeItTransactions by remember { mutableStateOf<List<TakeItAdminTransaction>>(emptyList()) }
+    var takeItVerifiedRevenue by remember { mutableIntStateOf(0) }
+    var isLoadingPayments by remember { mutableStateOf(false) }
+    var paymentsError by remember { mutableStateOf<String?>(null) }
+
+    fun refreshTakeItPayments() {
+        scope.launch {
+            isLoadingPayments = true
+            paymentsError = null
+            TakeItPaymentGateway.fetchAdminTransactions()
+                .onSuccess { res ->
+                    takeItTransactions = res.transactions
+                    takeItVerifiedRevenue = res.totalRevenue
+                }
+                .onFailure { err ->
+                    paymentsError = err.localizedMessage ?: "Failed to load Take It payments"
+                }
+            isLoadingPayments = false
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshTakeItPayments()
+    }
+
+    val totalOrderRevenue = uiState.orders.sumOf { it.amount }.toInt() + takeItVerifiedRevenue
     val commissionEarned = (totalOrderRevenue * uiState.adminConfig.platformCommissionPct) / 100
 
     Scaffold(
@@ -93,11 +125,20 @@ fun AdminPanelScreen(
                     }
 
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Overview", "Users (${uiState.managedUsers.size})", "Orders (${uiState.orders.size})", "Control Center").forEachIndexed { idx, title ->
+                        listOf(
+                            "Overview",
+                            "Take It Payments (${takeItTransactions.size})",
+                            "Users (${uiState.managedUsers.size})",
+                            "Orders (${uiState.orders.size})",
+                            "Control Center"
+                        ).forEachIndexed { idx, title ->
                             item {
                                 FilterChip(
                                     selected = selectedTab == idx,
-                                    onClick = { selectedTab = idx },
+                                    onClick = {
+                                        selectedTab = idx
+                                        if (idx == 1) refreshTakeItPayments()
+                                    },
                                     label = { Text(title, fontWeight = FontWeight.SemiBold) }
                                 )
                             }
@@ -160,6 +201,94 @@ fun AdminPanelScreen(
                 }
 
                 1 -> {
+                    // ISOLATED TAKE IT-ONLY RAZORPAY TRANSACTIONS (notes.app === "TakeIt")
+                    item {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("Take It Razorpay Ledger", style = MaterialTheme.typography.titleLarge, color = SoftWhite)
+                                    Text("Strictly isolated • Only Take It app payments", style = MaterialTheme.typography.labelSmall, color = SuccessGreen)
+                                }
+                                FilledTonalButton(
+                                    onClick = { refreshTakeItPayments() },
+                                    enabled = !isLoadingPayments,
+                                    modifier = Modifier.testTag("admin_refresh_payments_button")
+                                ) {
+                                    Icon(Icons.Rounded.Refresh, contentDescription = "Refresh payments", modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text(if (isLoadingPayments) "..." else "Refresh")
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                DarkKpiTile("Take It Revenue", "₹$takeItVerifiedRevenue", PremiumYellow, Modifier.weight(1f))
+                                DarkKpiTile("Verified Txns", "${takeItTransactions.size}", SuccessGreen, Modifier.weight(1f))
+                            }
+                            paymentsError?.let { err ->
+                                Surface(shape = RoundedCornerShape(14.dp), color = CoralDanger.copy(alpha = 0.18f)) {
+                                    Text(
+                                        "Server wake-up or network notice: $err (Tap Refresh)",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = CoralDanger,
+                                        modifier = Modifier.padding(12.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (isLoadingPayments && takeItTransactions.isEmpty()) {
+                        item {
+                            Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(color = PremiumYellow)
+                            }
+                        }
+                    } else if (takeItTransactions.isEmpty()) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(18.dp),
+                                color = DarkCardSurface,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("No Take It Payments Yet", style = MaterialTheme.typography.titleMedium, color = SoftWhite)
+                                    Text(
+                                        "Completed Chrome Razorpay payments from Take It apps will appear here automatically (DateMate & AutoPay transactions are hidden).",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = Color(0xFFB8D4EB)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        items(takeItTransactions, key = { it.paymentId }) { tx ->
+                            val dateStr = remember(tx.verifiedAt) {
+                                SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault()).format(Date(tx.verifiedAt))
+                            }
+                            Surface(shape = RoundedCornerShape(18.dp), color = DarkCardSurface, modifier = Modifier.padding(horizontal = 16.dp)) {
+                                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Text("${tx.serviceType} • ${tx.method}", style = MaterialTheme.typography.labelMedium, color = PremiumYellow)
+                                        StatusPill(tx.status)
+                                    }
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Text(tx.itemTitle, style = MaterialTheme.typography.titleMedium, color = SoftWhite, modifier = Modifier.weight(1f))
+                                        Text("₹${tx.amount}", style = MaterialTheme.typography.titleLarge, color = SuccessGreen, fontWeight = FontWeight.ExtraBold)
+                                    }
+                                    Text("Customer: ${tx.customerName} ${if (tx.customerPhone.isNotBlank()) "(${tx.customerPhone})" else ""}", style = MaterialTheme.typography.bodySmall, color = SkyBlue)
+                                    Text("Payment ID: ${tx.paymentId} • Ref: ${tx.orderRef} • $dateStr", style = MaterialTheme.typography.labelSmall, color = Color(0xFFB8D4EB))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                2 -> {
                     // USER MANAGEMENT
                     item {
                         LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -199,7 +328,7 @@ fun AdminPanelScreen(
                     }
                 }
 
-                2 -> {
+                3 -> {
                     // ORDER MANAGEMENT
                     items(uiState.orders, key = { it.id }) { order ->
                         Surface(shape = RoundedCornerShape(18.dp), color = DarkCardSurface, modifier = Modifier.padding(horizontal = 16.dp)) {

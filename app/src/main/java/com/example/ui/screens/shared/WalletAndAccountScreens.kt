@@ -1,5 +1,8 @@
 package com.example.ui.screens.shared
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -17,14 +21,26 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.data.DemoCatalog
 import com.example.model.CouponItem
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.network.ImgBbUploadService
+import com.example.network.TakeItPaymentBus
+import com.example.network.TakeItPaymentGateway
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.viewmodel.SuperAppUiState
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -33,11 +49,53 @@ import java.util.Locale
 fun WalletScreen(
     uiState: SuperAppUiState,
     onBack: () -> Unit,
-    onTopUp: (amount: Double, method: String, simulateFailure: Boolean) -> Boolean
+    onTopUp: (amount: Double, method: String, simulateFailure: Boolean) -> Boolean,
+    onShowMessage: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
     var topUpAmount by remember { mutableStateOf("500") }
-    var selectedMethod by remember { mutableStateOf("UPI") }
-    var simulateFail by remember { mutableStateOf(false) }
+    var selectedMethod by remember { mutableStateOf("Razorpay Chrome (UPI / Card)") }
+    var pendingTopUpRef by remember { mutableStateOf<String?>(null) }
+    var pendingTopUpAmount by remember { mutableIntStateOf(500) }
+    var isVerifying by remember { mutableStateOf(false) }
+
+    fun finalizeTopUp(paymentId: String, verifiedAmount: Int) {
+        if (pendingTopUpRef == null) return
+        val amt = if (verifiedAmount > 0) verifiedAmount.toDouble() else pendingTopUpAmount.toDouble()
+        pendingTopUpRef = null
+        val label = if (paymentId.isNotBlank()) "Razorpay ($paymentId)" else "Razorpay Chrome"
+        onTopUp(amt, label, false)
+    }
+
+    LaunchedEffect(Unit) {
+        TakeItPaymentBus.results.collect { result ->
+            val ref = pendingTopUpRef
+            if (ref != null && result.orderRef == ref && result.status.equals("success", ignoreCase = true)) {
+                finalizeTopUp(result.paymentId, result.amount)
+            }
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, pendingTopUpRef) {
+        val observer = LifecycleEventObserver { _, event ->
+            val ref = pendingTopUpRef
+            if (event == Lifecycle.Event.ON_RESUME && ref != null && !isVerifying) {
+                scope.launch {
+                    isVerifying = true
+                    val verified = TakeItPaymentGateway.checkPaymentStatus(ref)
+                    isVerifying = false
+                    if (verified != null) {
+                        finalizeTopUp(verified.paymentId, verified.amount)
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     Scaffold(
         containerColor = LightSkyBackground,
@@ -70,7 +128,7 @@ fun WalletScreen(
             item {
                 Surface(shape = RoundedCornerShape(20.dp), color = SoftWhite, shadowElevation = 3.dp) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Add Money (Prototype Payment Simulator)", style = MaterialTheme.typography.titleMedium, color = DeepNavy)
+                        Text("Add Money via Chrome Razorpay", style = MaterialTheme.typography.titleMedium, color = DeepNavy)
                         OutlinedTextField(
                             value = topUpAmount,
                             onValueChange = { topUpAmount = it },
@@ -84,24 +142,62 @@ fun WalletScreen(
                             }
                         }
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            items(listOf("UPI", "Debit Card", "Credit Card", "Net Banking", "Supported Wallets", "Cash")) { m ->
+                            items(listOf("Razorpay Chrome (UPI / Card)", "Net Banking (Chrome)")) { m ->
                                 FilterChip(selected = selectedMethod == m, onClick = { selectedMethod = m }, label = { Text(m) })
                             }
                         }
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text("Simulate Gateway Failure", style = MaterialTheme.typography.labelMedium, color = CoralDanger)
-                            Switch(checked = simulateFail, onCheckedChange = { simulateFail = it })
+                        Text(
+                            "Opens secure Chrome Checkout on jaiambey.shop and credits your wallet automatically upon verification.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = SkyBlueDark
+                        )
+                        if (pendingTopUpRef != null) {
+                            OutlinedButton(
+                                onClick = {
+                                    val ref = pendingTopUpRef ?: return@OutlinedButton
+                                    scope.launch {
+                                        isVerifying = true
+                                        val verified = TakeItPaymentGateway.checkPaymentStatus(ref)
+                                        isVerifying = false
+                                        if (verified != null) {
+                                            finalizeTopUp(verified.paymentId, verified.amount)
+                                        } else {
+                                            onShowMessage("Payment not verified yet. Complete payment in Chrome.")
+                                        }
+                                    }
+                                },
+                                enabled = !isVerifying,
+                                modifier = Modifier.fillMaxWidth().testTag("wallet_verify_chrome_button")
+                            ) {
+                                Text(if (isVerifying) "Verifying Payment..." else "Verify Chrome Top-Up (${pendingTopUpRef})")
+                            }
                         }
                         Button(
                             onClick = {
-                                val amt = topUpAmount.toDoubleOrNull() ?: 500.0
-                                onTopUp(amt.coerceAtLeast(10.0), selectedMethod, simulateFail)
+                                val amt = (topUpAmount.toIntOrNull() ?: 500).coerceAtLeast(1)
+                                val ref = "TI_WALLET_${System.currentTimeMillis()}"
+                                pendingTopUpRef = ref
+                                pendingTopUpAmount = amt
+                                val launched = TakeItPaymentGateway.launchChromePayment(
+                                    context = context,
+                                    orderRef = ref,
+                                    amount = amt,
+                                    serviceType = "WALLET_TOPUP",
+                                    itemTitle = "Take It Wallet Top-Up",
+                                    customerName = uiState.appState.userName,
+                                    customerPhone = uiState.appState.userPhone,
+                                    userId = Firebase.auth.currentUser?.uid.orEmpty()
+                                )
+                                if (!launched) {
+                                    pendingTopUpRef = null
+                                    onShowMessage("Unable to open Chrome browser for payment.")
+                                }
                             },
                             modifier = Modifier.fillMaxWidth().height(52.dp).testTag("wallet_add_money_button"),
                             colors = ButtonDefaults.buttonColors(containerColor = DeepNavy, contentColor = PremiumYellow),
                             shape = RoundedCornerShape(14.dp)
                         ) {
-                            Text("Add ₹$topUpAmount via $selectedMethod", fontWeight = FontWeight.ExtraBold)
+                            Text("Pay ₹$topUpAmount in Chrome →", fontWeight = FontWeight.ExtraBold)
                         }
                     }
                 }
@@ -195,13 +291,35 @@ fun ProfileScreen(
     onBack: () -> Unit,
     onSaveProfile: (name: String, phone: String, email: String, emName: String, emPhone: String) -> Unit,
     onSelectLanguage: (String) -> Unit,
-    onToggleNotifications: (Boolean) -> Unit
+    onToggleNotifications: (Boolean) -> Unit,
+    onAvatarUploaded: (String) -> Unit = {},
+    onShowMessage: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var name by remember(uiState.appState.userName) { mutableStateOf(uiState.appState.userName) }
     var phone by remember(uiState.appState.userPhone) { mutableStateOf(uiState.appState.userPhone) }
     var email by remember(uiState.appState.userEmail) { mutableStateOf(uiState.appState.userEmail) }
     var emName by remember(uiState.appState.emergencyContactName) { mutableStateOf(uiState.appState.emergencyContactName) }
     var emPhone by remember(uiState.appState.emergencyContactPhone) { mutableStateOf(uiState.appState.emergencyContactPhone) }
+    var isUploadingAvatar by remember { mutableStateOf(false) }
+
+    val avatarPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                isUploadingAvatar = true
+                val result = ImgBbUploadService.uploadImageUri(context, uri, "avatar")
+                isUploadingAvatar = false
+                result.onSuccess { url ->
+                    onAvatarUploaded(url)
+                }.onFailure { err ->
+                    onShowMessage(err.localizedMessage ?: "ImgBB upload failed")
+                }
+            }
+        }
+    }
 
     Scaffold(
         containerColor = LightSkyBackground,
@@ -212,6 +330,70 @@ fun ProfileScreen(
             contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 36.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            item {
+                Surface(shape = RoundedCornerShape(20.dp), color = SoftWhite) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(68.dp)
+                                .clip(CircleShape)
+                                .background(DeepNavy)
+                                .border(2.dp, PremiumYellow, CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (uiState.userAvatarUrl.isNotBlank()) {
+                                AsyncImage(
+                                    model = uiState.userAvatarUrl,
+                                    contentDescription = "Profile photo",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Text(
+                                    name.take(1).uppercase().ifBlank { "T" },
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = PremiumYellow,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                        }
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("Profile Photo (ImgBB Cloud)", style = MaterialTheme.typography.titleSmall, color = DeepNavy, fontWeight = FontWeight.Bold)
+                            Text(
+                                if (ImgBbUploadService.isConfigured()) "ImgBB API connected • Tap to upload"
+                                else "Add IMGBB_API_KEY in GitHub Secrets to enable uploads",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MutedText
+                            )
+                            OutlinedButton(
+                                onClick = {
+                                    avatarPicker.launch(
+                                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                    )
+                                },
+                                enabled = !isUploadingAvatar,
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier.height(40.dp).testTag("upload_avatar_imgbb_button")
+                            ) {
+                                if (isUploadingAvatar) {
+                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Uploading...")
+                                } else {
+                                    Icon(Icons.Rounded.CloudUpload, null, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Upload Photo", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             item {
                 Surface(shape = RoundedCornerShape(20.dp), color = SoftWhite) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -227,7 +409,7 @@ fun ProfileScreen(
                             modifier = Modifier.fillMaxWidth().height(50.dp).testTag("save_profile_button"),
                             colors = ButtonDefaults.buttonColors(containerColor = DeepNavy, contentColor = PremiumYellow),
                             shape = RoundedCornerShape(14.dp)
-                        ) { Text("Save Profile Locally", fontWeight = FontWeight.Bold) }
+                        ) { Text("Save Profile to Cloud", fontWeight = FontWeight.Bold) }
                     }
                 }
             }

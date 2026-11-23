@@ -87,6 +87,31 @@ sealed interface AppRoute {
     data class InfoPage(val title: String, val body: String) : AppRoute
 }
 
+enum class AppBuildMode(
+    val brandTitle: String,
+    val rootRoute: AppRoute,
+    val showPanelSwitcher: Boolean
+) {
+    SUPERAPP("Take It", AppRoute.PanelHome, true),
+    RIDE("Take It Ride", AppRoute.RideBooking, false),
+    FOOD("Take It Food", AppRoute.FoodDiscovery, false),
+    GROCERY("Take It Grocery", AppRoute.GroceryStore, false),
+    PARCEL("Take It Parcel", AppRoute.ParcelDelivery, false),
+    TRANSPORT("Take It Transport", AppRoute.GoodsTransport, false),
+    SHOPPING("Take It Shopping", AppRoute.LocalShopping, false)
+}
+
+object TakeItBuildConfig {
+    val mode: AppBuildMode by lazy {
+        runCatching { AppBuildMode.valueOf(com.example.BuildConfig.APP_BUILD_MODE.uppercase()) }
+            .getOrDefault(AppBuildMode.SUPERAPP)
+    }
+
+    val rootRoute: AppRoute get() = mode.rootRoute
+    val showPanelSwitcher: Boolean get() = mode.showPanelSwitcher
+    val isStandaloneVertical: Boolean get() = mode != AppBuildMode.SUPERAPP
+}
+
 data class VehicleOption(
     val id: String,
     val name: String,

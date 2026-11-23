@@ -24,6 +24,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -35,8 +36,10 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.GroceryProductEntity
 import com.example.model.CartEntry
+import com.example.network.TakeItSmartPhoto
 import com.example.ui.components.*
 import com.example.ui.theme.*
+import com.example.util.DeviceActions
 import com.example.viewmodel.SuperAppUiState
 
 private val GrocerGreen = Color(0xFF16A34A)
@@ -318,6 +321,7 @@ fun GroceryScreen(
                                     QuickGrocerCard(
                                         product = prod,
                                         qty = qty,
+                                        directImageUrl = uiState.groceryImageUrls[prod.id],
                                         modifier = Modifier.weight(1f),
                                         onOpenDetail = {
                                             selectedProduct = prod
@@ -367,11 +371,13 @@ fun GroceryScreen(
                 val pct = (((prod.mrp - prod.sellingPrice).toFloat() / prod.mrp.coerceAtLeast(1)) * 100).toInt().coerceAtLeast(10)
                 Column(modifier = Modifier.fillMaxSize().background(SoftWhite)) {
                     Box(modifier = Modifier.fillMaxWidth().height(275.dp)) {
-                        Image(
-                            painter = painterResource(R.drawable.img_grocery_basket_1795421415559),
+                        TakeItSmartPhoto(
+                            query = "fresh ${prod.name}",
+                            fallbackDrawableRes = R.drawable.img_grocery_basket_1795421415559,
                             contentDescription = prod.name,
                             modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Crop
+                            contentScale = ContentScale.Crop,
+                            directImageUrl = uiState.groceryImageUrls[prod.id]
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth().statusBarsPadding().padding(12.dp),
@@ -636,12 +642,23 @@ fun GroceryScreen(
                                     Text("(2.8 km)", style = MaterialTheme.typography.labelSmall, color = MutedText)
                                 }
                             }
+                            val context = LocalContext.current
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 listOf("Call" to Icons.Rounded.Call, "Chat" to Icons.Rounded.Chat, "Share" to Icons.Rounded.Share).forEach { (lbl, ic) ->
                                     Surface(
                                         shape = RoundedCornerShape(14.dp),
                                         color = Color(0xFFF1F5F9),
-                                        modifier = Modifier.weight(1f).clickable { viewMode = GroceryViewMode.HOME }
+                                        modifier = Modifier.weight(1f).clickable {
+                                            when (lbl) {
+                                                "Call" -> DeviceActions.dialPhoneNumber(context, "+919876543210")
+                                                "Share" -> DeviceActions.shareText(
+                                                    context,
+                                                    "Take It Grocery Order Tracking",
+                                                    "My Take It instant grocery order from FreshMart Hub is arriving in 12 min with Rohit Kumar!"
+                                                )
+                                                else -> viewMode = GroceryViewMode.HOME
+                                            }
+                                        }
                                     ) {
                                         Row(modifier = Modifier.padding(vertical = 10.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                                             Icon(ic, lbl, tint = Color(0xFF2563EB), modifier = Modifier.size(16.dp))
@@ -663,6 +680,7 @@ fun GroceryScreen(
 private fun QuickGrocerCard(
     product: GroceryProductEntity,
     qty: Int,
+    directImageUrl: String? = null,
     modifier: Modifier = Modifier,
     onOpenDetail: () -> Unit,
     onAdd: () -> Unit,
@@ -679,11 +697,13 @@ private fun QuickGrocerCard(
     ) {
         Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Box(modifier = Modifier.fillMaxWidth().height(92.dp).clip(RoundedCornerShape(12.dp)).background(GrocerBg)) {
-                Image(
-                    painter = painterResource(R.drawable.img_grocery_basket_1795421415559),
+                TakeItSmartPhoto(
+                    query = "fresh ${product.name}",
+                    fallbackDrawableRes = R.drawable.img_grocery_basket_1795421415559,
                     contentDescription = product.name,
                     modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    directImageUrl = directImageUrl
                 )
                 // Veg Dot top-left + Heart top-right (Image 3 Screen 2 exact detail!)
                 Box(

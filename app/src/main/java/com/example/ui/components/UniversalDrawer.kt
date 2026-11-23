@@ -154,94 +154,104 @@ fun UniversalPanelDrawerContent(
                                 .padding(horizontal = 16.dp, vertical = 18.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Text(
-                                text = "Switch Your Panel",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = DrawerNavy,
-                                fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.padding(bottom = 6.dp)
-                            )
+                            if (com.example.model.TakeItBuildConfig.showPanelSwitcher) {
+                                Text(
+                                    text = "Switch Your Panel",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = DrawerNavy,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier.padding(bottom = 6.dp)
+                                )
 
-                            AppPanel.entries.forEach { panel ->
-                                val isSelected = panel == activePanel
-                                val (badgeBg, badgeTint) = drawerPanelColors(panel)
+                                AppPanel.entries.forEach { panel ->
+                                    val isSelected = panel == activePanel
+                                    val (badgeBg, badgeTint) = drawerPanelColors(panel)
 
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(if (isSelected) Color(0xFFEFF6FF) else Color.Transparent)
-                                        .border(
-                                            width = if (isSelected) 1.2.dp else 0.dp,
-                                            color = if (isSelected) DrawerRoyalBlue else Color.Transparent,
-                                            shape = RoundedCornerShape(14.dp)
-                                        )
-                                        .clickable {
-                                            onCloseDrawer()
-                                            onSelectPanel(panel)
-                                        }
-                                        .padding(horizontal = 8.dp, vertical = 8.dp)
-                                        .testTag("drawer_panel_${panel.name.lowercase()}"),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Box(
+                                    Row(
                                         modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(RoundedCornerShape(11.dp))
-                                            .background(badgeBg),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = panelIcon(panel),
-                                            contentDescription = panel.title,
-                                            tint = badgeTint,
-                                            modifier = Modifier.size(21.dp)
-                                        )
-                                    }
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = panel.title,
-                                                style = MaterialTheme.typography.titleSmall,
-                                                color = DrawerNavy,
-                                                fontWeight = FontWeight.Bold,
-                                                maxLines = 1
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(14.dp))
+                                            .background(if (isSelected) Color(0xFFEFF6FF) else Color.Transparent)
+                                            .border(
+                                                width = if (isSelected) 1.2.dp else 0.dp,
+                                                color = if (isSelected) DrawerRoyalBlue else Color.Transparent,
+                                                shape = RoundedCornerShape(14.dp)
                                             )
-                                            if (panel.isAdminOnly) {
-                                                Spacer(Modifier.width(5.dp))
-                                                Icon(
-                                                    imageVector = if (appState.isAdminAuthorized) Icons.Rounded.LockOpen else Icons.Rounded.Lock,
-                                                    contentDescription = "Admin restricted",
-                                                    tint = OrangeAccent,
-                                                    modifier = Modifier.size(13.dp)
-                                                )
+                                            .clickable {
+                                                onCloseDrawer()
+                                                onSelectPanel(panel)
                                             }
-                                        }
-                                        Text(
-                                            text = if (panel.isAdminOnly && !appState.isAdminAuthorized) "(Authorized Only)" else panel.subtitle,
-                                            style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
-                                            color = MutedText,
-                                            maxLines = 1
-                                        )
-                                    }
-                                    if (isSelected) {
+                                            .padding(horizontal = 8.dp, vertical = 8.dp)
+                                            .testTag("drawer_panel_${panel.name.lowercase()}"),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
                                         Box(
                                             modifier = Modifier
-                                                .clip(RoundedCornerShape(50))
-                                                .background(DrawerRoyalBlue)
-                                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                                                .size(38.dp)
+                                                .clip(RoundedCornerShape(11.dp))
+                                                .background(badgeBg),
+                                            contentAlignment = Alignment.Center
                                         ) {
-                                            Text("ON", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = SoftWhite, fontWeight = FontWeight.ExtraBold)
+                                            Icon(
+                                                imageVector = panelIcon(panel),
+                                                contentDescription = panel.title,
+                                                tint = badgeTint,
+                                                modifier = Modifier.size(21.dp)
+                                            )
+                                        }
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = panel.title,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    color = DrawerNavy,
+                                                    fontWeight = FontWeight.Bold,
+                                                    maxLines = 1
+                                                )
+                                                if (panel.isAdminOnly) {
+                                                    Spacer(Modifier.width(5.dp))
+                                                    Icon(
+                                                        imageVector = if (appState.isAdminAuthorized) Icons.Rounded.LockOpen else Icons.Rounded.Lock,
+                                                        contentDescription = "Admin restricted",
+                                                        tint = OrangeAccent,
+                                                        modifier = Modifier.size(13.dp)
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                text = if (panel.isAdminOnly && !appState.isAdminAuthorized) "(Authorized Only)" else panel.subtitle,
+                                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.5.sp),
+                                                color = MutedText,
+                                                maxLines = 1
+                                            )
+                                        }
+                                        if (isSelected) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .clip(RoundedCornerShape(50))
+                                                    .background(DrawerRoyalBlue)
+                                                    .padding(horizontal = 7.dp, vertical = 2.dp)
+                                            ) {
+                                                Text("ON", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = SoftWhite, fontWeight = FontWeight.ExtraBold)
+                                            }
                                         }
                                     }
                                 }
-                            }
 
-                            HorizontalDivider(
-                                modifier = Modifier.padding(vertical = 10.dp),
-                                color = Color(0xFFE2E8F0)
-                            )
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 10.dp),
+                                    color = Color(0xFFE2E8F0)
+                                )
+                            } else {
+                                Text(
+                                    text = com.example.model.TakeItBuildConfig.mode.brandTitle,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = DrawerNavy,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier.padding(bottom = 4.dp)
+                                )
+                            }
 
                             Text(
                                 text = "More Options",

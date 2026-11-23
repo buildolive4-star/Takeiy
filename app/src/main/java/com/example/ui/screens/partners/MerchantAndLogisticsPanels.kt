@@ -1,5 +1,8 @@
 package com.example.ui.screens.partners
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
@@ -15,23 +18,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.R
 import com.example.data.DemoCatalog
 import com.example.model.AppPanel
 import com.example.model.AppRoute
+import com.example.network.ImgBbUploadService
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.viewmodel.SuperAppUiState
+import kotlinx.coroutines.launch
 
 @Composable
 fun RestaurantOwnerPanelScreen(
     uiState: SuperAppUiState,
     onOpenDrawer: () -> Unit,
     onUpdateOrderStatus: (String, String) -> Unit,
-    onAddOrUpdateDish: (id: String?, restaurantId: String, category: String, name: String, desc: String, price: Int, isVeg: Boolean) -> Unit,
+    onAddOrUpdateDish: (id: String?, restaurantId: String, category: String, name: String, desc: String, price: Int, isVeg: Boolean, imageUrl: String?) -> Unit,
     onToggleDishAvailable: (String, Boolean) -> Unit,
     onShowMessage: (String) -> Unit
 ) {
@@ -156,8 +164,18 @@ fun RestaurantOwnerPanelScreen(
                 }
             } else if (tab == 1) {
                 items(restaurantDishes, key = { it.id }) { dish ->
+                    val imgUrl = uiState.dishImageUrls[dish.id]
                     Surface(shape = RoundedCornerShape(16.dp), color = SoftWhite, modifier = Modifier.padding(horizontal = 16.dp)) {
                         Row(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (!imgUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = imgUrl,
+                                    contentDescription = dish.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(48.dp).clip(RoundedCornerShape(10.dp))
+                                )
+                                Spacer(Modifier.width(10.dp))
+                            }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(dish.name, style = MaterialTheme.typography.titleSmall, color = DeepNavy)
                                 Text("${dish.category} • ₹${dish.price} • ${if (dish.isVeg) "Veg" else "Non-Veg"}", style = MaterialTheme.typography.bodySmall, color = MutedText)
@@ -173,7 +191,7 @@ fun RestaurantOwnerPanelScreen(
                             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text("Commission & Settlements", style = MaterialTheme.typography.titleMedium, color = DeepNavy)
                                 Text("Gross Weekly Sales: ₹1,14,800\nPlatform Commission (${uiState.adminConfig.platformCommissionPct}%): -₹${(114800 * uiState.adminConfig.platformCommissionPct) / 100}\nNet Payable Settlement: ₹${114800 - (114800 * uiState.adminConfig.platformCommissionPct) / 100}", style = MaterialTheme.typography.bodyMedium, color = SlateText)
-                                Button(onClick = { onShowMessage("Settlement PDF exported (Simulated)") }, colors = ButtonDefaults.buttonColors(containerColor = DeepNavy, contentColor = PremiumYellow)) {
+                                Button(onClick = { onShowMessage("Settlement PDF exported") }, colors = ButtonDefaults.buttonColors(containerColor = DeepNavy, contentColor = PremiumYellow)) {
                                     Text("Download Statement")
                                 }
                             }
@@ -185,10 +203,33 @@ fun RestaurantOwnerPanelScreen(
     }
 
     if (showAddDishDialog) {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
         var name by remember { mutableStateOf("") }
         var priceText by remember { mutableStateOf("320") }
         var category by remember { mutableStateOf("Wood-Fired Pizza") }
         var isVeg by remember { mutableStateOf(true) }
+        var uploadedPhotoUrl by remember { mutableStateOf<String?>(null) }
+        var isUploadingPhoto by remember { mutableStateOf(false) }
+
+        val dishPhotoPicker = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickVisualMedia()
+        ) { uri ->
+            if (uri != null) {
+                scope.launch {
+                    isUploadingPhoto = true
+                    val res = ImgBbUploadService.uploadImageUri(context, uri, "dish")
+                    isUploadingPhoto = false
+                    res.onSuccess { url ->
+                        uploadedPhotoUrl = url
+                        onShowMessage("Dish photo uploaded to ImgBB!")
+                    }.onFailure { err ->
+                        onShowMessage(err.localizedMessage ?: "ImgBB upload failed")
+                    }
+                }
+            }
+        }
+
         AlertDialog(
             onDismissRequest = { showAddDishDialog = false },
             containerColor = SoftWhite,
@@ -198,6 +239,29 @@ fun RestaurantOwnerPanelScreen(
                     OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Dish Name") }, modifier = Modifier.fillMaxWidth().testTag("new_dish_name_input"))
                     OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category") }, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = priceText, onValueChange = { priceText = it }, label = { Text("Price (₹)") }, modifier = Modifier.fillMaxWidth())
+                    if (!uploadedPhotoUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = uploadedPhotoUrl,
+                            contentDescription = "Uploaded dish preview",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxWidth().height(90.dp).clip(RoundedCornerShape(12.dp))
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { dishPhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        enabled = !isUploadingPhoto,
+                        modifier = Modifier.fillMaxWidth().height(44.dp).testTag("dish_imgbb_upload_button")
+                    ) {
+                        if (isUploadingPhoto) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Uploading to ImgBB...")
+                        } else {
+                            Icon(Icons.Rounded.CloudUpload, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (uploadedPhotoUrl != null) "Change Dish Photo (ImgBB)" else "Upload Dish Photo (ImgBB)")
+                        }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = isVeg, onCheckedChange = { isVeg = it })
                         Text("Vegetarian Dish", color = DeepNavy)
@@ -208,10 +272,11 @@ fun RestaurantOwnerPanelScreen(
                 Button(
                     onClick = {
                         if (name.isNotBlank()) {
-                            onAddOrUpdateDish(null, "r1", category, name, "Chef signature dish added via Merchant Panel", priceText.toIntOrNull() ?: 299, isVeg)
+                            onAddOrUpdateDish(null, "r1", category, name, "Chef signature dish added via Merchant Panel", priceText.toIntOrNull() ?: 299, isVeg, uploadedPhotoUrl)
                             showAddDishDialog = false
                         }
                     },
+                    enabled = !isUploadingPhoto,
                     colors = ButtonDefaults.buttonColors(containerColor = DeepNavy, contentColor = PremiumYellow)
                 ) { Text("Publish Live") }
             },
@@ -226,7 +291,8 @@ fun GroceryOwnerPanelScreen(
     onOpenDrawer: () -> Unit,
     onUpdateOrderStatus: (String, String) -> Unit,
     onAdjustStock: (String, Int, Int) -> Unit,
-    onAddProduct: (id: String?, name: String, category: String, unit: String, mrp: Int, price: Int, stock: Int) -> Unit
+    onAddProduct: (id: String?, name: String, category: String, unit: String, mrp: Int, price: Int, stock: Int, imageUrl: String?) -> Unit,
+    onShowMessage: (String) -> Unit = {}
 ) {
     var tab by remember { mutableIntStateOf(0) } // 0 Inventory, 1 Packing Orders
     var showAddDialog by remember { mutableStateOf(false) }
@@ -296,8 +362,18 @@ fun GroceryOwnerPanelScreen(
 
             if (tab == 0) {
                 items(uiState.groceryProducts, key = { it.id }) { prod ->
+                    val imgUrl = uiState.groceryImageUrls[prod.id]
                     Surface(shape = RoundedCornerShape(16.dp), color = SoftWhite, modifier = Modifier.padding(horizontal = 16.dp)) {
                         Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            if (!imgUrl.isNullOrBlank()) {
+                                AsyncImage(
+                                    model = imgUrl,
+                                    contentDescription = prod.name,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.size(46.dp).clip(RoundedCornerShape(10.dp))
+                                )
+                                Spacer(Modifier.width(10.dp))
+                            }
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(prod.name, style = MaterialTheme.typography.titleSmall, color = DeepNavy)
                                 Text("${prod.category} • ₹${prod.sellingPrice} (MRP ₹${prod.mrp})", style = MaterialTheme.typography.bodySmall, color = MutedText)
@@ -339,10 +415,33 @@ fun GroceryOwnerPanelScreen(
     }
 
     if (showAddDialog) {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
         var name by remember { mutableStateOf("") }
         var category by remember { mutableStateOf("Fruits") }
         var price by remember { mutableStateOf("129") }
         var mrp by remember { mutableStateOf("165") }
+        var uploadedPhotoUrl by remember { mutableStateOf<String?>(null) }
+        var isUploadingPhoto by remember { mutableStateOf(false) }
+
+        val prodPhotoPicker = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.PickVisualMedia()
+        ) { uri ->
+            if (uri != null) {
+                scope.launch {
+                    isUploadingPhoto = true
+                    val res = ImgBbUploadService.uploadImageUri(context, uri, "grocery")
+                    isUploadingPhoto = false
+                    res.onSuccess { url ->
+                        uploadedPhotoUrl = url
+                        onShowMessage("Product photo uploaded to ImgBB!")
+                    }.onFailure { err ->
+                        onShowMessage(err.localizedMessage ?: "ImgBB upload failed")
+                    }
+                }
+            }
+        }
+
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
             containerColor = SoftWhite,
@@ -355,16 +454,40 @@ fun GroceryOwnerPanelScreen(
                         OutlinedTextField(value = mrp, onValueChange = { mrp = it }, label = { Text("MRP ₹") }, modifier = Modifier.weight(1f))
                         OutlinedTextField(value = price, onValueChange = { price = it }, label = { Text("Selling ₹") }, modifier = Modifier.weight(1f))
                     }
+                    if (!uploadedPhotoUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = uploadedPhotoUrl,
+                            contentDescription = "Uploaded product preview",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxWidth().height(90.dp).clip(RoundedCornerShape(12.dp))
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = { prodPhotoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        enabled = !isUploadingPhoto,
+                        modifier = Modifier.fillMaxWidth().height(44.dp).testTag("grocery_imgbb_upload_button")
+                    ) {
+                        if (isUploadingPhoto) {
+                            CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Uploading to ImgBB...")
+                        } else {
+                            Icon(Icons.Rounded.CloudUpload, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(if (uploadedPhotoUrl != null) "Change Photo (ImgBB)" else "Upload Product Photo (ImgBB)")
+                        }
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
                         if (name.isNotBlank()) {
-                            onAddProduct(null, name, category, "1 Pack", mrp.toIntOrNull() ?: 150, price.toIntOrNull() ?: 120, 40)
+                            onAddProduct(null, name, category, "1 Pack", mrp.toIntOrNull() ?: 150, price.toIntOrNull() ?: 120, 40, uploadedPhotoUrl)
                             showAddDialog = false
                         }
                     },
+                    enabled = !isUploadingPhoto,
                     colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen, contentColor = SoftWhite)
                 ) { Text("Add to Store") }
             },

@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,8 +37,11 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.DemoCatalog
 import com.example.model.CartEntry
+import com.example.network.PexelsImageService
+import com.example.network.TakeItSmartPhoto
 import com.example.ui.components.Character3DPortrait
 import com.example.ui.theme.*
+import com.example.util.DeviceActions
 import com.example.viewmodel.SuperAppUiState
 
 private val ShopPurple = Color(0xFF5B21B6)
@@ -528,7 +532,17 @@ private fun LocalShopHomeContent(
                                         .background(prod.accentBg),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(prod.icon, prod.name, tint = prod.iconTint, modifier = Modifier.size(56.dp))
+                                    if (PexelsImageService.isConfigured()) {
+                                        TakeItSmartPhoto(
+                                            query = prod.name,
+                                            fallbackDrawableRes = R.drawable.img_takeit_local_shop_hero_1795429839958,
+                                            contentDescription = prod.name,
+                                            modifier = Modifier.fillMaxSize(),
+                                            contentScale = ContentScale.Crop
+                                        )
+                                    } else {
+                                        Icon(prod.icon, prod.name, tint = prod.iconTint, modifier = Modifier.size(56.dp))
+                                    }
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.TopEnd)
@@ -786,12 +800,22 @@ private fun LocalShopProductDetailContent(
                         .background(Brush.verticalGradient(listOf(product.accentBg, Color(0xFFEFF6FF))))
                         .statusBarsPadding()
                 ) {
-                    Icon(
-                        product.icon,
-                        product.name,
-                        tint = product.iconTint,
-                        modifier = Modifier.size(120.dp).align(Alignment.Center)
-                    )
+                    if (PexelsImageService.isConfigured()) {
+                        TakeItSmartPhoto(
+                            query = product.name,
+                            fallbackDrawableRes = R.drawable.img_takeit_local_shop_hero_1795429839958,
+                            contentDescription = product.name,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } else {
+                        Icon(
+                            product.icon,
+                            product.name,
+                            tint = product.iconTint,
+                            modifier = Modifier.size(120.dp).align(Alignment.Center)
+                        )
+                    }
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
@@ -1033,16 +1057,31 @@ private fun LocalShopTrackOrderContent(
                                 Text("★ 4.8 (2.5k deliveries)", style = MaterialTheme.typography.labelMedium, color = Color(0xFFD97706), fontWeight = FontWeight.Bold)
                             }
                         }
+                        val context = LocalContext.current
                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            OutlinedButton(onClick = {}, shape = RoundedCornerShape(50), modifier = Modifier.weight(1f).height(46.dp)) {
+                            OutlinedButton(
+                                onClick = { DeviceActions.dialPhoneNumber(context, "+919811223344") },
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier.weight(1f).height(48.dp)
+                            ) {
                                 Icon(Icons.Rounded.Call, null, tint = ShopRoyalBlue, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
                                 Text("Call", color = DeepNavy, fontWeight = FontWeight.Bold)
                             }
-                            OutlinedButton(onClick = {}, shape = RoundedCornerShape(50), modifier = Modifier.weight(1f).height(46.dp)) {
-                                Icon(Icons.Rounded.Chat, null, tint = ShopRoyalBlue, modifier = Modifier.size(18.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    DeviceActions.shareText(
+                                        context,
+                                        "Take It Local Shop Delivery",
+                                        "My $productName order from Take It Local Shop is out for delivery with Sandeep Kumar!"
+                                    )
+                                },
+                                shape = RoundedCornerShape(50),
+                                modifier = Modifier.weight(1f).height(48.dp)
+                            ) {
+                                Icon(Icons.Rounded.Share, null, tint = ShopRoyalBlue, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Chat", color = DeepNavy, fontWeight = FontWeight.Bold)
+                                Text("Share", color = DeepNavy, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

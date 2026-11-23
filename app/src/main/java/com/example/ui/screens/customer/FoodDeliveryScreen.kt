@@ -27,7 +27,16 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.network.TakeItPaymentBus
+import com.example.network.TakeItPaymentGateway
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
+import kotlinx.coroutines.launch
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,8 +50,10 @@ import com.example.data.MenuItemEntity
 import com.example.model.CartEntry
 import com.example.model.CouponItem
 import com.example.model.RestaurantInfo
+import com.example.network.TakeItSmartPhoto
 import com.example.ui.components.*
 import com.example.ui.theme.*
+import com.example.util.DeviceActions
 import com.example.viewmodel.SuperAppUiState
 import kotlinx.coroutines.delay
 
@@ -362,14 +373,13 @@ fun FoodDiscoveryScreen(
                             ) {
                                 Column {
                                     Box(modifier = Modifier.fillMaxWidth().height(98.dp)) {
-                                        Image(
-                                            painter = painterResource(
-                                                when (rest.categoryTag) {
-                                                    "Pizza" -> R.drawable.img_takeit_pizza_offer_1795427326877
-                                                    "Burger" -> R.drawable.img_takeit_hero_burger_1795427328311
-                                                    else -> R.drawable.img_food_feast_1795421416008
-                                                }
-                                            ),
+                                        TakeItSmartPhoto(
+                                            query = "${rest.categoryTag} delicious food",
+                                            fallbackDrawableRes = when (rest.categoryTag) {
+                                                "Pizza" -> R.drawable.img_takeit_pizza_offer_1795427326877
+                                                "Burger" -> R.drawable.img_takeit_hero_burger_1795427328311
+                                                else -> R.drawable.img_food_feast_1795421416008
+                                            },
                                             contentDescription = rest.name,
                                             modifier = Modifier.fillMaxSize(),
                                             contentScale = ContentScale.Crop
@@ -462,8 +472,9 @@ private fun FoodieRestaurantFullCard(
     ) {
         Column {
             Box(modifier = Modifier.fillMaxWidth().height(148.dp)) {
-                Image(
-                    painter = painterResource(imgRes),
+                TakeItSmartPhoto(
+                    query = "${rest.categoryTag} restaurant meal",
+                    fallbackDrawableRes = imgRes,
                     contentDescription = rest.name,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop
@@ -560,11 +571,10 @@ fun RestaurantDetailScreen(
             // Hero Food Cover Photo + Overlapping Crest Badge
             item {
                 Box(modifier = Modifier.fillMaxWidth().height(215.dp)) {
-                    Image(
-                        painter = painterResource(
-                            if (restaurant.categoryTag == "Pizza") R.drawable.img_takeit_pizza_offer_1795427326877
-                            else R.drawable.img_food_feast_1795421416008
-                        ),
+                    TakeItSmartPhoto(
+                        query = "${restaurant.categoryTag} gourmet dish",
+                        fallbackDrawableRes = if (restaurant.categoryTag == "Pizza") R.drawable.img_takeit_pizza_offer_1795427326877
+                        else R.drawable.img_food_feast_1795421416008,
                         contentDescription = restaurant.name,
                         modifier = Modifier.fillMaxWidth().height(180.dp),
                         contentScale = ContentScale.Crop
@@ -699,14 +709,14 @@ fun RestaurantDetailScreen(
                             modifier = Modifier.fillMaxWidth().padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Image(
-                                painter = painterResource(
-                                    if (restaurant.categoryTag == "Pizza") R.drawable.img_takeit_pizza_offer_1795427326877
-                                    else R.drawable.img_food_feast_1795421416008
-                                ),
+                            TakeItSmartPhoto(
+                                query = dish.name,
+                                fallbackDrawableRes = if (restaurant.categoryTag == "Pizza") R.drawable.img_takeit_pizza_offer_1795427326877
+                                else R.drawable.img_food_feast_1795421416008,
                                 contentDescription = dish.name,
                                 modifier = Modifier.size(70.dp).clip(RoundedCornerShape(14.dp)),
-                                contentScale = ContentScale.Crop
+                                contentScale = ContentScale.Crop,
+                                directImageUrl = uiState.dishImageUrls[dish.id]
                             )
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -873,14 +883,64 @@ fun CartCheckoutScreen(
     onUpdateQty: (String, Int) -> Unit,
     onApplyCoupon: (CouponItem?) -> Unit,
     onPlaceOrder: (paymentMethod: String, simulateFailure: Boolean) -> Boolean,
-    onOrderPlacedSuccess: () -> Unit
+    onOrderPlacedSuccess: () -> Unit,
+    onShowMessage: (String) -> Unit = {}
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val lifecycleOwner = LocalLifecycleOwner.current
+
     var stage by remember { mutableStateOf(CheckoutStage.CART) }
-    var selectedPayment by remember { mutableStateOf("Take It Wallet") }
-    var simulateFailure by remember { mutableStateOf(false) }
+    var selectedPayment by remember { mutableStateOf("Razorpay Chrome (UPI / Card)") }
+    var pendingOrderRef by remember { mutableStateOf<String?>(null) }
+    var isVerifyingPayment by remember { mutableStateOf(false) }
     var lastTitle by remember { mutableStateOf("Margherita Pizza") }
     var lastTotal by remember { mutableIntStateOf(241) }
     var lastCategory by remember { mutableStateOf("FOOD") }
+
+    fun finalizeVerifiedOrder(paymentId: String) {
+        if (pendingOrderRef == null) return
+        val titleSnap = uiState.cart.firstOrNull()?.name ?: lastTitle
+        val catSnap = uiState.cart.firstOrNull()?.categoryType ?: lastCategory
+        val totalSnap = uiState.cartGrandTotal.takeIf { it > 0 } ?: lastTotal
+        pendingOrderRef = null
+        val payLabel = if (paymentId.isNotBlank()) "Razorpay ($paymentId)" else "Razorpay Chrome"
+        if (onPlaceOrder(payLabel, false)) {
+            lastTitle = titleSnap
+            lastCategory = catSnap
+            lastTotal = totalSnap
+            stage = CheckoutStage.TRACKING
+        }
+    }
+
+    // Listen for instant Chrome deep link return (takeit://payment-result)
+    LaunchedEffect(Unit) {
+        TakeItPaymentBus.results.collect { result ->
+            val currentPending = pendingOrderRef
+            if (currentPending != null && result.orderRef == currentPending && result.status.equals("success", ignoreCase = true)) {
+                finalizeVerifiedOrder(result.paymentId)
+            }
+        }
+    }
+
+    // Fallback verification when user switches back from Chrome manually
+    DisposableEffect(lifecycleOwner, pendingOrderRef) {
+        val observer = LifecycleEventObserver { _, event ->
+            val ref = pendingOrderRef
+            if (event == Lifecycle.Event.ON_RESUME && ref != null && !isVerifyingPayment) {
+                scope.launch {
+                    isVerifyingPayment = true
+                    val verified = TakeItPaymentGateway.checkPaymentStatus(ref)
+                    isVerifyingPayment = false
+                    if (verified != null) {
+                        finalizeVerifiedOrder(verified.paymentId)
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     when (stage) {
         CheckoutStage.TRACKING -> {
@@ -1075,7 +1135,11 @@ fun CartCheckoutScreen(
                     Surface(shape = RoundedCornerShape(18.dp), color = SoftWhite) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text("Payment Method", style = MaterialTheme.typography.titleSmall, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
-                            listOf("Take It Wallet", "UPI • GPay", "Credit / Debit Card", "Cash on Delivery").forEach { method ->
+                            listOf(
+                                "Razorpay Chrome (UPI / Card)",
+                                "Take It Wallet",
+                                "Cash on Delivery"
+                            ).forEach { method ->
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1093,26 +1157,92 @@ fun CartCheckoutScreen(
                                     )
                                 }
                             }
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text("Simulate Payment Failure", style = MaterialTheme.typography.labelSmall, color = FoodCrimson)
-                                Switch(checked = simulateFailure, onCheckedChange = { simulateFailure = it })
+                            if (selectedPayment.startsWith("Razorpay")) {
+                                Text(
+                                    "Redirects securely to Chrome Checkout on jaiambey.shop and returns automatically after payment.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = SkyBlueDark
+                                )
                             }
                         }
                     }
                 }
 
-                // Full-width Crimson Red "Proceed to Pay →" Button
+                if (pendingOrderRef != null) {
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(16.dp),
+                            color = Color(0xFFEFF6FF),
+                            modifier = Modifier.fillMaxWidth().border(1.dp, SkyBlueDark, RoundedCornerShape(16.dp))
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(
+                                    "Chrome Checkout Opened (${pendingOrderRef})",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = DeepNavy,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                Text(
+                                    if (isVerifyingPayment) "Verifying your Razorpay payment..." else "Finished paying in Chrome? Tap below if not auto-redirected.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MutedText
+                                )
+                                OutlinedButton(
+                                    onClick = {
+                                        val ref = pendingOrderRef ?: return@OutlinedButton
+                                        scope.launch {
+                                            isVerifyingPayment = true
+                                            val verified = TakeItPaymentGateway.checkPaymentStatus(ref)
+                                            isVerifyingPayment = false
+                                            if (verified != null) {
+                                                finalizeVerifiedOrder(verified.paymentId)
+                                            } else {
+                                                onShowMessage("Payment not confirmed yet. Complete payment in Chrome.")
+                                            }
+                                        }
+                                    },
+                                    enabled = !isVerifyingPayment,
+                                    modifier = Modifier.fillMaxWidth().testTag("checkout_verify_chrome_payment")
+                                ) {
+                                    Text(if (isVerifyingPayment) "Checking..." else "Verify Chrome Payment Status", fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Full-width "Proceed to Pay →" Button
                 item {
                     Button(
                         onClick = {
-                            val titleSnap = uiState.cart.firstOrNull()?.name ?: "Margherita Pizza"
+                            val titleSnap = uiState.cart.firstOrNull()?.name ?: "Take It Order"
                             val catSnap = uiState.cart.firstOrNull()?.categoryType ?: "FOOD"
                             val totalSnap = uiState.cartGrandTotal
-                            if (onPlaceOrder(selectedPayment, simulateFailure)) {
-                                lastTitle = titleSnap
-                                lastCategory = catSnap
-                                lastTotal = totalSnap
-                                stage = CheckoutStage.TRACKING
+                            lastTitle = titleSnap
+                            lastCategory = catSnap
+                            lastTotal = totalSnap
+
+                            if (selectedPayment.startsWith("Razorpay")) {
+                                val ref = "TI_${catSnap}_${System.currentTimeMillis()}"
+                                pendingOrderRef = ref
+                                val launched = TakeItPaymentGateway.launchChromePayment(
+                                    context = context,
+                                    orderRef = ref,
+                                    amount = totalSnap,
+                                    serviceType = catSnap,
+                                    itemTitle = titleSnap,
+                                    customerName = uiState.appState.userName,
+                                    customerPhone = uiState.appState.userPhone,
+                                    userId = Firebase.auth.currentUser?.uid.orEmpty()
+                                )
+                                if (!launched) {
+                                    pendingOrderRef = null
+                                    onShowMessage("Unable to open Chrome browser for checkout.")
+                                }
+                            } else {
+                                if (onPlaceOrder(selectedPayment, false)) {
+                                    stage = CheckoutStage.TRACKING
+                                }
                             }
                         },
                         modifier = Modifier
@@ -1123,7 +1253,11 @@ fun CartCheckoutScreen(
                         shape = RoundedCornerShape(50),
                         colors = ButtonDefaults.buttonColors(containerColor = ctaColor, contentColor = SoftWhite)
                     ) {
-                        Text("Proceed to Pay →", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            if (selectedPayment.startsWith("Razorpay")) "Pay ₹${uiState.cartGrandTotal} in Chrome →" else "Proceed to Pay →",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.ExtraBold
+                        )
                     }
                 }
             }
@@ -1138,6 +1272,7 @@ private fun FoodieTrackOrderView(
     onBack: () -> Unit,
     onDelivered: () -> Unit
 ) {
+    val context = LocalContext.current
     val steps = remember { listOf("Order\nPlaced", "Preparing", "Out for\nDelivery", "Delivered") }
     var stageIdx by remember { mutableIntStateOf(2) }
     var bannerMsg by remember { mutableStateOf<String?>(null) }
@@ -1210,8 +1345,8 @@ private fun FoodieTrackOrderView(
                         Text("4.7 ★ | DL01AB1234", style = MaterialTheme.typography.labelMedium, color = MutedText)
                     }
                     IconButton(
-                        onClick = { bannerMsg = "Calling Rahul Kumar..." },
-                        modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFFEE2E2))
+                        onClick = { DeviceActions.dialPhoneNumber(context, "+919876543210") },
+                        modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFFEE2E2))
                     ) { Icon(Icons.Rounded.Call, "Call", tint = FoodCrimson, modifier = Modifier.size(19.dp)) }
                     Spacer(Modifier.width(8.dp))
                     IconButton(

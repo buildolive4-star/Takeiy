@@ -24,8 +24,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import com.example.util.DeviceActions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -61,6 +63,7 @@ fun RideBookingScreen(
     onRateRide: (String, Int) -> Unit,
     onShowMessage: (String) -> Unit
 ) {
+    val context = LocalContext.current
     var stage by remember { mutableStateOf(RideScreenStage.RIDE_HOME) }
     var pickup by remember { mutableStateOf("Sector 62, Noida") }
     var destination by remember { mutableStateOf("Noida Sector 63") }
@@ -617,13 +620,13 @@ fun RideBookingScreen(
                                     Text("Ride PIN: 4821", style = MaterialTheme.typography.labelSmall, color = RideRoyalBlue, fontWeight = FontWeight.Bold)
                                 }
                                 IconButton(
-                                    onClick = { onShowMessage("Calling Captain Rohit Kumar...") },
-                                    modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFEFF6FF))
+                                    onClick = { DeviceActions.dialPhoneNumber(context, "+919876543210") },
+                                    modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFEFF6FF))
                                 ) { Icon(Icons.Rounded.Call, "Call", tint = RideRoyalBlue, modifier = Modifier.size(20.dp)) }
                                 Spacer(Modifier.width(8.dp))
                                 IconButton(
-                                    onClick = { onShowMessage("Chatting with Captain Rohit Kumar...") },
-                                    modifier = Modifier.size(40.dp).clip(CircleShape).background(Color(0xFFEFF6FF))
+                                    onClick = { onShowMessage("Live chat opened with Captain Rohit Kumar") },
+                                    modifier = Modifier.size(48.dp).clip(CircleShape).background(Color(0xFFEFF6FF))
                                 ) { Icon(Icons.Rounded.Chat, "Chat", tint = RideRoyalBlue, modifier = Modifier.size(20.dp)) }
                             }
 
@@ -647,8 +650,14 @@ fun RideBookingScreen(
 
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 OutlinedButton(
-                                    onClick = { onShowMessage("Live ride link shared with ${uiState.appState.emergencyContactName}") },
-                                    modifier = Modifier.weight(1f).height(46.dp),
+                                    onClick = {
+                                        DeviceActions.shareText(
+                                            context,
+                                            "Live Take It Ride Tracking",
+                                            "I'm on a Take It ride with Rohit Kumar (DL01AB1234) from $pickup to $destination. Ride PIN: 4821."
+                                        )
+                                    },
+                                    modifier = Modifier.weight(1f).height(48.dp),
                                     shape = RoundedCornerShape(50)
                                 ) { Text("Share Ride", color = DeepNavy, fontWeight = FontWeight.Bold) }
                                 Button(
@@ -760,10 +769,16 @@ fun RideBookingScreen(
                     ) { Text("Submit Rating", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold) }
                     Spacer(Modifier.height(10.dp))
                     OutlinedButton(
-                        onClick = { onShowMessage("Ride Receipt downloaded (₹$totalFare)") },
+                        onClick = {
+                            DeviceActions.shareText(
+                                context,
+                                "Take It Ride Receipt",
+                                "Take It Ride Receipt\nRoute: $pickup → $destination\nTotal Fare: ₹$totalFare\nCaptain: Rohit Kumar (DL01AB1234)"
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth().height(48.dp),
                         shape = RoundedCornerShape(50)
-                    ) { Text("Download Receipt", color = DeepNavy, fontWeight = FontWeight.Bold) }
+                    ) { Text("Share / Download Receipt", color = DeepNavy, fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -776,15 +791,15 @@ fun RideBookingScreen(
             titleContentColor = CoralDanger,
             textContentColor = SoftWhite,
             title = { Text("24x7 Safety SOS Shield") },
-            text = { Text("Simulated SOS alert ready for ${uiState.appState.emergencyContactName} (${uiState.appState.emergencyContactPhone}).") },
+            text = { Text("Dial 112 Emergency Services immediately or alert ${uiState.appState.emergencyContactName} (${uiState.appState.emergencyContactPhone}).") },
             confirmButton = {
                 Button(
                     onClick = {
                         showSosDialog = false
-                        onShowMessage("Simulated SOS alert sent to ${uiState.appState.emergencyContactName}")
+                        DeviceActions.openSosDialer(context)
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = CoralDanger)
-                ) { Text("Trigger SOS") }
+                ) { Text("Call 112 SOS") }
             },
             dismissButton = {
                 TextButton(onClick = { showSosDialog = false }) { Text("Close", color = RideGoldYellow) }

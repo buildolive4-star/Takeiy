@@ -1,4 +1,4 @@
-name: Build & Download Take It APK
+name: Build & Download All 7 Take It APKs
 
 on:
   push:
@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build-apk:
-    name: Build Installable Android APK
+  build-7-apks:
+    name: Build 7 Take It APKs + Auto Deploy Client Firebase Rules
     runs-on: ubuntu-latest
 
     steps:
@@ -22,6 +22,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+
+      - name: Set up Node.js 20 (for Firebase Rules auto-deploy)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
 
       - name: Configure pre-installed Android SDK & accept licenses
         run: |
@@ -62,38 +67,243 @@ jobs:
             echo "Generated fresh debug.keystore"
           fi
 
+      - name: Connect Client Firebase (google-services.json + default Firestore DB)
+        env:
+          GOOGLE_SERVICES_SECRET: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          FIRESTORE_DB_ID: ${{ secrets.FIRESTORE_DATABASE_ID }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, sys
+
+          raw = os.environ.get("GOOGLE_SERVICES_SECRET", "").strip()
+          if not raw:
+              print("GOOGLE_SERVICES_JSON_BASE64 not set; keeping repository google-services.json.")
+              sys.exit(0)
+
+          if raw.startswith("{"):
+              decoded_text = raw
+          else:
+              cleaned = "".join(raw.split())
+              decoded_text = base64.b64decode(cleaned).decode("utf-8")
+
+          data = json.loads(decoded_text)
+          project_id = data.get("project_info", {}).get("project_id", "")
+          print(f"Configured Client Firebase google-services.json for project_id={project_id}")
+
+          with open("app/google-services.json", "w", encoding="utf-8") as f:
+              json.dump(data, f, indent=2)
+
+          db_id = (os.environ.get("FIRESTORE_DB_ID") or "(default)").strip() or "(default)"
+          xml_content = f'''<?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="firestore_database_id" translatable="false">{db_id}</string>
+          </resources>
+          '''
+          os.makedirs("app/src/main/res/values", exist_ok=True)
+          with open("app/src/main/res/values/firebase_applet_config.xml", "w", encoding="utf-8") as f:
+              f.write(xml_content)
+          print(f"Configured firebase_applet_config.xml -> database={db_id}")
+
+          github_env = os.environ.get("GITHUB_ENV")
+          if github_env and project_id:
+              with open(github_env, "a", encoding="utf-8") as f:
+                  f.write(f"CLIENT_FIREBASE_PROJECT_ID={project_id}\n")
+                  f.write(f"CLIENT_FIRESTORE_DB_ID={db_id}\n")
+          PY
+
+      - name: Auto-Deploy Firestore Security Rules to Client Firebase
+        continue-on-error: true
+        env:
+          FIREBASE_SA_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, subprocess, sys
+
+          raw = os.environ.get("FIREBASE_SA_SECRET", "").strip()
+          if not raw:
+              print("FIREBASE_SERVICE_ACCOUNT secret not set; skipping automatic rules deploy.")
+              sys.exit(0)
+
+          if raw.startswith("{"):
+              sa_text = raw
+          else:
+              cleaned = "".join(raw.split())
+              sa_text = base64.b64decode(cleaned).decode("utf-8")
+
+          sa_data = json.loads(sa_text)
+          project_id = os.environ.get("CLIENT_FIREBASE_PROJECT_ID") or sa_data.get("project_id", "")
+          db_id = os.environ.get("CLIENT_FIRESTORE_DB_ID") or "(default)"
+
+          if not project_id:
+              print("Could not resolve Firebase project_id for rules deployment.")
+              sys.exit(1)
+
+          sa_path = "/tmp/firebase-service-account.json"
+          with open(sa_path, "w", encoding="utf-8") as f:
+              json.dump(sa_data, f)
+
+          # Point firebase.json to client database for deployment
+          fb_cfg = {
+              "firestore": [
+                  {
+                      "database": db_id,
+                      "rules": "firestore.rules"
+                  }
+              ]
+          }
+          with open("firebase.json", "w", encoding="utf-8") as f:
+              json.dump(fb_cfg, f, indent=2)
+
+          try:
+              env = os.environ.copy()
+              env["GOOGLE_APPLICATION_CREDENTIALS"] = sa_path
+              print(f"Deploying firestore.rules to project={project_id}, database={db_id}...")
+              subprocess.run(
+                  ["npx", "--yes", "firebase-tools", "deploy", "--only", "firestore:rules", "--project", project_id, "--non-interactive", "--force"],
+                  check=True,
+                  env=env
+              )
+              print("Firestore security rules deployed successfully!")
+          finally:
+              if os.path.exists(sa_path):
+                  os.remove(sa_path)
+          PY
+
       - name: Set up Gradle 9.3.1
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.3.1'
 
-      - name: Build Debug APK
-        run: gradle :app:assembleDebug --no-daemon --stacktrace
+      - name: Inject API secrets into .env
+        env:
+          IMGBB_API_KEY: ${{ secrets.IMGBB_API_KEY }}
+          PEXELS_API_KEY: ${{ secrets.PEXELS_API_KEY }}
+        run: |
+          : > .env
+          if [ -n "$IMGBB_API_KEY" ]; then
+            echo "IMGBB_API_KEY=$IMGBB_API_KEY" >> .env
+            echo "Configured IMGBB_API_KEY from GitHub Secrets."
+          else
+            echo "IMGBB_API_KEY=YOUR_IMGBB_API_KEY" >> .env
+            echo "IMGBB_API_KEY secret not set; using placeholder."
+          fi
+          if [ -n "$PEXELS_API_KEY" ]; then
+            echo "PEXELS_API_KEY=$PEXELS_API_KEY" >> .env
+            echo "Configured PEXELS_API_KEY from GitHub Secrets."
+          else
+            echo "PEXELS_API_KEY=YOUR_PEXELS_API_KEY" >> .env
+            echo "PEXELS_API_KEY secret not set; using offline fallback placeholder."
+          fi
 
-      - name: Prepare downloadable TakeIt-App.apk
+      - name: Build All 7 Separate Installable APKs
         run: |
           mkdir -p release-apk
-          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-App.apk
-          ls -lh release-apk/TakeIt-App.apk
 
-      - name: Upload APK Artifact (Download from Actions tab)
+          echo "=== [1/7] Building TakeIt-SuperApp.apk (Full Super App + Admin + Partners) ==="
+          gradle :app:assembleDebug -PtakeItAppMode=SUPERAPP -PtakeItAppLabel="Take It" --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-SuperApp.apk
+
+          echo "=== [2/7] Building TakeIt-Ride.apk (Dedicated Ride Booking) ==="
+          gradle :app:assembleDebug -PtakeItAppMode=RIDE -PtakeItAppLabel="Take It Ride" --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Ride.apk
+
+          echo "=== [3/7] Building TakeIt-Food.apk (Dedicated Food Delivery) ==="
+          gradle :app:assembleDebug -PtakeItAppMode=FOOD -PtakeItAppLabel="Take It Food" --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Food.apk
+
+          echo "=== [4/7] Building TakeIt-Grocery.apk (Dedicated Instant Grocery) ==="
+          gradle :app:assembleDebug -PtakeItAppMode=GROCERY -PtakeItAppLabel="Take It Grocery" --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Grocery.apk
+
+          echo "=== [5/7] Building TakeIt-Parcel.apk (Dedicated Parcel Delivery) ==="
+          gradle :app:assembleDebug -PtakeItAppMode=PARCEL -PtakeItAppLabel="Take It Parcel" --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Parcel.apk
+
+          echo "=== [6/7] Building TakeIt-Transport.apk (Dedicated Goods Transport) ==="
+          gradle :app:assembleDebug -PtakeItAppMode=TRANSPORT -PtakeItAppLabel="Take It Transport" --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Transport.apk
+
+          echo "=== [7/7] Building TakeIt-Shopping.apk (Dedicated Local Shopping) ==="
+          gradle :app:assembleDebug -PtakeItAppMode=SHOPPING -PtakeItAppLabel="Take It Shopping" --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Shopping.apk
+
+          ls -lh release-apk/
+
+      - name: Upload 1/7 TakeIt-SuperApp.apk
         uses: actions/upload-artifact@v4
         with:
-          name: TakeIt-App-APK
-          path: release-apk/TakeIt-App.apk
+          name: 1-TakeIt-SuperApp-APK
+          path: release-apk/TakeIt-SuperApp.apk
           retention-days: 30
 
-      - name: Publish Latest Downloadable Release
+      - name: Upload 2/7 TakeIt-Ride.apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: 2-TakeIt-Ride-APK
+          path: release-apk/TakeIt-Ride.apk
+          retention-days: 30
+
+      - name: Upload 3/7 TakeIt-Food.apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3-TakeIt-Food-APK
+          path: release-apk/TakeIt-Food.apk
+          retention-days: 30
+
+      - name: Upload 4/7 TakeIt-Grocery.apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: 4-TakeIt-Grocery-APK
+          path: release-apk/TakeIt-Grocery.apk
+          retention-days: 30
+
+      - name: Upload 5/7 TakeIt-Parcel.apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: 5-TakeIt-Parcel-APK
+          path: release-apk/TakeIt-Parcel.apk
+          retention-days: 30
+
+      - name: Upload 6/7 TakeIt-Transport.apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: 6-TakeIt-Transport-APK
+          path: release-apk/TakeIt-Transport.apk
+          retention-days: 30
+
+      - name: Upload 7/7 TakeIt-Shopping.apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: 7-TakeIt-Shopping-APK
+          path: release-apk/TakeIt-Shopping.apk
+          retention-days: 30
+
+      - name: Publish All 7 Downloadable APKs to Latest Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk
-          name: Take It Super App (Latest APK)
+          name: Take It Suite — All 7 Standalone APKs
           body: |
-            ### Download & Install Take It Super App
-            Tap **TakeIt-App.apk** below to download and install directly on your Android phone!
+            ### Download & Install All 7 Take It APKs
+            1. **TakeIt-SuperApp.apk** — Complete Super App (Customer + Admin + Restaurant + Grocery + Driver + Delivery Panels)
+            2. **TakeIt-Ride.apk** — Dedicated Ride Booking App (Bike, Auto, Cab)
+            3. **TakeIt-Food.apk** — Dedicated Food Delivery App
+            4. **TakeIt-Grocery.apk** — Dedicated Instant Grocery App
+            5. **TakeIt-Parcel.apk** — Dedicated Parcel Delivery App
+            6. **TakeIt-Transport.apk** — Dedicated Goods Transport App
+            7. **TakeIt-Shopping.apk** — Dedicated Local Shopping App
 
-            - **All 9 Panels in One App** via the `☰` menu (Admin demo passcode: `2026`)
+            - Connected automatically to Client Firebase + auto-deployed Firestore Security Rules
+            - Chrome Razorpay Checkout connected to `https://jaiambey.shop/takeit-pay`
+            - Isolated Take It-only Razorpay Ledger inside Admin Panel
             - Built automatically on commit `${{ github.sha }}`
-          files: release-apk/TakeIt-App.apk
+          files: |
+            release-apk/TakeIt-SuperApp.apk
+            release-apk/TakeIt-Ride.apk
+            release-apk/TakeIt-Food.apk
+            release-apk/TakeIt-Grocery.apk
+            release-apk/TakeIt-Parcel.apk
+            release-apk/TakeIt-Transport.apk
+            release-apk/TakeIt-Shopping.apk
           make_latest: true
         continue-on-error: true

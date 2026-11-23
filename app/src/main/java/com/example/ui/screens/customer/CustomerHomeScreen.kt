@@ -1,5 +1,8 @@
 package com.example.ui.screens.customer
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,7 +43,11 @@ import com.example.model.AppRoute
 import com.example.model.SavedAddress
 import com.example.ui.components.*
 import com.example.ui.theme.*
+import com.example.util.DeviceActions
+import com.example.util.GpsLocationResult
 import com.example.viewmodel.SuperAppUiState
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 
 private val MainSkyTop = Color(0xFFDCEEFF)
 private val MainSkyMid = Color(0xFFF2F7FF)
@@ -64,6 +71,7 @@ fun CustomerHomeScreen(
     onOpenDrawer: () -> Unit,
     onNavigate: (AppRoute) -> Unit,
     onSelectAddress: (SavedAddress) -> Unit,
+    onSaveGpsLocation: (GpsLocationResult) -> Unit = {},
     onAddSearch: (String) -> Unit,
     onToggleFavourite: (String) -> Unit,
     onShowMessage: (String) -> Unit
@@ -747,14 +755,70 @@ fun CustomerHomeScreen(
         )
     }
 
-    // Location Picker Sheet
+    // Location Picker Sheet with Real Live GPS Detection
     if (showLocationSheet) {
+        val gpsContext = LocalContext.current
+        val gpsScope = rememberCoroutineScope()
+        var isFetchingGps by remember { mutableStateOf(false) }
+
+        val fetchGpsNow: () -> Unit = {
+            isFetchingGps = true
+            gpsScope.launch {
+                val res = DeviceActions.fetchCurrentGpsLocation(gpsContext)
+                isFetchingGps = false
+                res.onSuccess { gps ->
+                    onSaveGpsLocation(gps)
+                    showLocationSheet = false
+                }.onFailure { err ->
+                    onShowMessage(err.localizedMessage ?: "Unable to read GPS location")
+                }
+            }
+        }
+
+        val permissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestMultiplePermissions()
+        ) { perms ->
+            val granted = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+                perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+            if (granted) fetchGpsNow() else onShowMessage("Location permission denied")
+        }
+
         ModalBottomSheet(onDismissRequest = { showLocationSheet = false }, containerColor = SoftWhite) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text("Select Delivery Location", style = MaterialTheme.typography.titleLarge, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
+
+                Button(
+                    onClick = {
+                        if (DeviceActions.hasLocationPermission(gpsContext)) {
+                            fetchGpsNow()
+                        } else {
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                    },
+                    enabled = !isFetchingGps,
+                    colors = ButtonDefaults.buttonColors(containerColor = MainRoyalBlue, contentColor = SoftWhite),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().height(50.dp).testTag("detect_gps_location_button")
+                ) {
+                    if (isFetchingGps) {
+                        CircularProgressIndicator(Modifier.size(18.dp), color = SoftWhite, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Detecting Live GPS...", fontWeight = FontWeight.Bold)
+                    } else {
+                        Icon(Icons.Rounded.MyLocation, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Use Current Live GPS Location", fontWeight = FontWeight.ExtraBold)
+                    }
+                }
+
                 val addresses = listOf(
                     SavedAddress("Sector 62, Noida", "Sector 62, Noida • Electronic City Metro", "Default"),
                     SavedAddress("Greater Noida", "Pari Chowk, Greater Noida, UP", "Hub"),

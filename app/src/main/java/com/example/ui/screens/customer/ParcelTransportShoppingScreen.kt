@@ -25,6 +25,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -36,6 +37,7 @@ import com.example.R
 import com.example.ui.components.Character3DPortrait
 import com.example.ui.components.SimulatedMapCanvas
 import com.example.ui.theme.*
+import com.example.util.DeviceActions
 import com.example.viewmodel.SuperAppUiState
 
 private val ParcelRoyalBlue = Color(0xFF1D5BF2)
@@ -90,6 +92,7 @@ fun ParcelDeliveryScreen(
     onCompleteOrder: (String) -> Unit,
     onShowMessage: (String) -> Unit
 ) {
+    val context = LocalContext.current
     var stage by remember { mutableStateOf(ParcelStage.HOME) }
 
     // Booking form state
@@ -212,7 +215,7 @@ fun ParcelDeliveryScreen(
                 bookedOrderId?.let { onCompleteOrder(it) }
                 stage = ParcelStage.PARCEL_DELIVERED
             },
-            onCallPartner = { onShowMessage("Calling Rakesh Kumar (+91 98110 •••••)") },
+            onCallPartner = { DeviceActions.dialPhoneNumber(context, "+919811044221") },
             onChatPartner = { onShowMessage("Chat opened with Rakesh Kumar") },
             onBack = { stage = ParcelStage.HOME }
         )
@@ -234,7 +237,13 @@ fun ParcelDeliveryScreen(
                 selectedRating = it
                 onShowMessage("Thanks for rating $it★ on Take It Parcel!")
             },
-            onDownloadReceipt = { onShowMessage("GST Invoice saved to Downloads") },
+            onDownloadReceipt = {
+                DeviceActions.shareText(
+                    context,
+                    "Take It Parcel GST Invoice",
+                    "Take It Parcel Invoice\nType: $selectedType ($selectedSize)\nRoute: $pickupAddress → $dropAddress\nTotal Paid: ₹$grandTotal\nOrder ID: ${bookedOrderId ?: "TK-PRC-8841"}"
+                )
+            },
             onBackHome = { stage = ParcelStage.HOME }
         )
 

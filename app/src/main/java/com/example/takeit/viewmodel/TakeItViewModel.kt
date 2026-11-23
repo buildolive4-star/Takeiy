@@ -106,8 +106,14 @@ data class TakeItUiState(
 
 class TakeItViewModel(application: Application) : AndroidViewModel(application) {
 
+    private val initialVariant = TakeItAppVariant.fromContext(application.applicationContext)
     private val repo = TakeItFirestoreRepository(application.applicationContext)
-    private val _uiState = MutableStateFlow(TakeItUiState())
+    private val _uiState = MutableStateFlow(
+        TakeItUiState(
+            appVariant = initialVariant,
+            isInAdminMode = initialVariant == TakeItAppVariant.ADMIN
+        )
+    )
     val uiState: StateFlow<TakeItUiState> = _uiState.asStateFlow()
 
     private val sessionJobs = mutableListOf<Job>()
@@ -212,7 +218,10 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         sessionJobs.clear()
         adminJobs.forEach { it.cancel() }
         adminJobs.clear()
-        _uiState.value = TakeItUiState()
+        _uiState.value = TakeItUiState(
+            appVariant = initialVariant,
+            isInAdminMode = initialVariant == TakeItAppVariant.ADMIN
+        )
     }
 
     // --- NAVIGATION & MODE SWITCHING ---

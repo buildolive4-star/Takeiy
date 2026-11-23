@@ -1,5 +1,6 @@
 package com.example.takeit.model
 
+import android.content.Context
 import androidx.annotation.DrawableRes
 import androidx.annotation.Keep
 import com.example.BuildConfig
@@ -15,6 +16,20 @@ enum class TakeItAppVariant {
     ADMIN;
 
     companion object {
+        fun fromContext(context: Context): TakeItAppVariant {
+            if (context.packageName.endsWith(".admin", ignoreCase = true)) {
+                return ADMIN
+            }
+            val resMode = runCatching { context.getString(R.string.takeit_app_variant) }
+                .getOrDefault(BuildConfig.APP_BUILD_MODE)
+                .trim()
+                .uppercase()
+            return when (resMode) {
+                "ADMIN", "ADMIN_PANEL", "CONTROL" -> ADMIN
+                else -> fromBuildConfig()
+            }
+        }
+
         fun fromBuildConfig(): TakeItAppVariant {
             return when (BuildConfig.APP_BUILD_MODE.trim().uppercase()) {
                 "ADMIN", "ADMIN_PANEL", "CONTROL" -> ADMIN

@@ -232,13 +232,116 @@ jobs:
                           cfg_b64 = cfg_json.get("configFileContents", "")
                           if cfg_b64:
                               data = json.loads(base64.b64decode(cfg_b64).decode("utf-8"))
-                              print("Downloaded freshly synced google-services.json from Firebase Management API!")
+                              print("Downloaded freshly synced Customer google-services.json from Firebase Management API!")
+
+                  # Auto-create & sync separate Admin Android App (<pkg>.admin) so Customer & Admin install side-by-side on ONE phone!
+                  admin_pkg = f"{selected_pkg}.admin"
+                  admin_app_id = ""
+                  try:
+                      apps_req = urllib.request.Request(
+                          f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps?pageSize=100",
+                          headers={"Authorization": f"Bearer {access_token}"},
+                          method="GET",
+                      )
+                      with urllib.request.urlopen(apps_req, timeout=20) as resp:
+                          apps_list = json.loads(resp.read().decode()).get("apps", [])
+                          for a in apps_list:
+                              if a.get("packageName", "").lower() == admin_pkg.lower():
+                                  admin_app_id = a.get("appId", "")
+                                  print(f"Found existing Admin Firebase App: {admin_pkg} ({admin_app_id})")
+                                  break
+
+                      if not admin_app_id:
+                          print(f"Creating Firebase Android App for {admin_pkg} automatically...")
+                          create_req = urllib.request.Request(
+                              f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps",
+                              data=json.dumps({"packageName": admin_pkg, "displayName": "Take It Admin"}).encode(),
+                              headers={
+                                  "Authorization": f"Bearer {access_token}",
+                                  "Content-Type": "application/json",
+                              },
+                              method="POST",
+                          )
+                          with urllib.request.urlopen(create_req, timeout=25) as resp:
+                              op = json.loads(resp.read().decode())
+                              op_name = op.get("name", "")
+                              for _ in range(15):
+                                  if op.get("done"):
+                                      break
+                                  if not op_name:
+                                      break
+                                  time.sleep(2)
+                                  poll_req = urllib.request.Request(
+                                      f"https://firebase.googleapis.com/v1beta1/{op_name}",
+                                      headers={"Authorization": f"Bearer {access_token}"},
+                                      method="GET",
+                                  )
+                                  with urllib.request.urlopen(poll_req, timeout=20) as presp:
+                                      op = json.loads(presp.read().decode())
+                              admin_app_id = (op.get("response") or {}).get("appId", "")
+                              print(f"Auto-created Admin Firebase App: {admin_pkg} ({admin_app_id})!")
+
+                      if admin_app_id:
+                          for cert_type, sha_val in (("SHA_1", apk_sha1_hex), ("SHA_256", apk_sha256_hex)):
+                              if not sha_val:
+                                  continue
+                              try:
+                                  sha_req = urllib.request.Request(
+                                      f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps/{admin_app_id}/sha",
+                                      data=json.dumps({"shaHash": sha_val, "certType": cert_type}).encode(),
+                                      headers={
+                                          "Authorization": f"Bearer {access_token}",
+                                          "Content-Type": "application/json",
+                                      },
+                                      method="POST",
+                                  )
+                                  with urllib.request.urlopen(sha_req, timeout=20) as resp:
+                                      print(f"Auto-registered Admin {cert_type} ({sha_val})!")
+                              except urllib.error.HTTPError as he:
+                                  body = he.read().decode("utf-8", errors="ignore")
+                                  if he.code == 409 or "ALREADY_EXISTS" in body:
+                                      print(f"Admin {cert_type} already registered.")
+                                  else:
+                                      print(f"Admin SHA notice ({cert_type}): HTTP {he.code} {body[:200]}")
+
+                          time.sleep(2)
+                          acfg_req = urllib.request.Request(
+                              f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps/{admin_app_id}/config",
+                              headers={"Authorization": f"Bearer {access_token}"},
+                              method="GET",
+                          )
+                          with urllib.request.urlopen(acfg_req, timeout=20) as resp:
+                              acfg_json = json.loads(resp.read().decode())
+                              acfg_b64 = acfg_json.get("configFileContents", "")
+                              if acfg_b64:
+                                  admin_data = json.loads(base64.b64decode(acfg_b64).decode("utf-8"))
+                                  with open("/tmp/google-services-admin.json", "w", encoding="utf-8") as af:
+                                      json.dump(admin_data, af, indent=2)
+                                  print("Downloaded freshly synced Admin google-services.json!")
+                  except Exception as ae:
+                      print(f"Admin Firebase auto-app notice (falling back to shared Web OAuth client config): {ae}")
               except Exception as e:
                   print(f"Auto SHA sync notice: {e}")
               finally:
                   if os.path.exists(key_path):
                       os.remove(key_path)
 
+          # Ensure /tmp/google-services-admin.json always contains a valid client entry for <selected_pkg>.admin
+          admin_pkg = f"{selected_pkg}.admin" if selected_pkg else "com.aistudio.zipora.kxrqmt.admin"
+          if not os.path.exists("/tmp/google-services-admin.json"):
+              admin_fallback = json.loads(json.dumps(data))
+              for c in admin_fallback.get("client", []):
+                  if c.get("client_info", {}).get("android_client_info", {}).get("package_name") == selected_pkg:
+                      cloned = json.loads(json.dumps(c))
+                      cloned["client_info"]["android_client_info"]["package_name"] = admin_pkg
+                      admin_fallback["client"].append(cloned)
+                      break
+              with open("/tmp/google-services-admin.json", "w", encoding="utf-8") as af:
+                  json.dump(admin_fallback, af, indent=2)
+              print(f"Prepared fallback google-services-admin.json with package={admin_pkg}")
+
+          with open("/tmp/google-services-customer.json", "w", encoding="utf-8") as cf:
+              json.dump(data, cf, indent=2)
           with open("app/google-services.json", "w", encoding="utf-8") as f:
               json.dump(data, f, indent=2)
 
@@ -261,6 +364,7 @@ jobs:
                   f.write(f"CLIENT_FIRESTORE_DB_ID={db_id}\n")
                   if selected_pkg:
                       f.write(f"CLIENT_APP_ID={selected_pkg}\n")
+                  f.write(f"ADMIN_APP_ID={admin_pkg}\n")
           PY
 
       - name: Auto-Deploy Firestore Security Rules to Client Firebase
@@ -439,18 +543,24 @@ jobs:
       - name: Build Both Standalone APKs (Take It Customer & Take It Admin)
         run: |
           mkdir -p release-apk
-          APP_ID_ARG=""
+          CUST_APP_ID_ARG=""
           if [ -n "$CLIENT_APP_ID" ]; then
-            APP_ID_ARG="-PtakeItAppId=$CLIENT_APP_ID"
-            echo "Building both Take It APKs with Client Firebase Package Name: $CLIENT_APP_ID"
+            CUST_APP_ID_ARG="-PtakeItAppId=$CLIENT_APP_ID"
           fi
+          ADMIN_PKG="${ADMIN_APP_ID:-com.aistudio.zipora.kxrqmt.admin}"
+          ADMIN_APP_ID_ARG="-PtakeItAppId=$ADMIN_PKG"
 
-          echo "=== [1/2] Building TakeIt-Customer.apk (Take It Food Delivery Customer App) ==="
-          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=CUSTOMER -PtakeItAppLabel="Take It" --no-daemon --stacktrace
+          echo "=== [1/2] Building TakeIt-Customer.apk (Package: ${CLIENT_APP_ID:-default}) ==="
+          [ -f /tmp/google-services-customer.json ] && cp /tmp/google-services-customer.json app/google-services.json
+          gradle :app:assembleDebug $CUST_APP_ID_ARG -PtakeItAppMode=CUSTOMER -PtakeItAppLabel="Take It" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Customer.apk
 
-          echo "=== [2/2] Building TakeIt-Admin.apk (Take It Executive Admin Command Center) ==="
-          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=ADMIN -PtakeItAppLabel="Take It Admin" --no-daemon --stacktrace
+          echo "=== Cleaning intermediate build cache so Admin APK is 100% distinct ==="
+          rm -rf app/build
+          [ -f /tmp/google-services-admin.json ] && cp /tmp/google-services-admin.json app/google-services.json
+
+          echo "=== [2/2] Building TakeIt-Admin.apk (Package: $ADMIN_PKG) ==="
+          gradle :app:assembleDebug $ADMIN_APP_ID_ARG -PtakeItAppMode=ADMIN -PtakeItAppLabel="Take It Admin" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Admin.apk
 
           ls -lh release-apk/

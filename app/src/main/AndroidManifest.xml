@@ -24,9 +24,9 @@
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
-        android:icon="@mipmap/ic_launcher"
+        android:icon="${appIcon}"
         android:label="${appLabel}"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="${appRoundIcon}"
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
         <activity
@@ -45,7 +45,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="takeit"
+                    android:scheme="${paymentScheme}"
                     android:host="payment-result" />
             </intent-filter>
         </activity>

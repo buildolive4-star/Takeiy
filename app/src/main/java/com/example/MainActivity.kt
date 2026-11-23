@@ -92,7 +92,8 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun TakeItAppEntryPoint() {
-    val variant = remember { TakeItAppVariant.fromBuildConfig() }
+    val context = LocalContext.current
+    val variant = remember(context) { TakeItAppVariant.fromContext(context) }
     var showSplash by remember { mutableStateOf(true) }
     var currentUser by remember { mutableStateOf(Firebase.auth.currentUser) }
 

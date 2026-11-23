@@ -12,9 +12,10 @@ android {
   namespace = "com.example"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
-  val appMode = providers.gradleProperty("takeItAppMode").orElse("SUPERAPP").get()
+  val appMode = providers.gradleProperty("takeItAppMode").orElse("CUSTOMER").get()
   val appLabel = providers.gradleProperty("takeItAppLabel").orElse("Take It").get()
   val appId = providers.gradleProperty("takeItAppId").orElse("com.aistudio.zipora.kxrqmt").get()
+  val isAdminBuild = appMode.equals("ADMIN", ignoreCase = true)
 
   defaultConfig {
     applicationId = appId
@@ -23,7 +24,11 @@ android {
     versionCode = 1
     versionName = "1.0"
     buildConfigField("String", "APP_BUILD_MODE", "\"$appMode\"")
+    resValue("string", "takeit_app_variant", appMode)
     manifestPlaceholders["appLabel"] = appLabel
+    manifestPlaceholders["appIcon"] = if (isAdminBuild) "@mipmap/ic_launcher_admin" else "@mipmap/ic_launcher"
+    manifestPlaceholders["appRoundIcon"] = if (isAdminBuild) "@mipmap/ic_launcher_admin_round" else "@mipmap/ic_launcher_round"
+    manifestPlaceholders["paymentScheme"] = if (isAdminBuild) "takeitadmin" else "takeit"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -68,6 +73,7 @@ android {
   buildFeatures {
     compose = true
     buildConfig = true
+    resValues = true
   }
   testOptions { unitTests { isIncludeAndroidResources = true } }
   dependenciesInfo {

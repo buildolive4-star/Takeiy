@@ -139,8 +139,15 @@ fun onGoogleSignInClicked(
                 onAuthError("Unexpected credential type received")
             }
         } catch (e: GetCredentialCancellationException) {
-            Log.w("Auth", "Google Sign-In flow cancelled or dismissed: ${e.message}", e)
-            onAuthCancelled()
+            Log.w("Auth", "Google Sign-In flow cancelled or rejected: ${e.message}", e)
+            val detail = e.message.orEmpty()
+            if (detail.contains("28444") || detail.contains("Developer", ignoreCase = true) || detail.contains("10:")) {
+                onAuthError("Firebase OAuth/SHA-1 mismatch ($detail). Register a unique package name + SHA-1 in Firebase Console.")
+            } else if (detail.isNotBlank()) {
+                onAuthError("Google Sign-In cancelled ($detail). If you selected an account, check Firebase SHA-1 has no warning icon.")
+            } else {
+                onAuthCancelled()
+            }
         } catch (e: Exception) {
             Log.e("Auth", "Google Sign-In failed", e)
             onAuthError(e.localizedMessage ?: "Google Sign-In failed. Please try again.")

@@ -14,9 +14,10 @@ android {
 
   val appMode = providers.gradleProperty("takeItAppMode").orElse("SUPERAPP").get()
   val appLabel = providers.gradleProperty("takeItAppLabel").orElse("Take It").get()
+  val appId = providers.gradleProperty("takeItAppId").orElse("com.aistudio.zipora.kxrqmt").get()
 
   defaultConfig {
-    applicationId = "com.aistudio.zipora.kxrqmt"
+    applicationId = appId
     minSdk = 24
     targetSdk = 36
     versionCode = 1

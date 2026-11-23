@@ -88,7 +88,33 @@ jobs:
 
           data = json.loads(decoded_text)
           project_id = data.get("project_info", {}).get("project_id", "")
-          print(f"Configured Client Firebase google-services.json for project_id={project_id}")
+          clients = data.get("client", [])
+
+          # Pick the Android client that has OAuth clients configured (fallback to first client)
+          selected_pkg = ""
+          has_web_oauth = False
+          has_android_oauth = False
+          for c in clients:
+              pkg = c.get("client_info", {}).get("android_client_info", {}).get("package_name", "")
+              oauths = c.get("oauth_client", []) or []
+              web_ok = any(o.get("client_type") == 3 for o in oauths)
+              android_ok = any(o.get("client_type") == 1 for o in oauths)
+              if pkg and not selected_pkg:
+                  selected_pkg = pkg
+              if pkg and web_ok and android_ok:
+                  selected_pkg = pkg
+                  has_web_oauth = True
+                  has_android_oauth = True
+                  break
+              if web_ok:
+                  has_web_oauth = True
+              if android_ok:
+                  has_android_oauth = True
+
+          print(f"Configured Client Firebase google-services.json for project_id={project_id}, package_name={selected_pkg}")
+          print(f"OAuth check -> Android OAuth Client (type 1): {has_android_oauth}, Web Client ID (type 3): {has_web_oauth}")
+          if not has_android_oauth or not has_web_oauth:
+              print("WARNING: google-services.json is missing OAuth client(s)! Ensure SHA-1 has NO red warning icon and Google Sign-In is enabled before downloading google-services.json.")
 
           with open("app/google-services.json", "w", encoding="utf-8") as f:
               json.dump(data, f, indent=2)
@@ -105,10 +131,13 @@ jobs:
           print(f"Configured firebase_applet_config.xml -> database={db_id}")
 
           github_env = os.environ.get("GITHUB_ENV")
-          if github_env and project_id:
+          if github_env:
               with open(github_env, "a", encoding="utf-8") as f:
-                  f.write(f"CLIENT_FIREBASE_PROJECT_ID={project_id}\n")
+                  if project_id:
+                      f.write(f"CLIENT_FIREBASE_PROJECT_ID={project_id}\n")
                   f.write(f"CLIENT_FIRESTORE_DB_ID={db_id}\n")
+                  if selected_pkg:
+                      f.write(f"CLIENT_APP_ID={selected_pkg}\n")
           PY
 
       - name: Auto-Deploy Firestore Security Rules to Client Firebase
@@ -198,33 +227,38 @@ jobs:
       - name: Build All 7 Separate Installable APKs
         run: |
           mkdir -p release-apk
+          APP_ID_ARG=""
+          if [ -n "$CLIENT_APP_ID" ]; then
+            APP_ID_ARG="-PtakeItAppId=$CLIENT_APP_ID"
+            echo "Building all 7 APKs with Client Firebase Package Name: $CLIENT_APP_ID"
+          fi
 
           echo "=== [1/7] Building TakeIt-SuperApp.apk (Full Super App + Admin + Partners) ==="
-          gradle :app:assembleDebug -PtakeItAppMode=SUPERAPP -PtakeItAppLabel="Take It" --no-daemon --stacktrace
+          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=SUPERAPP -PtakeItAppLabel="Take It" --no-daemon --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-SuperApp.apk
 
           echo "=== [2/7] Building TakeIt-Ride.apk (Dedicated Ride Booking) ==="
-          gradle :app:assembleDebug -PtakeItAppMode=RIDE -PtakeItAppLabel="Take It Ride" --no-daemon --stacktrace
+          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=RIDE -PtakeItAppLabel="Take It Ride" --no-daemon --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Ride.apk
 
           echo "=== [3/7] Building TakeIt-Food.apk (Dedicated Food Delivery) ==="
-          gradle :app:assembleDebug -PtakeItAppMode=FOOD -PtakeItAppLabel="Take It Food" --no-daemon --stacktrace
+          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=FOOD -PtakeItAppLabel="Take It Food" --no-daemon --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Food.apk
 
           echo "=== [4/7] Building TakeIt-Grocery.apk (Dedicated Instant Grocery) ==="
-          gradle :app:assembleDebug -PtakeItAppMode=GROCERY -PtakeItAppLabel="Take It Grocery" --no-daemon --stacktrace
+          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=GROCERY -PtakeItAppLabel="Take It Grocery" --no-daemon --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Grocery.apk
 
           echo "=== [5/7] Building TakeIt-Parcel.apk (Dedicated Parcel Delivery) ==="
-          gradle :app:assembleDebug -PtakeItAppMode=PARCEL -PtakeItAppLabel="Take It Parcel" --no-daemon --stacktrace
+          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=PARCEL -PtakeItAppLabel="Take It Parcel" --no-daemon --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Parcel.apk
 
           echo "=== [6/7] Building TakeIt-Transport.apk (Dedicated Goods Transport) ==="
-          gradle :app:assembleDebug -PtakeItAppMode=TRANSPORT -PtakeItAppLabel="Take It Transport" --no-daemon --stacktrace
+          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=TRANSPORT -PtakeItAppLabel="Take It Transport" --no-daemon --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Transport.apk
 
           echo "=== [7/7] Building TakeIt-Shopping.apk (Dedicated Local Shopping) ==="
-          gradle :app:assembleDebug -PtakeItAppMode=SHOPPING -PtakeItAppLabel="Take It Shopping" --no-daemon --stacktrace
+          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=SHOPPING -PtakeItAppLabel="Take It Shopping" --no-daemon --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Shopping.apk
 
           ls -lh release-apk/

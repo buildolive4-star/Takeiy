@@ -1033,4 +1033,298 @@ class TakeItFirestoreRepository(context: Context) {
             Result.failure(e)
         }
     }
+
+    // --- LIVE RAPIDO RIDES (takeit_rides) ---
+
+    fun observeMyRides(uid: String): Flow<List<RideBooking>> =
+        db.collection("takeit_rides")
+            .whereEqualTo("userId", uid)
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<RideBooking>() }
+                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
+    fun observeAllRides(): Flow<List<RideBooking>> =
+        db.collection("takeit_rides")
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<RideBooking>() }
+                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
+    suspend fun bookRide(ride: RideBooking, deductWalletAmount: Double): Result<String> {
+        val uid = requireUid()
+        val id = cleanId("ride")
+        return try {
+            val rideRef = db.collection("takeit_rides").document(id)
+            val userRef = db.collection("takeit_users").document(uid)
+            db.runBatch { batch ->
+                batch.set(
+                    rideRef,
+                    mapOf(
+                        "rideNumber" to ride.rideNumber,
+                        "userId" to uid,
+                        "customerName" to ride.customerName.trim().take(90),
+                        "customerEmail" to ride.customerEmail.trim().take(110),
+                        "customerPhone" to ride.customerPhone.trim().take(28),
+                        "vehicleType" to ride.vehicleType,
+                        "pickupAddress" to ride.pickupAddress.trim().take(280),
+                        "dropAddress" to ride.dropAddress.trim().take(280),
+                        "distanceKm" to ride.distanceKm.coerceIn(1, 500),
+                        "totalFare" to ride.totalFare.coerceAtLeast(0),
+                        "paymentMethod" to ride.paymentMethod,
+                        "paymentStatus" to ride.paymentStatus,
+                        "paymentRef" to ride.paymentRef.take(110),
+                        "status" to "REQUESTED",
+                        "captainName" to "Finding Captain...",
+                        "captainPhone" to "",
+                        "vehicleNumber" to "",
+                        "etaMinutes" to 4,
+                        "otp" to ride.otp,
+                        "rating" to 0,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+                if (deductWalletAmount > 0.0) {
+                    batch.update(
+                        userRef,
+                        mapOf(
+                            "walletBalance" to FieldValue.increment(-deductWalletAmount),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    val txRef = userRef.collection("wallet_transactions").document(cleanId("tx"))
+                    batch.set(
+                        txRef,
+                        mapOf(
+                            "userId" to uid,
+                            "title" to "Ride ${ride.rideNumber} (${ride.vehicleType})".take(120),
+                            "txType" to "DEBIT",
+                            "amount" to deductWalletAmount,
+                            "method" to "WALLET",
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                }
+            }.await()
+            Result.success(id)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("bookRide", "takeit_rides/$id", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun cancelMyRide(rideId: String): Result<Unit> {
+        requireUid()
+        return try {
+            db.collection("takeit_rides").document(rideId).update(
+                mapOf("status" to "CANCELLED", "updatedAt" to FieldValue.serverTimestamp())
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun rateMyRide(rideId: String, rating: Int): Result<Unit> {
+        requireUid()
+        return try {
+            db.collection("takeit_rides").document(rideId).update(
+                mapOf("rating" to rating.coerceIn(1, 5), "updatedAt" to FieldValue.serverTimestamp())
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun adminUpdateRide(
+        rideId: String,
+        status: String,
+        captainName: String? = null,
+        captainPhone: String? = null,
+        vehicleNumber: String? = null,
+        etaMinutes: Int? = null
+    ): Result<Unit> {
+        requireUid()
+        return try {
+            val updates = mutableMapOf<String, Any>(
+                "status" to status,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            if (captainName != null) updates["captainName"] = captainName.trim().take(75)
+            if (captainPhone != null) updates["captainPhone"] = captainPhone.trim().take(28)
+            if (vehicleNumber != null) updates["vehicleNumber"] = vehicleNumber.trim().take(36)
+            if (etaMinutes != null) updates["etaMinutes"] = etaMinutes.coerceIn(0, 240)
+            if (status == "COMPLETED") updates["paymentStatus"] = "PAID"
+            db.collection("takeit_rides").document(rideId).update(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("adminUpdateRide", "takeit_rides/$rideId", e)
+            Result.failure(e)
+        }
+    }
+
+    // --- LIVE PARCEL & GOODS TRANSPORT (takeit_parcels) ---
+
+    fun observeMyParcels(uid: String): Flow<List<ParcelOrder>> =
+        db.collection("takeit_parcels")
+            .whereEqualTo("userId", uid)
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<ParcelOrder>() }
+                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
+    fun observeAllParcels(): Flow<List<ParcelOrder>> =
+        db.collection("takeit_parcels")
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<ParcelOrder>() }
+                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
+    suspend fun bookParcel(parcel: ParcelOrder, deductWalletAmount: Double): Result<String> {
+        val uid = requireUid()
+        val id = cleanId("pcl")
+        return try {
+            val ref = db.collection("takeit_parcels").document(id)
+            val userRef = db.collection("takeit_users").document(uid)
+            db.runBatch { batch ->
+                batch.set(
+                    ref,
+                    mapOf(
+                        "parcelNumber" to parcel.parcelNumber,
+                        "userId" to uid,
+                        "senderName" to parcel.senderName.trim().take(90),
+                        "senderEmail" to parcel.senderEmail.trim().take(110),
+                        "senderPhone" to parcel.senderPhone.trim().take(28),
+                        "receiverName" to parcel.receiverName.trim().take(90),
+                        "receiverPhone" to parcel.receiverPhone.trim().take(28),
+                        "pickupAddress" to parcel.pickupAddress.trim().take(280),
+                        "dropAddress" to parcel.dropAddress.trim().take(280),
+                        "vehicleType" to parcel.vehicleType,
+                        "packageType" to parcel.packageType.trim().take(75),
+                        "weightKg" to parcel.weightKg.coerceIn(1, 10000),
+                        "fragileFlag" to parcel.fragileFlag,
+                        "totalFare" to parcel.totalFare.coerceAtLeast(0),
+                        "paymentMethod" to parcel.paymentMethod,
+                        "paymentStatus" to parcel.paymentStatus,
+                        "paymentRef" to parcel.paymentRef.take(110),
+                        "status" to "BOOKED",
+                        "partnerName" to "Assigning Partner...",
+                        "partnerPhone" to "",
+                        "vehicleNumber" to "",
+                        "etaMinutes" to 25,
+                        "otp" to parcel.otp,
+                        "rating" to 0,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                )
+                if (deductWalletAmount > 0.0) {
+                    batch.update(
+                        userRef,
+                        mapOf(
+                            "walletBalance" to FieldValue.increment(-deductWalletAmount),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                    val txRef = userRef.collection("wallet_transactions").document(cleanId("tx"))
+                    batch.set(
+                        txRef,
+                        mapOf(
+                            "userId" to uid,
+                            "title" to "Parcel ${parcel.parcelNumber} (${parcel.vehicleType})".take(120),
+                            "txType" to "DEBIT",
+                            "amount" to deductWalletAmount,
+                            "method" to "WALLET",
+                            "createdAt" to FieldValue.serverTimestamp()
+                        )
+                    )
+                }
+            }.await()
+            Result.success(id)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("bookParcel", "takeit_parcels/$id", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun cancelMyParcel(parcelId: String): Result<Unit> {
+        requireUid()
+        return try {
+            db.collection("takeit_parcels").document(parcelId).update(
+                mapOf("status" to "CANCELLED", "updatedAt" to FieldValue.serverTimestamp())
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun rateMyParcel(parcelId: String, rating: Int): Result<Unit> {
+        requireUid()
+        return try {
+            db.collection("takeit_parcels").document(parcelId).update(
+                mapOf("rating" to rating.coerceIn(1, 5), "updatedAt" to FieldValue.serverTimestamp())
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun adminUpdateParcel(
+        parcelId: String,
+        status: String,
+        partnerName: String? = null,
+        partnerPhone: String? = null,
+        vehicleNumber: String? = null,
+        etaMinutes: Int? = null
+    ): Result<Unit> {
+        requireUid()
+        return try {
+            val updates = mutableMapOf<String, Any>(
+                "status" to status,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            if (partnerName != null) updates["partnerName"] = partnerName.trim().take(75)
+            if (partnerPhone != null) updates["partnerPhone"] = partnerPhone.trim().take(28)
+            if (vehicleNumber != null) updates["vehicleNumber"] = vehicleNumber.trim().take(36)
+            if (etaMinutes != null) updates["etaMinutes"] = etaMinutes.coerceIn(0, 480)
+            if (status == "DELIVERED") updates["paymentStatus"] = "PAID"
+            db.collection("takeit_parcels").document(parcelId).update(updates).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("adminUpdateParcel", "takeit_parcels/$parcelId", e)
+            Result.failure(e)
+        }
+    }
 }

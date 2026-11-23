@@ -92,10 +92,77 @@ val TakeItShapes = Shapes(
     extraLarge = RoundedCornerShape(28.dp)
 )
 
+// --- Rapido Ride Inspired Palette ---
+val RideYellow = Color(0xFFFACC15)
+val RideYellowSoft = Color(0xFFFEF9C3)
+val RideCharcoal = Color(0xFF111827)
+val RideBlue = Color(0xFF2563EB)
+
+// --- Parcel & Truck Transport Palette ---
+val TransportNavy = Color(0xFF0F172A)
+val TransportOrange = Color(0xFFF97316)
+val TransportOrangeSoft = Color(0xFFFFEDD5)
+
+private val RideColorScheme = lightColorScheme(
+    primary = RideCharcoal,
+    onPrimary = RideYellow,
+    primaryContainer = RideYellow,
+    onPrimaryContainer = RideCharcoal,
+    secondary = RideBlue,
+    onSecondary = Color.White,
+    tertiary = TakeItGreen,
+    onTertiary = Color.White,
+    background = TakeItBg,
+    onBackground = TakeItInk,
+    surface = TakeItSurface,
+    onSurface = TakeItInk,
+    outline = TakeItBorder,
+    error = Color(0xFFDC2626),
+    onError = Color.White
+)
+
+private val TransportColorScheme = lightColorScheme(
+    primary = TransportOrange,
+    onPrimary = Color.White,
+    primaryContainer = TransportOrangeSoft,
+    onPrimaryContainer = TransportNavy,
+    secondary = TransportNavy,
+    onSecondary = Color.White,
+    tertiary = TakeItGreen,
+    onTertiary = Color.White,
+    background = TakeItBg,
+    onBackground = TakeItInk,
+    surface = TakeItSurface,
+    onSurface = TakeItInk,
+    outline = TakeItBorder,
+    error = Color(0xFFDC2626),
+    onError = Color.White
+)
+
 @Composable
 fun TakeItCustomerTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = CustomerColorScheme,
+        typography = ZiporaTypography,
+        shapes = TakeItShapes,
+        content = content
+    )
+}
+
+@Composable
+fun TakeItRideTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = RideColorScheme,
+        typography = ZiporaTypography,
+        shapes = TakeItShapes,
+        content = content
+    )
+}
+
+@Composable
+fun TakeItTransportTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = TransportColorScheme,
         typography = ZiporaTypography,
         shapes = TakeItShapes,
         content = content

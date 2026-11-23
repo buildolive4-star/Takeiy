@@ -1,4 +1,4 @@
-name: Build & Download Take It (Customer + Admin APKs)
+name: Build & Download Take It Suite (4 Apps: Food, Ride, Transport, Admin)
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-takeit-apks:
-    name: Build Take It Customer & Admin APKs + Auto Sync Firebase
+    name: Build 4 Take It APKs (Food + Ride + Transport + Admin) & Auto Sync Firebase
     runs-on: ubuntu-latest
 
     steps:
@@ -234,9 +234,14 @@ jobs:
                               data = json.loads(base64.b64decode(cfg_b64).decode("utf-8"))
                               print("Downloaded freshly synced Customer google-services.json from Firebase Management API!")
 
-                  # Auto-create & sync separate Admin Android App (<pkg>.admin) so Customer & Admin install side-by-side on ONE phone!
-                  admin_pkg = f"{selected_pkg}.admin"
-                  admin_app_id = ""
+                  # Auto-create & sync all 3 companion Android Apps (<pkg>.ride, <pkg>.transport, <pkg>.admin) so all 4 apps install side-by-side on ONE phone!
+                  base_pkg = selected_pkg or "com.aistudio.zipora.kxrqmt"
+                  companions = [
+                      ("ride", "Take It Ride"),
+                      ("transport", "Take It Transport"),
+                      ("admin", "Take It Admin"),
+                  ]
+                  apps_list = []
                   try:
                       apps_req = urllib.request.Request(
                           f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps?pageSize=100",
@@ -245,100 +250,110 @@ jobs:
                       )
                       with urllib.request.urlopen(apps_req, timeout=20) as resp:
                           apps_list = json.loads(resp.read().decode()).get("apps", [])
+                  except Exception as le:
+                      print(f"Could not list Firebase apps: {le}")
+
+                  for suffix, disp_name in companions:
+                      comp_pkg = f"{base_pkg}.{suffix}"
+                      comp_app_id = ""
+                      try:
                           for a in apps_list:
-                              if a.get("packageName", "").lower() == admin_pkg.lower():
-                                  admin_app_id = a.get("appId", "")
-                                  print(f"Found existing Admin Firebase App: {admin_pkg} ({admin_app_id})")
+                              if a.get("packageName", "").lower() == comp_pkg.lower():
+                                  comp_app_id = a.get("appId", "")
+                                  print(f"Found existing {disp_name} Firebase App: {comp_pkg} ({comp_app_id})")
                                   break
 
-                      if not admin_app_id:
-                          print(f"Creating Firebase Android App for {admin_pkg} automatically...")
-                          create_req = urllib.request.Request(
-                              f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps",
-                              data=json.dumps({"packageName": admin_pkg, "displayName": "Take It Admin"}).encode(),
-                              headers={
-                                  "Authorization": f"Bearer {access_token}",
-                                  "Content-Type": "application/json",
-                              },
-                              method="POST",
-                          )
-                          with urllib.request.urlopen(create_req, timeout=25) as resp:
-                              op = json.loads(resp.read().decode())
-                              op_name = op.get("name", "")
-                              for _ in range(15):
-                                  if op.get("done"):
-                                      break
-                                  if not op_name:
-                                      break
-                                  time.sleep(2)
-                                  poll_req = urllib.request.Request(
-                                      f"https://firebase.googleapis.com/v1beta1/{op_name}",
-                                      headers={"Authorization": f"Bearer {access_token}"},
-                                      method="GET",
-                                  )
-                                  with urllib.request.urlopen(poll_req, timeout=20) as presp:
-                                      op = json.loads(presp.read().decode())
-                              admin_app_id = (op.get("response") or {}).get("appId", "")
-                              print(f"Auto-created Admin Firebase App: {admin_pkg} ({admin_app_id})!")
+                          if not comp_app_id:
+                              print(f"Creating Firebase Android App for {comp_pkg} automatically...")
+                              create_req = urllib.request.Request(
+                                  f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps",
+                                  data=json.dumps({"packageName": comp_pkg, "displayName": disp_name}).encode(),
+                                  headers={
+                                      "Authorization": f"Bearer {access_token}",
+                                      "Content-Type": "application/json",
+                                  },
+                                  method="POST",
+                              )
+                              with urllib.request.urlopen(create_req, timeout=25) as resp:
+                                  op = json.loads(resp.read().decode())
+                                  op_name = op.get("name", "")
+                                  for _ in range(15):
+                                      if op.get("done") or not op_name:
+                                          break
+                                      time.sleep(2)
+                                      poll_req = urllib.request.Request(
+                                          f"https://firebase.googleapis.com/v1beta1/{op_name}",
+                                          headers={"Authorization": f"Bearer {access_token}"},
+                                          method="GET",
+                                      )
+                                      with urllib.request.urlopen(poll_req, timeout=20) as presp:
+                                          op = json.loads(presp.read().decode())
+                                  comp_app_id = (op.get("response") or {}).get("appId", "")
+                                  print(f"Auto-created {disp_name} Firebase App: {comp_pkg} ({comp_app_id})!")
 
-                      if admin_app_id:
-                          for cert_type, sha_val in (("SHA_1", apk_sha1_hex), ("SHA_256", apk_sha256_hex)):
-                              if not sha_val:
-                                  continue
-                              try:
-                                  sha_req = urllib.request.Request(
-                                      f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps/{admin_app_id}/sha",
-                                      data=json.dumps({"shaHash": sha_val, "certType": cert_type}).encode(),
-                                      headers={
-                                          "Authorization": f"Bearer {access_token}",
-                                          "Content-Type": "application/json",
-                                      },
-                                      method="POST",
-                                  )
-                                  with urllib.request.urlopen(sha_req, timeout=20) as resp:
-                                      print(f"Auto-registered Admin {cert_type} ({sha_val})!")
-                              except urllib.error.HTTPError as he:
-                                  body = he.read().decode("utf-8", errors="ignore")
-                                  if he.code == 409 or "ALREADY_EXISTS" in body:
-                                      print(f"Admin {cert_type} already registered.")
-                                  else:
-                                      print(f"Admin SHA notice ({cert_type}): HTTP {he.code} {body[:200]}")
+                          if comp_app_id:
+                              for cert_type, sha_val in (("SHA_1", apk_sha1_hex), ("SHA_256", apk_sha256_hex)):
+                                  if not sha_val:
+                                      continue
+                                  try:
+                                      sha_req = urllib.request.Request(
+                                          f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps/{comp_app_id}/sha",
+                                          data=json.dumps({"shaHash": sha_val, "certType": cert_type}).encode(),
+                                          headers={
+                                              "Authorization": f"Bearer {access_token}",
+                                              "Content-Type": "application/json",
+                                          },
+                                          method="POST",
+                                      )
+                                      with urllib.request.urlopen(sha_req, timeout=20) as resp:
+                                          print(f"Auto-registered {disp_name} {cert_type} ({sha_val})!")
+                                  except urllib.error.HTTPError as he:
+                                      body = he.read().decode("utf-8", errors="ignore")
+                                      if he.code == 409 or "ALREADY_EXISTS" in body:
+                                          print(f"{disp_name} {cert_type} already registered.")
+                                      else:
+                                          print(f"{disp_name} SHA notice ({cert_type}): HTTP {he.code} {body[:200]}")
 
-                          time.sleep(2)
-                          acfg_req = urllib.request.Request(
-                              f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps/{admin_app_id}/config",
-                              headers={"Authorization": f"Bearer {access_token}"},
-                              method="GET",
-                          )
-                          with urllib.request.urlopen(acfg_req, timeout=20) as resp:
-                              acfg_json = json.loads(resp.read().decode())
-                              acfg_b64 = acfg_json.get("configFileContents", "")
-                              if acfg_b64:
-                                  admin_data = json.loads(base64.b64decode(acfg_b64).decode("utf-8"))
-                                  with open("/tmp/google-services-admin.json", "w", encoding="utf-8") as af:
-                                      json.dump(admin_data, af, indent=2)
-                                  print("Downloaded freshly synced Admin google-services.json!")
-                  except Exception as ae:
-                      print(f"Admin Firebase auto-app notice (falling back to shared Web OAuth client config): {ae}")
+                              time.sleep(2)
+                              ccfg_req = urllib.request.Request(
+                                  f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps/{comp_app_id}/config",
+                                  headers={"Authorization": f"Bearer {access_token}"},
+                                  method="GET",
+                              )
+                              with urllib.request.urlopen(ccfg_req, timeout=20) as resp:
+                                  ccfg_json = json.loads(resp.read().decode())
+                                  ccfg_b64 = ccfg_json.get("configFileContents", "")
+                                  if ccfg_b64:
+                                      comp_data = json.loads(base64.b64decode(ccfg_b64).decode("utf-8"))
+                                      with open(f"/tmp/google-services-{suffix}.json", "w", encoding="utf-8") as cf:
+                                          json.dump(comp_data, cf, indent=2)
+                                      print(f"Downloaded freshly synced {disp_name} google-services-{suffix}.json!")
+                      except Exception as ce:
+                          print(f"{disp_name} Firebase auto-app notice (falling back to cloned OAuth client config): {ce}")
               except Exception as e:
                   print(f"Auto SHA sync notice: {e}")
               finally:
                   if os.path.exists(key_path):
                       os.remove(key_path)
 
-          # Ensure /tmp/google-services-admin.json always contains a valid client entry for <selected_pkg>.admin
-          admin_pkg = f"{selected_pkg}.admin" if selected_pkg else "com.aistudio.zipora.kxrqmt.admin"
-          if not os.path.exists("/tmp/google-services-admin.json"):
-              admin_fallback = json.loads(json.dumps(data))
-              for c in admin_fallback.get("client", []):
-                  if c.get("client_info", {}).get("android_client_info", {}).get("package_name") == selected_pkg:
-                      cloned = json.loads(json.dumps(c))
-                      cloned["client_info"]["android_client_info"]["package_name"] = admin_pkg
-                      admin_fallback["client"].append(cloned)
-                      break
-              with open("/tmp/google-services-admin.json", "w", encoding="utf-8") as af:
-                  json.dump(admin_fallback, af, indent=2)
-              print(f"Prepared fallback google-services-admin.json with package={admin_pkg}")
+          # Ensure /tmp/google-services-{ride,transport,admin}.json always contain a valid client entry
+          base_pkg = selected_pkg or "com.aistudio.zipora.kxrqmt"
+          ride_pkg = f"{base_pkg}.ride"
+          transport_pkg = f"{base_pkg}.transport"
+          admin_pkg = f"{base_pkg}.admin"
+          for suffix, comp_pkg in (("ride", ride_pkg), ("transport", transport_pkg), ("admin", admin_pkg)):
+              out_path = f"/tmp/google-services-{suffix}.json"
+              if not os.path.exists(out_path):
+                  comp_fallback = json.loads(json.dumps(data))
+                  for c in comp_fallback.get("client", []):
+                      if c.get("client_info", {}).get("android_client_info", {}).get("package_name") == selected_pkg:
+                          cloned = json.loads(json.dumps(c))
+                          cloned["client_info"]["android_client_info"]["package_name"] = comp_pkg
+                          comp_fallback["client"].append(cloned)
+                          break
+                  with open(out_path, "w", encoding="utf-8") as cf:
+                      json.dump(comp_fallback, cf, indent=2)
+                  print(f"Prepared fallback google-services-{suffix}.json with package={comp_pkg}")
 
           with open("/tmp/google-services-customer.json", "w", encoding="utf-8") as cf:
               json.dump(data, cf, indent=2)
@@ -364,6 +379,8 @@ jobs:
                   f.write(f"CLIENT_FIRESTORE_DB_ID={db_id}\n")
                   if selected_pkg:
                       f.write(f"CLIENT_APP_ID={selected_pkg}\n")
+                  f.write(f"RIDE_APP_ID={ride_pkg}\n")
+                  f.write(f"TRANSPORT_APP_ID={transport_pkg}\n")
                   f.write(f"ADMIN_APP_ID={admin_pkg}\n")
           PY
 
@@ -540,61 +557,89 @@ jobs:
             echo "PEXELS_API_KEY secret not set; using offline fallback placeholder."
           fi
 
-      - name: Build Both Standalone APKs (Take It Customer & Take It Admin)
+      - name: Build All 4 Standalone APKs (Food, Ride, Transport, Admin)
         run: |
           mkdir -p release-apk
           CUST_APP_ID_ARG=""
           if [ -n "$CLIENT_APP_ID" ]; then
             CUST_APP_ID_ARG="-PtakeItAppId=$CLIENT_APP_ID"
           fi
+          RIDE_PKG="${RIDE_APP_ID:-com.aistudio.zipora.kxrqmt.ride}"
+          TRANSPORT_PKG="${TRANSPORT_APP_ID:-com.aistudio.zipora.kxrqmt.transport}"
           ADMIN_PKG="${ADMIN_APP_ID:-com.aistudio.zipora.kxrqmt.admin}"
-          ADMIN_APP_ID_ARG="-PtakeItAppId=$ADMIN_PKG"
 
-          echo "=== [1/2] Building TakeIt-Customer.apk (Package: ${CLIENT_APP_ID:-default}) ==="
+          echo "=== [1/4] Building TakeIt-Customer.apk (Food Delivery: ${CLIENT_APP_ID:-default}) ==="
           [ -f /tmp/google-services-customer.json ] && cp /tmp/google-services-customer.json app/google-services.json
           gradle :app:assembleDebug $CUST_APP_ID_ARG -PtakeItAppMode=CUSTOMER -PtakeItAppLabel="Take It" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Customer.apk
 
-          echo "=== Cleaning intermediate build cache so Admin APK is 100% distinct ==="
+          echo "=== [2/4] Building TakeIt-Ride.apk (Rapido Ride: $RIDE_PKG) ==="
+          rm -rf app/build
+          [ -f /tmp/google-services-ride.json ] && cp /tmp/google-services-ride.json app/google-services.json
+          gradle :app:assembleDebug -PtakeItAppId=$RIDE_PKG -PtakeItAppMode=RIDE -PtakeItAppLabel="Take It Ride" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Ride.apk
+
+          echo "=== [3/4] Building TakeIt-Transport.apk (Parcel & Truck Transport: $TRANSPORT_PKG) ==="
+          rm -rf app/build
+          [ -f /tmp/google-services-transport.json ] && cp /tmp/google-services-transport.json app/google-services.json
+          gradle :app:assembleDebug -PtakeItAppId=$TRANSPORT_PKG -PtakeItAppMode=TRANSPORT -PtakeItAppLabel="Take It Transport" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Transport.apk
+
+          echo "=== [4/4] Building TakeIt-Admin.apk (Executive Command Center: $ADMIN_PKG) ==="
           rm -rf app/build
           [ -f /tmp/google-services-admin.json ] && cp /tmp/google-services-admin.json app/google-services.json
-
-          echo "=== [2/2] Building TakeIt-Admin.apk (Package: $ADMIN_PKG) ==="
-          gradle :app:assembleDebug $ADMIN_APP_ID_ARG -PtakeItAppMode=ADMIN -PtakeItAppLabel="Take It Admin" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
+          gradle :app:assembleDebug -PtakeItAppId=$ADMIN_PKG -PtakeItAppMode=ADMIN -PtakeItAppLabel="Take It Admin" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Admin.apk
 
           ls -lh release-apk/
 
-      - name: Upload 1/2 TakeIt-Customer.apk
+      - name: Upload 1/4 TakeIt-Customer.apk
         uses: actions/upload-artifact@v4
         with:
           name: 1-TakeIt-Customer-APK
           path: release-apk/TakeIt-Customer.apk
           retention-days: 30
 
-      - name: Upload 2/2 TakeIt-Admin.apk
+      - name: Upload 2/4 TakeIt-Ride.apk
         uses: actions/upload-artifact@v4
         with:
-          name: 2-TakeIt-Admin-APK
+          name: 2-TakeIt-Ride-APK
+          path: release-apk/TakeIt-Ride.apk
+          retention-days: 30
+
+      - name: Upload 3/4 TakeIt-Transport.apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: 3-TakeIt-Transport-APK
+          path: release-apk/TakeIt-Transport.apk
+          retention-days: 30
+
+      - name: Upload 4/4 TakeIt-Admin.apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: 4-TakeIt-Admin-APK
           path: release-apk/TakeIt-Admin.apk
           retention-days: 30
 
-      - name: Publish Both Take It APKs to Latest Release
+      - name: Publish All 4 Take It APKs to Latest Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk
-          name: Take It — Customer & Executive Admin APKs
+          name: Take It Suite — 4 Standalone Apps (Food, Ride, Transport, Admin)
           body: |
-            ### Download & Install Take It (2 Distinct Synced Apps)
-            1. **TakeIt-Customer.apk** — Full Zomato-grade **Take It** Food Delivery App (Live Restaurants, Dishes, Cart, Razorpay/Wallet/COD, Live Map Tracking, Reviews, Support)
-            2. **TakeIt-Admin.apk** — Distinct Obsidian/Gold **Take It Executive Admin Command Center** (`buildolive4@gmail.com` Main Admin + Co-Admin Password & Permission System, Live Order Dispatch, ImgBB Photo Uploads, Coupons, Users, Razorpay Ledger, Global Controls)
+            ### Download & Install All 4 Distinct Take It Apps Side-by-Side
+            1. **TakeIt-Customer.apk** — Full **Take It Food Delivery** App (Animated Food Welcome, Zomato-grade UI, Sticky Payment Button, Live Tracking)
+            2. **TakeIt-Ride.apk** — Distinct **Take It Ride** (Rapido-style Bike Moto, Auto, Mini Cab, Prime Sedan + Animated Ride Welcome + Live Captain OTP)
+            3. **TakeIt-Transport.apk** — Distinct **Take It Transport** (2W Parcel, 3W Cargo, Tata Ace Mini Truck, 8ft Pickup + Animated Transport Welcome + Live OTP)
+            4. **TakeIt-Admin.apk** — Distinct Obsidian/Gold **Take It Executive Admin Command Center** (`buildolive4@gmail.com` Main Admin + Co-Admin Password System + Live Food/Ride/Parcel Dispatch + Razorpay Ledger)
 
-            - Connected automatically to Client Firebase with auto-registered APK SHA-1/SHA-256 & auto-deployed Firestore Security Rules
-            - Chrome Razorpay Checkout connected to `https://jaiambey.shop/takeit-pay`
-            - Isolated Take It-only Razorpay Ledger inside Admin Command Center
+            - Forced **Google Account Chooser** enabled across all 4 apps
+            - Auto-synced APK SHA-1/SHA-256 & deployed Firestore Security Rules
             - Built automatically on commit `${{ github.sha }}`
           files: |
             release-apk/TakeIt-Customer.apk
+            release-apk/TakeIt-Ride.apk
+            release-apk/TakeIt-Transport.apk
             release-apk/TakeIt-Admin.apk
           make_latest: true
         continue-on-error: true

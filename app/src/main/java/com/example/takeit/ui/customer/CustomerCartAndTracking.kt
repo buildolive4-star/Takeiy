@@ -120,6 +120,86 @@ fun CustomerCartScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
+        },
+        bottomBar = {
+            if (uiState.cart.isNotEmpty()) {
+                Surface(
+                    color = Color.White,
+                    shadowElevation = 14.dp,
+                    border = BorderStroke(1.dp, TakeItBorder)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .navigationBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "₹${uiState.cartTotalPayable}",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = TakeItInk
+                            )
+                            Text(
+                                text = when (selectedMethod) {
+                                    "RAZORPAY" -> "via Razorpay UPI/Card"
+                                    "WALLET" -> "via Take It Wallet"
+                                    else -> "Cash on Delivery"
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TakeItGreen,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                when (selectedMethod) {
+                                    "RAZORPAY" -> {
+                                        val ref = "TKF_${System.currentTimeMillis()}"
+                                        pendingOrderRef = ref
+                                        val launched = TakeItPaymentGateway.launchChromePayment(
+                                            context = context,
+                                            orderRef = ref,
+                                            amount = uiState.cartTotalPayable,
+                                            serviceType = "FOOD",
+                                            itemTitle = uiState.cartRestaurantName,
+                                            customerName = uiState.profile.name.ifBlank { uiState.displayName },
+                                            customerPhone = uiState.profile.phone,
+                                            userId = uiState.uid
+                                        )
+                                        if (!launched) {
+                                            pendingOrderRef = null
+                                            onShowMessage("Could not open browser for Razorpay Checkout.")
+                                        }
+                                    }
+                                    "WALLET" -> onPlaceOrder("WALLET", "PAID", "WALLET_${System.currentTimeMillis()}", onOrderCreated)
+                                    else -> onPlaceOrder("COD", "PENDING", "COD_${System.currentTimeMillis()}", onOrderCreated)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = TakeItRed, contentColor = Color.White),
+                            shape = RoundedCornerShape(16.dp),
+                            modifier = Modifier
+                                .height(54.dp)
+                                .testTag("sticky_pay_now_button")
+                        ) {
+                            Icon(Icons.Rounded.Lock, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(
+                                text = when (selectedMethod) {
+                                    "RAZORPAY" -> "Pay ₹${uiState.cartTotalPayable} →"
+                                    "WALLET" -> "Pay Wallet ₹${uiState.cartTotalPayable} →"
+                                    else -> "Place Order ₹${uiState.cartTotalPayable} →"
+                                },
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                    }
+                }
+            }
         }
     ) { padding ->
         if (uiState.cart.isEmpty()) {
@@ -153,7 +233,7 @@ fun CustomerCartScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
             // Restaurant Header Card

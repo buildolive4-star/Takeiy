@@ -1,5 +1,11 @@
 package com.example.takeit.ui.customer
 
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -23,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
@@ -224,6 +231,85 @@ fun CustomerHomeTab(
                             .fillMaxWidth()
                             .testTag("home_search_input")
                     )
+                }
+            }
+        }
+
+        // Animated Food Delivery Welcome Showcase (1st Uploaded Image)
+        item {
+            val inf = rememberInfiniteTransition(label = "homeWelcomeFood")
+            val zoom by inf.animateFloat(
+                initialValue = 1.0f,
+                targetValue = 1.07f,
+                animationSpec = infiniteRepeatable(tween(3800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                label = "welcomeZoom"
+            )
+            val bob by inf.animateFloat(
+                initialValue = -5f,
+                targetValue = 5f,
+                animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+                label = "welcomeBob"
+            )
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                shadowElevation = 6.dp,
+                border = BorderStroke(1.5.dp, TakeItGold),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(190.dp)
+                    .clickable { onOpenRestaurants("All") }
+            ) {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Image(
+                        painter = painterResource(R.drawable.welcome_food_delivery),
+                        contentDescription = "Welcome to Take It Food Delivery",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                scaleX = zoom
+                                scaleY = zoom
+                                translationY = bob
+                            }
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(Color.Black.copy(alpha = 0.62f), Color.Transparent)
+                                )
+                            )
+                    )
+                    Column(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Surface(shape = RoundedCornerShape(50), color = TakeItGold) {
+                            Text(
+                                "WELCOME TO TAKE IT",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TakeItInk,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp)
+                            )
+                        }
+                        Text(
+                            "Craving Something Delicious?",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.White,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Text(
+                            "Explore hot pizzas, burgers & biryani ->",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = TakeItGold,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }

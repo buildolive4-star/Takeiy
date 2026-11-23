@@ -385,7 +385,7 @@ fun CustomerAccountTab(
                     HorizontalDivider(color = TakeItBorder)
                     AccountMenuRow(Icons.Rounded.Info, "About Take It", "v2.0", onOpenAbout)
                     HorizontalDivider(color = TakeItBorder)
-                    AccountMenuRow(Icons.Rounded.Logout, "Sign Out", "", onSignOut, tint = TakeItRed)
+                    AccountMenuRow(Icons.Rounded.SwitchAccount, "Switch Google Account / Sign Out", "", onSignOut, tint = TakeItRed)
                 }
             }
         }

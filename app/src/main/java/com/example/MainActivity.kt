@@ -44,6 +44,8 @@ import com.example.takeit.ui.admin.AdminCommandCenterRoot
 import com.example.takeit.ui.auth.TakeItFoodAuthScreen
 import com.example.takeit.ui.auth.TakeItFoodSplashScreen
 import com.example.takeit.ui.customer.*
+import com.example.takeit.ui.ride.RapidoRideAppRoot
+import com.example.takeit.ui.transport.ParcelTransportAppRoot
 import com.example.takeit.viewmodel.TakeItUiState
 import com.example.takeit.viewmodel.TakeItViewModel
 import com.google.firebase.Firebase
@@ -69,7 +71,8 @@ class MainActivity : ComponentActivity() {
 
     private fun handlePaymentDeepLink(intent: Intent?) {
         val data = intent?.data ?: return
-        if (data.scheme == "takeit" && data.host == "payment-result") {
+        val supportedSchemes = setOf("takeit", "takeitride", "takeittransport", "takeitadmin")
+        if (data.scheme in supportedSchemes && data.host == "payment-result") {
             val status = data.getQueryParameter("status").orEmpty()
             val orderRef = data.getQueryParameter("orderRef").orEmpty()
             val paymentId = data.getQueryParameter("paymentId").orEmpty()
@@ -110,8 +113,6 @@ fun TakeItAppEntryPoint() {
         onDispose { Firebase.auth.removeAuthStateListener(listener) }
     }
 
-    val isAdminApp = variant == TakeItAppVariant.ADMIN
-
     val content: @Composable () -> Unit = {
         when {
             showSplash -> TakeItFoodSplashScreen(variant = variant)
@@ -134,10 +135,11 @@ fun TakeItAppEntryPoint() {
         }
     }
 
-    if (isAdminApp) {
-        TakeItAdminTheme(content = content)
-    } else {
-        TakeItCustomerTheme(content = content)
+    when (variant) {
+        TakeItAppVariant.ADMIN -> TakeItAdminTheme(content = content)
+        TakeItAppVariant.RIDE -> TakeItRideTheme(content = content)
+        TakeItAppVariant.TRANSPORT -> TakeItTransportTheme(content = content)
+        TakeItAppVariant.CUSTOMER -> TakeItCustomerTheme(content = content)
     }
 }
 
@@ -173,7 +175,8 @@ private fun AuthenticatedTakeItShell(
         )
     }
 
-    if (uiState.isInAdminMode) {
+    when {
+        uiState.isInAdminMode -> {
         BackHandler(enabled = uiState.appVariant == TakeItAppVariant.CUSTOMER) {
             viewModel.exitAdminMode()
         }
@@ -199,34 +202,92 @@ private fun AuthenticatedTakeItShell(
                 }
             }
         }
-    } else {
-        TakeItCustomerTheme {
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (uiState.config.maintenanceMode && !uiState.isMainAdmin && uiState.adminRole != AdminRole.CO_ADMIN) {
-                    CustomerMaintenanceScreen(
-                        config = uiState.config,
-                        onSignOut = handleSignOut
-                    )
-                } else {
-                    CustomerAppRoot(
-                        uiState = uiState,
-                        viewModel = viewModel,
-                        onSignOut = handleSignOut
-                    )
+        }
+        uiState.appVariant == TakeItAppVariant.RIDE -> {
+            TakeItRideTheme {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (uiState.config.maintenanceMode && !uiState.isMainAdmin && uiState.adminRole != AdminRole.CO_ADMIN) {
+                        CustomerMaintenanceScreen(config = uiState.config, onSignOut = handleSignOut)
+                    } else {
+                        RapidoRideAppRoot(
+                            uiState = uiState,
+                            viewModel = viewModel,
+                            onSignOut = handleSignOut
+                        )
+                    }
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                            .padding(bottom = 136.dp, start = 14.dp, end = 14.dp)
+                    ) { data ->
+                        Snackbar(
+                            snackbarData = data,
+                            containerColor = RideCharcoal,
+                            contentColor = RideYellow
+                        )
+                    }
                 }
+            }
+        }
+        uiState.appVariant == TakeItAppVariant.TRANSPORT -> {
+            TakeItTransportTheme {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (uiState.config.maintenanceMode && !uiState.isMainAdmin && uiState.adminRole != AdminRole.CO_ADMIN) {
+                        CustomerMaintenanceScreen(config = uiState.config, onSignOut = handleSignOut)
+                    } else {
+                        ParcelTransportAppRoot(
+                            uiState = uiState,
+                            viewModel = viewModel,
+                            onSignOut = handleSignOut
+                        )
+                    }
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                            .padding(bottom = 136.dp, start = 14.dp, end = 14.dp)
+                    ) { data ->
+                        Snackbar(
+                            snackbarData = data,
+                            containerColor = TransportNavy,
+                            contentColor = Color.White
+                        )
+                    }
+                }
+            }
+        }
+        else -> {
+            TakeItCustomerTheme {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    if (uiState.config.maintenanceMode && !uiState.isMainAdmin && uiState.adminRole != AdminRole.CO_ADMIN) {
+                        CustomerMaintenanceScreen(
+                            config = uiState.config,
+                            onSignOut = handleSignOut
+                        )
+                    } else {
+                        CustomerAppRoot(
+                            uiState = uiState,
+                            viewModel = viewModel,
+                            onSignOut = handleSignOut
+                        )
+                    }
 
-                SnackbarHost(
-                    hostState = snackbarHostState,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .navigationBarsPadding()
-                        .padding(bottom = 78.dp, start = 14.dp, end = 14.dp)
-                ) { data ->
-                    Snackbar(
-                        snackbarData = data,
-                        containerColor = TakeItInk,
-                        contentColor = Color.White
-                    )
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                            .padding(bottom = 78.dp, start = 14.dp, end = 14.dp)
+                    ) { data ->
+                        Snackbar(
+                            snackbarData = data,
+                            containerColor = TakeItInk,
+                            contentColor = Color.White
+                        )
+                    }
                 }
             }
         }

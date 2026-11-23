@@ -206,11 +206,13 @@ fun onGoogleSignInClicked(
         signInWithGoogleBrowser(context, onAuthSuccess, onAuthError, scope)
         return
     }
-    val signInOption = GetSignInWithGoogleOption.Builder(serverClientId = clientId).build()
-    val request = GetCredentialRequest.Builder()
-        .addCredentialOption(signInOption)
-        .build()
     scope.launch {
+        // Clear any previously cached credential so the Google Account Chooser always appears
+        runCatching { credentialManager.clearCredentialState(ClearCredentialStateRequest()) }
+        val signInOption = GetSignInWithGoogleOption.Builder(serverClientId = clientId).build()
+        val request = GetCredentialRequest.Builder()
+            .addCredentialOption(signInOption)
+            .build()
         try {
             val activity = context.findActivity()
                 ?: throw IllegalStateException("Activity context required for Google Sign-In")
@@ -252,6 +254,25 @@ fun signOutFromTakeIt(
                 Firebase.auth.signOut()
                 onSignOutComplete()
             }
+        }
+    }
+}
+
+fun switchGoogleAccountFromTakeIt(
+    context: Context,
+    credentialManager: CredentialManager,
+    scope: CoroutineScope,
+    onBeforeAuthSignOut: () -> Unit = {},
+    onReadyForPicker: () -> Unit = {}
+) {
+    scope.launch {
+        withContext(NonCancellable) {
+            runCatching {
+                onBeforeAuthSignOut()
+                credentialManager.clearCredentialState(ClearCredentialStateRequest())
+            }
+            Firebase.auth.signOut()
+            onReadyForPicker()
         }
     }
 }

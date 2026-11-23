@@ -15,7 +15,7 @@ android {
   val appMode = providers.gradleProperty("takeItAppMode").orElse("CUSTOMER").get()
   val appLabel = providers.gradleProperty("takeItAppLabel").orElse("Take It").get()
   val appId = providers.gradleProperty("takeItAppId").orElse("com.aistudio.zipora.kxrqmt").get()
-  val isAdminBuild = appMode.equals("ADMIN", ignoreCase = true)
+  val normalizedMode = appMode.trim().uppercase()
 
   defaultConfig {
     applicationId = appId
@@ -26,9 +26,24 @@ android {
     buildConfigField("String", "APP_BUILD_MODE", "\"$appMode\"")
     resValue("string", "takeit_app_variant", appMode)
     manifestPlaceholders["appLabel"] = appLabel
-    manifestPlaceholders["appIcon"] = if (isAdminBuild) "@mipmap/ic_launcher_admin" else "@mipmap/ic_launcher"
-    manifestPlaceholders["appRoundIcon"] = if (isAdminBuild) "@mipmap/ic_launcher_admin_round" else "@mipmap/ic_launcher_round"
-    manifestPlaceholders["paymentScheme"] = if (isAdminBuild) "takeitadmin" else "takeit"
+    manifestPlaceholders["appIcon"] = when (normalizedMode) {
+      "ADMIN" -> "@mipmap/ic_launcher_admin"
+      "RIDE" -> "@mipmap/ic_launcher_ride"
+      "TRANSPORT" -> "@mipmap/ic_launcher_transport"
+      else -> "@mipmap/ic_launcher"
+    }
+    manifestPlaceholders["appRoundIcon"] = when (normalizedMode) {
+      "ADMIN" -> "@mipmap/ic_launcher_admin_round"
+      "RIDE" -> "@mipmap/ic_launcher_ride_round"
+      "TRANSPORT" -> "@mipmap/ic_launcher_transport_round"
+      else -> "@mipmap/ic_launcher_round"
+    }
+    manifestPlaceholders["paymentScheme"] = when (normalizedMode) {
+      "ADMIN" -> "takeitadmin"
+      "RIDE" -> "takeitride"
+      "TRANSPORT" -> "takeittransport"
+      else -> "takeit"
+    }
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

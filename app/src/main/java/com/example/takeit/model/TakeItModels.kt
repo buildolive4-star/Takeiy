@@ -13,12 +13,17 @@ const val MAIN_ADMIN_EMAIL = "buildolive4@gmail.com"
 
 enum class TakeItAppVariant {
     CUSTOMER,
+    RIDE,
+    TRANSPORT,
     ADMIN;
 
     companion object {
         fun fromContext(context: Context): TakeItAppVariant {
-            if (context.packageName.endsWith(".admin", ignoreCase = true)) {
-                return ADMIN
+            val pkg = context.packageName.lowercase()
+            when {
+                pkg.endsWith(".admin") -> return ADMIN
+                pkg.endsWith(".ride") -> return RIDE
+                pkg.endsWith(".transport") -> return TRANSPORT
             }
             val resMode = runCatching { context.getString(R.string.takeit_app_variant) }
                 .getOrDefault(BuildConfig.APP_BUILD_MODE)
@@ -26,6 +31,8 @@ enum class TakeItAppVariant {
                 .uppercase()
             return when (resMode) {
                 "ADMIN", "ADMIN_PANEL", "CONTROL" -> ADMIN
+                "RIDE", "RAPIDO" -> RIDE
+                "TRANSPORT", "PARCEL", "DELIVERY" -> TRANSPORT
                 else -> fromBuildConfig()
             }
         }
@@ -33,6 +40,8 @@ enum class TakeItAppVariant {
         fun fromBuildConfig(): TakeItAppVariant {
             return when (BuildConfig.APP_BUILD_MODE.trim().uppercase()) {
                 "ADMIN", "ADMIN_PANEL", "CONTROL" -> ADMIN
+                "RIDE", "RAPIDO" -> RIDE
+                "TRANSPORT", "PARCEL", "DELIVERY" -> TRANSPORT
                 else -> CUSTOMER
             }
         }
@@ -43,6 +52,20 @@ enum class CustomerTab(val label: String) {
     HOME("Home"),
     ORDERS("Orders"),
     OFFERS("Offers"),
+    ACCOUNT("Account")
+}
+
+enum class RideTab(val label: String) {
+    BOOK("Book Ride"),
+    TRIPS("My Rides"),
+    WALLET("Wallet"),
+    ACCOUNT("Account")
+}
+
+enum class TransportTab(val label: String) {
+    SEND("Send Parcel"),
+    SHIPMENTS("Shipments"),
+    WALLET("Wallet"),
     ACCOUNT("Account")
 }
 
@@ -304,6 +327,66 @@ data class SupportTicket(
     val message: String = "",
     val status: String = "OPEN", // OPEN, IN_PROGRESS, RESOLVED
     val adminReply: String = "",
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class RideBooking(
+    @DocumentId val id: String = "",
+    val rideNumber: String = "",
+    val userId: String = "",
+    val customerName: String = "",
+    val customerEmail: String = "",
+    val customerPhone: String = "",
+    val vehicleType: String = "BIKE", // BIKE, AUTO, MINI_CAB, PRIME_SEDAN
+    val pickupAddress: String = "",
+    val dropAddress: String = "",
+    val distanceKm: Int = 5,
+    val totalFare: Int = 49,
+    val paymentMethod: String = "RAZORPAY",
+    val paymentStatus: String = "PAID",
+    val paymentRef: String = "",
+    val status: String = "REQUESTED", // REQUESTED, CAPTAIN_ASSIGNED, ARRIVING, ON_TRIP, COMPLETED, CANCELLED, REFUNDED
+    val captainName: String = "Finding Captain...",
+    val captainPhone: String = "",
+    val vehicleNumber: String = "",
+    val etaMinutes: Int = 4,
+    val otp: String = "4821",
+    val rating: Int = 0,
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class ParcelOrder(
+    @DocumentId val id: String = "",
+    val parcelNumber: String = "",
+    val userId: String = "",
+    val senderName: String = "",
+    val senderEmail: String = "",
+    val senderPhone: String = "",
+    val receiverName: String = "",
+    val receiverPhone: String = "",
+    val pickupAddress: String = "",
+    val dropAddress: String = "",
+    val vehicleType: String = "TWO_WHEELER", // TWO_WHEELER, THREE_WHEELER, MINI_TRUCK, PICKUP_8FT
+    val packageType: String = "Box / Documents",
+    val weightKg: Int = 3,
+    val fragileFlag: Boolean = false,
+    val totalFare: Int = 79,
+    val paymentMethod: String = "RAZORPAY",
+    val paymentStatus: String = "PAID",
+    val paymentRef: String = "",
+    val status: String = "BOOKED", // BOOKED, PARTNER_ASSIGNED, PICKED_UP, IN_TRANSIT, DELIVERED, CANCELLED, REFUNDED
+    val partnerName: String = "Assigning Partner...",
+    val partnerPhone: String = "",
+    val vehicleNumber: String = "",
+    val etaMinutes: Int = 25,
+    val otp: String = "9274",
+    val rating: Int = 0,
     val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null
 )

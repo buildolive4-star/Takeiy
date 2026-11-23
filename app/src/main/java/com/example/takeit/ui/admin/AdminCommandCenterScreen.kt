@@ -233,9 +233,10 @@ fun AdminCommandCenterRoot(
                                     color = if (selected) AdminBg else AdminInk
                                 )
                                 if (tab == AdminTab.ORDERS) {
-                                    val liveCount = uiState.allOrders.count {
-                                        it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED")
-                                    }
+                                    val liveCount =
+                                        uiState.allOrders.count { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") } +
+                                        uiState.allRides.count { it.status !in listOf("COMPLETED", "CANCELLED", "REFUNDED") } +
+                                        uiState.allParcels.count { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") }
                                     if (liveCount > 0) {
                                         Surface(
                                             shape = CircleShape,
@@ -485,11 +486,15 @@ fun AdminOverviewTab(
     uiState: TakeItUiState,
     viewModel: TakeItViewModel
 ) {
-    val grossRevenue = remember(uiState.allOrders) {
-        uiState.allOrders.filter { it.status !in listOf("CANCELLED", "REFUNDED") }.sumOf { it.totalAmount }
+    val grossRevenue = remember(uiState.allOrders, uiState.allRides, uiState.allParcels) {
+        uiState.allOrders.filter { it.status !in listOf("CANCELLED", "REFUNDED") }.sumOf { it.totalAmount } +
+        uiState.allRides.filter { it.status !in listOf("CANCELLED", "REFUNDED") }.sumOf { it.totalFare } +
+        uiState.allParcels.filter { it.status !in listOf("CANCELLED", "REFUNDED") }.sumOf { it.totalFare }
     }
-    val activeOrders = remember(uiState.allOrders) {
-        uiState.allOrders.count { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") }
+    val activeOrders = remember(uiState.allOrders, uiState.allRides, uiState.allParcels) {
+        uiState.allOrders.count { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") } +
+        uiState.allRides.count { it.status !in listOf("COMPLETED", "CANCELLED", "REFUNDED") } +
+        uiState.allParcels.count { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") }
     }
     val openRestaurants = remember(uiState.restaurants) { uiState.restaurants.count { it.openFlag } }
     val openTickets = remember(uiState.allTickets) { uiState.allTickets.count { it.status != "RESOLVED" } }
@@ -529,7 +534,7 @@ fun AdminOverviewTab(
                         }
                     }
                     Text(
-                        "Every change made here updates all Take It Customer apps instantly in real time via Firestore.",
+                        "Manage Food Delivery, Take It Ride, and Parcel Transport live across all customer apps.",
                         style = MaterialTheme.typography.bodySmall,
                         color = AdminMuted
                     )
@@ -591,17 +596,17 @@ fun AdminOverviewTab(
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 AdminKpiCard(
-                    title = "Gross Revenue",
+                    title = "Suite Revenue",
                     value = "₹$grossRevenue",
-                    subtitle = "${uiState.allOrders.size} total orders",
+                    subtitle = "${uiState.allOrders.size} food • ${uiState.allRides.size} rides • ${uiState.allParcels.size} parcels",
                     icon = Icons.Rounded.CurrencyRupee,
                     accent = AdminGold,
                     modifier = Modifier.weight(1f)
                 )
                 AdminKpiCard(
-                    title = "Live Orders",
+                    title = "Live Requests",
                     value = "$activeOrders",
-                    subtitle = "Need action now",
+                    subtitle = "Food + Ride + Parcel",
                     icon = Icons.Rounded.DeliveryDining,
                     accent = if (activeOrders > 0) AdminCrimson else AdminEmerald,
                     modifier = Modifier.weight(1f)
@@ -835,10 +840,13 @@ fun AdminOrdersTab(
     uiState: TakeItUiState,
     viewModel: TakeItViewModel
 ) {
+    var verticalMode by remember { mutableStateOf("FOOD") } // FOOD, RIDE, PARCEL
     var filter by remember { mutableStateOf("ALL") }
     var dispatchTarget by remember { mutableStateOf<FoodOrder?>(null) }
+    var dispatchRideTarget by remember { mutableStateOf<RideBooking?>(null) }
+    var dispatchParcelTarget by remember { mutableStateOf<ParcelOrder?>(null) }
 
-    val filtered = remember(uiState.allOrders, filter) {
+    val filteredFood = remember(uiState.allOrders, filter) {
         when (filter) {
             "ACTIVE" -> uiState.allOrders.filter { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") }
             "DELIVERED" -> uiState.allOrders.filter { it.status == "DELIVERED" }
@@ -847,14 +855,71 @@ fun AdminOrdersTab(
         }
     }
 
+    val filteredRides = remember(uiState.allRides, filter) {
+        when (filter) {
+            "ACTIVE" -> uiState.allRides.filter { it.status !in listOf("COMPLETED", "CANCELLED", "REFUNDED") }
+            "DELIVERED" -> uiState.allRides.filter { it.status == "COMPLETED" }
+            "CANCELLED" -> uiState.allRides.filter { it.status in listOf("CANCELLED", "REFUNDED") }
+            else -> uiState.allRides
+        }
+    }
+
+    val filteredParcels = remember(uiState.allParcels, filter) {
+        when (filter) {
+            "ACTIVE" -> uiState.allParcels.filter { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") }
+            "DELIVERED" -> uiState.allParcels.filter { it.status == "DELIVERED" }
+            "CANCELLED" -> uiState.allParcels.filter { it.status in listOf("CANCELLED", "REFUNDED") }
+            else -> uiState.allParcels
+        }
+    }
+
     Column(modifier = Modifier.fillMaxSize()) {
+        // Vertical Switcher: Food Orders | Rapido Rides | Parcel Transport
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(listOf("ALL" to "All (${uiState.allOrders.size})", "ACTIVE" to "Live Active", "DELIVERED" to "Delivered", "CANCELLED" to "Cancelled / Refunded")) { (key, label) ->
+            items(
+                listOf(
+                    Triple("FOOD", "Food (${uiState.allOrders.size})", Icons.Rounded.Restaurant),
+                    Triple("RIDE", "Rapido Rides (${uiState.allRides.size})", Icons.Rounded.TwoWheeler),
+                    Triple("PARCEL", "Parcels (${uiState.allParcels.size})", Icons.Rounded.LocalShipping)
+                )
+            ) { (mode, label, icon) ->
+                val sel = verticalMode == mode
+                FilterChip(
+                    selected = sel,
+                    onClick = { verticalMode = mode },
+                    leadingIcon = { Icon(icon, null, modifier = Modifier.size(16.dp)) },
+                    label = { Text(label, fontWeight = FontWeight.ExtraBold) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = AdminCyan,
+                        selectedLabelColor = AdminBg,
+                        selectedLeadingIconColor = AdminBg,
+                        containerColor = AdminSurface,
+                        labelColor = AdminInk
+                    ),
+                    modifier = Modifier.testTag("admin_vertical_${mode.lowercase()}")
+                )
+            }
+        }
+
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(
+                listOf(
+                    "ALL" to "All",
+                    "ACTIVE" to "Live Active",
+                    "DELIVERED" to if (verticalMode == "RIDE") "Completed" else "Delivered",
+                    "CANCELLED" to "Cancelled / Refunded"
+                )
+            ) { (key, label) ->
                 FilterChip(
                     selected = filter == key,
                     onClick = { filter = key },
@@ -874,35 +939,55 @@ fun AdminOrdersTab(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (filtered.isEmpty()) {
-                item {
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = AdminSurface,
-                        border = BorderStroke(1.dp, AdminBorder),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Icon(Icons.Rounded.Inventory2, null, tint = AdminMuted, modifier = Modifier.size(40.dp))
-                            Text("No orders in this filter", color = AdminInk, fontWeight = FontWeight.Bold)
+            when (verticalMode) {
+                "FOOD" -> {
+                    if (filteredFood.isEmpty()) {
+                        item { AdminEmptyOrdersCard("No food orders in this filter") }
+                    } else {
+                        items(filteredFood, key = { it.id }) { order ->
+                            AdminOrderCard(
+                                order = order,
+                                onConfirm = { viewModel.adminUpdateOrderStatus(order.id, "CONFIRMED") },
+                                onPreparing = { viewModel.adminUpdateOrderStatus(order.id, "PREPARING") },
+                                onOpenDispatch = { dispatchTarget = order },
+                                onMarkDelivered = { viewModel.adminUpdateOrderStatus(order.id, "DELIVERED") },
+                                onCancel = { viewModel.adminUpdateOrderStatus(order.id, "CANCELLED") },
+                                onRefund = { viewModel.adminRefundOrder(order) }
+                            )
                         }
                     }
                 }
-            } else {
-                items(filtered, key = { it.id }) { order ->
-                    AdminOrderCard(
-                        order = order,
-                        onConfirm = { viewModel.adminUpdateOrderStatus(order.id, "CONFIRMED") },
-                        onPreparing = { viewModel.adminUpdateOrderStatus(order.id, "PREPARING") },
-                        onOpenDispatch = { dispatchTarget = order },
-                        onMarkDelivered = { viewModel.adminUpdateOrderStatus(order.id, "DELIVERED") },
-                        onCancel = { viewModel.adminUpdateOrderStatus(order.id, "CANCELLED") },
-                        onRefund = { viewModel.adminRefundOrder(order) }
-                    )
+                "RIDE" -> {
+                    if (filteredRides.isEmpty()) {
+                        item { AdminEmptyOrdersCard("No Rapido rides in this filter") }
+                    } else {
+                        items(filteredRides, key = { it.id }) { ride ->
+                            AdminRideCard(
+                                ride = ride,
+                                onAssignCaptain = { dispatchRideTarget = ride },
+                                onArriving = { viewModel.adminUpdateRide(ride.id, "ARRIVING") },
+                                onStartTrip = { viewModel.adminUpdateRide(ride.id, "ON_TRIP") },
+                                onComplete = { viewModel.adminUpdateRide(ride.id, "COMPLETED") },
+                                onCancel = { viewModel.adminUpdateRide(ride.id, "CANCELLED") }
+                            )
+                        }
+                    }
+                }
+                else -> {
+                    if (filteredParcels.isEmpty()) {
+                        item { AdminEmptyOrdersCard("No parcel shipments in this filter") }
+                    } else {
+                        items(filteredParcels, key = { it.id }) { parcel ->
+                            AdminParcelCard(
+                                parcel = parcel,
+                                onAssignPartner = { dispatchParcelTarget = parcel },
+                                onPickedUp = { viewModel.adminUpdateParcel(parcel.id, "PICKED_UP") },
+                                onInTransit = { viewModel.adminUpdateParcel(parcel.id, "IN_TRANSIT") },
+                                onDelivered = { viewModel.adminUpdateParcel(parcel.id, "DELIVERED") },
+                                onCancel = { viewModel.adminUpdateParcel(parcel.id, "CANCELLED") }
+                            )
+                        }
+                    }
                 }
             }
             item { Spacer(Modifier.height(24.dp)) }
@@ -925,6 +1010,61 @@ fun AdminOrdersTab(
                 dispatchTarget = null
             }
         )
+    }
+
+    dispatchRideTarget?.let { target ->
+        DispatchRideCaptainDialog(
+            ride = target,
+            onDismiss = { dispatchRideTarget = null },
+            onDispatch = { cName, cPhone, vehNo, eta ->
+                viewModel.adminUpdateRide(
+                    rideId = target.id,
+                    status = "CAPTAIN_ASSIGNED",
+                    captainName = cName,
+                    captainPhone = cPhone,
+                    vehicleNumber = vehNo,
+                    etaMinutes = eta
+                )
+                dispatchRideTarget = null
+            }
+        )
+    }
+
+    dispatchParcelTarget?.let { target ->
+        DispatchParcelPartnerDialog(
+            parcel = target,
+            onDismiss = { dispatchParcelTarget = null },
+            onDispatch = { pName, pPhone, vehNo, eta ->
+                viewModel.adminUpdateParcel(
+                    parcelId = target.id,
+                    status = "PARTNER_ASSIGNED",
+                    partnerName = pName,
+                    partnerPhone = pPhone,
+                    vehicleNumber = vehNo,
+                    etaMinutes = eta
+                )
+                dispatchParcelTarget = null
+            }
+        )
+    }
+}
+
+@Composable
+private fun AdminEmptyOrdersCard(message: String) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = AdminSurface,
+        border = BorderStroke(1.dp, AdminBorder),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(32.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Icon(Icons.Rounded.Inventory2, null, tint = AdminMuted, modifier = Modifier.size(40.dp))
+            Text(message, color = AdminInk, fontWeight = FontWeight.Bold)
+        }
     }
 }
 
@@ -1148,3 +1288,210 @@ private fun DispatchRiderDialog(
         }
     )
 }
+
+@Composable
+private fun AdminRideCard(
+    ride: RideBooking,
+    onAssignCaptain: () -> Unit,
+    onArriving: () -> Unit,
+    onStartTrip: () -> Unit,
+    onComplete: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = AdminSurface,
+        border = BorderStroke(1.dp, AdminBorder),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${ride.rideNumber} • ${ride.vehicleType}", color = RideYellow, fontWeight = FontWeight.ExtraBold)
+                    AdminOrderStatusPill(ride.status)
+                }
+                Text("₹${ride.totalFare}", color = AdminEmerald, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+            }
+            Surface(shape = RoundedCornerShape(12.dp), color = AdminCard, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Rider: ${ride.customerName} (${ride.customerPhone.ifBlank { ride.customerEmail }})", color = AdminInk, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
+                    Text("${ride.pickupAddress} -> ${ride.dropAddress} (${ride.distanceKm} km)", color = AdminMuted, style = MaterialTheme.typography.labelSmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Pay: ${ride.paymentMethod} (${ride.paymentStatus})", color = AdminCyan, style = MaterialTheme.typography.labelSmall)
+                        Text("OTP: ${ride.otp}", color = AdminGold, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelSmall)
+                    }
+                    if (ride.captainName.isNotBlank() && ride.captainName != "Finding Captain...") {
+                        Text("Captain: ${ride.captainName} • ${ride.vehicleNumber} • ${ride.captainPhone}", color = AdminEmerald, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+            if (ride.status !in listOf("COMPLETED", "CANCELLED", "REFUNDED")) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    when (ride.status) {
+                        "REQUESTED" -> Button(
+                            onClick = onAssignCaptain,
+                            colors = ButtonDefaults.buttonColors(containerColor = RideYellow, contentColor = AdminBg),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) { Text("Assign Captain", fontWeight = FontWeight.ExtraBold) }
+                        "CAPTAIN_ASSIGNED" -> Button(
+                            onClick = onArriving,
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminCyan, contentColor = AdminBg),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) { Text("Mark Arriving", fontWeight = FontWeight.ExtraBold) }
+                        "ARRIVING" -> Button(
+                            onClick = onStartTrip,
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) { Text("Start Trip", fontWeight = FontWeight.ExtraBold) }
+                        "ON_TRIP" -> Button(
+                            onClick = onComplete,
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminEmerald, contentColor = AdminBg),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) { Text("Complete Ride", fontWeight = FontWeight.ExtraBold) }
+                    }
+                    OutlinedButton(onClick = onCancel, border = BorderStroke(1.dp, AdminCrimson), modifier = Modifier.height(44.dp)) {
+                        Text("Cancel", color = AdminCrimson, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdminParcelCard(
+    parcel: ParcelOrder,
+    onAssignPartner: () -> Unit,
+    onPickedUp: () -> Unit,
+    onInTransit: () -> Unit,
+    onDelivered: () -> Unit,
+    onCancel: () -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(20.dp),
+        color = AdminSurface,
+        border = BorderStroke(1.dp, AdminBorder),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("${parcel.parcelNumber} • ${parcel.vehicleType}", color = TransportOrange, fontWeight = FontWeight.ExtraBold)
+                    AdminOrderStatusPill(parcel.status)
+                }
+                Text("₹${parcel.totalFare}", color = AdminEmerald, fontWeight = FontWeight.ExtraBold, fontSize = 18.sp)
+            }
+            Surface(shape = RoundedCornerShape(12.dp), color = AdminCard, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("Sender: ${parcel.senderName} -> Receiver: ${parcel.receiverName} (${parcel.receiverPhone})", color = AdminInk, fontWeight = FontWeight.SemiBold, style = MaterialTheme.typography.bodySmall)
+                    Text("${parcel.pickupAddress} -> ${parcel.dropAddress} • ${parcel.weightKg}kg (${parcel.packageType})", color = AdminMuted, style = MaterialTheme.typography.labelSmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Pay: ${parcel.paymentMethod} (${parcel.paymentStatus})", color = AdminCyan, style = MaterialTheme.typography.labelSmall)
+                        Text("OTP: ${parcel.otp}", color = AdminGold, fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelSmall)
+                    }
+                    if (parcel.partnerName.isNotBlank() && parcel.partnerName != "Assigning Partner...") {
+                        Text("Partner: ${parcel.partnerName} • ${parcel.vehicleNumber} • ${parcel.partnerPhone}", color = AdminEmerald, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+            if (parcel.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED")) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    when (parcel.status) {
+                        "BOOKED" -> Button(
+                            onClick = onAssignPartner,
+                            colors = ButtonDefaults.buttonColors(containerColor = TransportOrange, contentColor = Color.White),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) { Text("Assign Partner", fontWeight = FontWeight.ExtraBold) }
+                        "PARTNER_ASSIGNED" -> Button(
+                            onClick = onPickedUp,
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminCyan, contentColor = AdminBg),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) { Text("Mark Picked Up", fontWeight = FontWeight.ExtraBold) }
+                        "PICKED_UP" -> Button(
+                            onClick = onInTransit,
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) { Text("In Transit", fontWeight = FontWeight.ExtraBold) }
+                        "IN_TRANSIT" -> Button(
+                            onClick = onDelivered,
+                            colors = ButtonDefaults.buttonColors(containerColor = AdminEmerald, contentColor = AdminBg),
+                            modifier = Modifier.weight(1f).height(44.dp)
+                        ) { Text("Mark Delivered", fontWeight = FontWeight.ExtraBold) }
+                    }
+                    OutlinedButton(onClick = onCancel, border = BorderStroke(1.dp, AdminCrimson), modifier = Modifier.height(44.dp)) {
+                        Text("Cancel", color = AdminCrimson, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DispatchRideCaptainDialog(
+    ride: RideBooking,
+    onDismiss: () -> Unit,
+    onDispatch: (captainName: String, captainPhone: String, vehicleNumber: String, etaMinutes: Int) -> Unit
+) {
+    var name by remember { mutableStateOf("Vikram Singh") }
+    var phone by remember { mutableStateOf("+91 98111 44556") }
+    var plate by remember { mutableStateOf("UP16 BR 2026") }
+    var eta by remember { mutableStateOf("4") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = AdminSurface,
+        titleContentColor = AdminInk,
+        title = { Text("Assign Captain • ${ride.rideNumber}", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Captain Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Captain Phone") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = plate, onValueChange = { plate = it }, label = { Text("Vehicle Plate No.") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = eta, onValueChange = { eta = it.filter(Char::isDigit) }, label = { Text("ETA (Min)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onDispatch(name.ifBlank { "Take It Captain" }, phone, plate, eta.toIntOrNull() ?: 4) },
+                colors = ButtonDefaults.buttonColors(containerColor = RideYellow, contentColor = AdminBg)
+            ) { Text("Assign Live", fontWeight = FontWeight.ExtraBold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = AdminMuted) } }
+    )
+}
+
+@Composable
+private fun DispatchParcelPartnerDialog(
+    parcel: ParcelOrder,
+    onDismiss: () -> Unit,
+    onDispatch: (partnerName: String, partnerPhone: String, vehicleNumber: String, etaMinutes: Int) -> Unit
+) {
+    var name by remember { mutableStateOf("Suresh Yadav") }
+    var phone by remember { mutableStateOf("+91 98990 77889") }
+    var plate by remember { mutableStateOf("UP16 TR 8842") }
+    var eta by remember { mutableStateOf("20") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = AdminSurface,
+        titleContentColor = AdminInk,
+        title = { Text("Assign Partner • ${parcel.parcelNumber}", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Transport Partner Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Partner Phone") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = plate, onValueChange = { plate = it }, label = { Text("Vehicle / Truck No.") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = eta, onValueChange = { eta = it.filter(Char::isDigit) }, label = { Text("ETA (Min)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onDispatch(name.ifBlank { "Take It Partner" }, phone, plate, eta.toIntOrNull() ?: 20) },
+                colors = ButtonDefaults.buttonColors(containerColor = TransportOrange, contentColor = Color.White)
+            ) { Text("Dispatch Partner", fontWeight = FontWeight.ExtraBold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = AdminMuted) } }
+    )
+}
+

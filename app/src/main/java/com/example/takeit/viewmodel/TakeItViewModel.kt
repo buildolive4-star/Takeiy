@@ -40,6 +40,10 @@ data class TakeItUiState(
     val coupons: List<PromoCoupon> = emptyList(),
     val myOrders: List<FoodOrder> = emptyList(),
     val allOrders: List<FoodOrder> = emptyList(),
+    val myRides: List<RideBooking> = emptyList(),
+    val allRides: List<RideBooking> = emptyList(),
+    val myParcels: List<ParcelOrder> = emptyList(),
+    val allParcels: List<ParcelOrder> = emptyList(),
     val allUsers: List<TakeItUserProfile> = emptyList(),
     val addresses: List<SavedAddress> = emptyList(),
     val walletTx: List<WalletTx> = emptyList(),
@@ -52,8 +56,10 @@ data class TakeItUiState(
     val razorpayTotalRevenue: Int = 0,
     val isLoadingLedger: Boolean = false,
     val ledgerError: String? = null,
-    // Customer Cart & Navigation
+    // Customer / Ride / Transport Navigation
     val customerTab: CustomerTab = CustomerTab.HOME,
+    val rideTab: RideTab = RideTab.BOOK,
+    val transportTab: TransportTab = TransportTab.SEND,
     val customerBackStack: List<CustomerScreen> = listOf(CustomerScreen.MainTabs),
     val adminTab: AdminTab = AdminTab.OVERVIEW,
     val cart: List<CartItem> = emptyList(),
@@ -166,6 +172,12 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
             repo.observeMyOrders(uid).collect { list -> _uiState.update { it.copy(myOrders = list) } }
         }
         sessionJobs += viewModelScope.launch {
+            repo.observeMyRides(uid).collect { list -> _uiState.update { it.copy(myRides = list) } }
+        }
+        sessionJobs += viewModelScope.launch {
+            repo.observeMyParcels(uid).collect { list -> _uiState.update { it.copy(myParcels = list) } }
+        }
+        sessionJobs += viewModelScope.launch {
             repo.observeAddresses(uid).collect { list -> _uiState.update { it.copy(addresses = list) } }
         }
         sessionJobs += viewModelScope.launch {
@@ -200,6 +212,12 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
             repo.observeAllOrders().collect { list -> _uiState.update { it.copy(allOrders = list) } }
         }
         adminJobs += viewModelScope.launch {
+            repo.observeAllRides().collect { list -> _uiState.update { it.copy(allRides = list) } }
+        }
+        adminJobs += viewModelScope.launch {
+            repo.observeAllParcels().collect { list -> _uiState.update { it.copy(allParcels = list) } }
+        }
+        adminJobs += viewModelScope.launch {
             repo.observeAllUsers().collect { list -> _uiState.update { it.copy(allUsers = list) } }
         }
         adminJobs += viewModelScope.launch {
@@ -228,6 +246,14 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectCustomerTab(tab: CustomerTab) {
         _uiState.update { it.copy(customerTab = tab, customerBackStack = listOf(CustomerScreen.MainTabs)) }
+    }
+
+    fun selectRideTab(tab: RideTab) {
+        _uiState.update { it.copy(rideTab = tab) }
+    }
+
+    fun selectTransportTab(tab: TransportTab) {
+        _uiState.update { it.copy(transportTab = tab) }
     }
 
     fun navigateCustomer(screen: CustomerScreen) {
@@ -717,5 +743,181 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
 
     fun clearMessage() {
         _uiState.update { it.copy(snackbarMessage = null) }
+    }
+
+    // --- RAPIDO RIDE & PARCEL TRANSPORT ACTIONS ---
+
+    fun bookRide(
+        vehicleType: String,
+        pickup: String,
+        drop: String,
+        distanceKm: Int,
+        fare: Int,
+        paymentMethod: String,
+        paymentStatus: String,
+        paymentRef: String,
+        onBooked: () -> Unit = {}
+    ) {
+        val state = _uiState.value
+        if (pickup.isBlank() || drop.isBlank()) {
+            showMessage("Enter both pickup and drop locations")
+            return
+        }
+        if (state.profile.suspendedFlag) {
+            showMessage("Account suspended by Admin. Contact support.")
+            return
+        }
+        val deductWallet = if (paymentMethod == "WALLET") fare.toDouble() else 0.0
+        if (deductWallet > state.profile.walletBalance) {
+            showMessage("Insufficient Wallet balance. Top up or pay via Razorpay / Cash.")
+            return
+        }
+        val rideNum = "TKR-${Random.nextInt(10000, 99999)}"
+        val otp = Random.nextInt(1000, 9999).toString()
+        val ride = RideBooking(
+            rideNumber = rideNum,
+            userId = state.uid,
+            customerName = state.profile.name.ifBlank { state.displayName },
+            customerEmail = state.email,
+            customerPhone = state.profile.phone,
+            vehicleType = vehicleType,
+            pickupAddress = pickup.trim(),
+            dropAddress = drop.trim(),
+            distanceKm = distanceKm.coerceAtLeast(1),
+            totalFare = fare.coerceAtLeast(1),
+            paymentMethod = paymentMethod,
+            paymentStatus = paymentStatus,
+            paymentRef = paymentRef,
+            otp = otp
+        )
+        viewModelScope.launch {
+            repo.bookRide(ride, deductWallet)
+                .onSuccess {
+                    showMessage("Ride $rideNum requested! Finding nearby Captain...")
+                    onBooked()
+                }
+                .onFailure { showMessage(it.localizedMessage ?: "Ride booking failed") }
+        }
+    }
+
+    fun cancelMyRide(rideId: String) {
+        viewModelScope.launch {
+            repo.cancelMyRide(rideId)
+                .onSuccess { showMessage("Ride cancelled.") }
+                .onFailure { showMessage("Captain already assigned.") }
+        }
+    }
+
+    fun rateMyRide(rideId: String, rating: Int) {
+        viewModelScope.launch {
+            repo.rateMyRide(rideId, rating)
+                .onSuccess { showMessage("Rated Captain $rating★!") }
+        }
+    }
+
+    fun adminUpdateRide(
+        rideId: String,
+        status: String,
+        captainName: String? = null,
+        captainPhone: String? = null,
+        vehicleNumber: String? = null,
+        etaMinutes: Int? = null
+    ) {
+        viewModelScope.launch {
+            repo.adminUpdateRide(rideId, status, captainName, captainPhone, vehicleNumber, etaMinutes)
+                .onSuccess { showMessage("Ride updated to $status live!") }
+                .onFailure { showMessage(it.localizedMessage ?: "Failed to update ride") }
+        }
+    }
+
+    fun bookParcel(
+        vehicleType: String,
+        pickup: String,
+        drop: String,
+        receiverName: String,
+        receiverPhone: String,
+        packageType: String,
+        weightKg: Int,
+        fragile: Boolean,
+        fare: Int,
+        paymentMethod: String,
+        paymentStatus: String,
+        paymentRef: String,
+        onBooked: () -> Unit = {}
+    ) {
+        val state = _uiState.value
+        if (pickup.isBlank() || drop.isBlank() || receiverName.isBlank() || receiverPhone.isBlank()) {
+            showMessage("Enter pickup, drop, receiver name & phone")
+            return
+        }
+        if (state.profile.suspendedFlag) {
+            showMessage("Account suspended by Admin.")
+            return
+        }
+        val deductWallet = if (paymentMethod == "WALLET") fare.toDouble() else 0.0
+        if (deductWallet > state.profile.walletBalance) {
+            showMessage("Insufficient Wallet balance.")
+            return
+        }
+        val parcelNum = "TKP-${Random.nextInt(10000, 99999)}"
+        val otp = Random.nextInt(1000, 9999).toString()
+        val parcel = ParcelOrder(
+            parcelNumber = parcelNum,
+            userId = state.uid,
+            senderName = state.profile.name.ifBlank { state.displayName },
+            senderEmail = state.email,
+            senderPhone = state.profile.phone,
+            receiverName = receiverName.trim(),
+            receiverPhone = receiverPhone.trim(),
+            pickupAddress = pickup.trim(),
+            dropAddress = drop.trim(),
+            vehicleType = vehicleType,
+            packageType = packageType.ifBlank { "Parcel Box" },
+            weightKg = weightKg.coerceAtLeast(1),
+            fragileFlag = fragile,
+            totalFare = fare.coerceAtLeast(1),
+            paymentMethod = paymentMethod,
+            paymentStatus = paymentStatus,
+            paymentRef = paymentRef,
+            otp = otp
+        )
+        viewModelScope.launch {
+            repo.bookParcel(parcel, deductWallet)
+                .onSuccess {
+                    showMessage("Shipment $parcelNum booked! Tracking live.")
+                    onBooked()
+                }
+                .onFailure { showMessage(it.localizedMessage ?: "Booking failed") }
+        }
+    }
+
+    fun cancelMyParcel(parcelId: String) {
+        viewModelScope.launch {
+            repo.cancelMyParcel(parcelId)
+                .onSuccess { showMessage("Shipment cancelled.") }
+                .onFailure { showMessage("Partner already assigned.") }
+        }
+    }
+
+    fun rateMyParcel(parcelId: String, rating: Int) {
+        viewModelScope.launch {
+            repo.rateMyParcel(parcelId, rating)
+                .onSuccess { showMessage("Rated delivery $rating★!") }
+        }
+    }
+
+    fun adminUpdateParcel(
+        parcelId: String,
+        status: String,
+        partnerName: String? = null,
+        partnerPhone: String? = null,
+        vehicleNumber: String? = null,
+        etaMinutes: Int? = null
+    ) {
+        viewModelScope.launch {
+            repo.adminUpdateParcel(parcelId, status, partnerName, partnerPhone, vehicleNumber, etaMinutes)
+                .onSuccess { showMessage("Shipment updated to $status live!") }
+                .onFailure { showMessage(it.localizedMessage ?: "Failed to update shipment") }
+        }
     }
 }

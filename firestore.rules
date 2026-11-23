@@ -335,6 +335,130 @@ service cloud.firestore {
       allow delete: if isMainAdmin();
     }
 
+    function isValidRideBooking(data) {
+      return data.rideNumber is string && data.rideNumber.size() >= 2 && data.rideNumber.size() <= 40 &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
+        (!('customerEmail' in data) || (data.customerEmail is string && data.customerEmail.size() <= 120)) &&
+        (!('customerPhone' in data) || (data.customerPhone is string && data.customerPhone.size() <= 30)) &&
+        data.vehicleType is string && data.vehicleType in ['BIKE', 'AUTO', 'MINI_CAB', 'PRIME_SEDAN'] &&
+        data.pickupAddress is string && data.pickupAddress.size() >= 1 && data.pickupAddress.size() <= 300 &&
+        data.dropAddress is string && data.dropAddress.size() >= 1 && data.dropAddress.size() <= 300 &&
+        data.distanceKm is int && data.distanceKm >= 1 && data.distanceKm <= 500 &&
+        data.totalFare is int && data.totalFare >= 0 && data.totalFare <= 100000 &&
+        data.paymentMethod is string && data.paymentMethod in ['RAZORPAY', 'WALLET', 'COD', 'CASH', 'UPI'] &&
+        data.paymentStatus is string && data.paymentStatus in ['PAID', 'PENDING', 'REFUNDED'] &&
+        (!('paymentRef' in data) || (data.paymentRef is string && data.paymentRef.size() <= 120)) &&
+        data.status is string && data.status in ['REQUESTED', 'CAPTAIN_ASSIGNED', 'ARRIVING', 'ON_TRIP', 'COMPLETED', 'CANCELLED', 'REFUNDED'] &&
+        (!('captainName' in data) || (data.captainName is string && data.captainName.size() <= 80)) &&
+        (!('captainPhone' in data) || (data.captainPhone is string && data.captainPhone.size() <= 30)) &&
+        (!('vehicleNumber' in data) || (data.vehicleNumber is string && data.vehicleNumber.size() <= 40)) &&
+        (!('etaMinutes' in data) || (data.etaMinutes is int && data.etaMinutes >= 0 && data.etaMinutes <= 240)) &&
+        data.otp is string && data.otp.size() <= 12 &&
+        data.rating is int && data.rating >= 0 && data.rating <= 5 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidParcelOrder(data) {
+      return data.parcelNumber is string && data.parcelNumber.size() >= 2 && data.parcelNumber.size() <= 40 &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 100 &&
+        (!('senderEmail' in data) || (data.senderEmail is string && data.senderEmail.size() <= 120)) &&
+        (!('senderPhone' in data) || (data.senderPhone is string && data.senderPhone.size() <= 30)) &&
+        data.receiverName is string && data.receiverName.size() >= 1 && data.receiverName.size() <= 100 &&
+        data.receiverPhone is string && data.receiverPhone.size() >= 3 && data.receiverPhone.size() <= 30 &&
+        data.pickupAddress is string && data.pickupAddress.size() >= 1 && data.pickupAddress.size() <= 300 &&
+        data.dropAddress is string && data.dropAddress.size() >= 1 && data.dropAddress.size() <= 300 &&
+        data.vehicleType is string && data.vehicleType in ['TWO_WHEELER', 'THREE_WHEELER', 'MINI_TRUCK', 'PICKUP_8FT'] &&
+        data.packageType is string && data.packageType.size() >= 1 && data.packageType.size() <= 80 &&
+        data.weightKg is int && data.weightKg >= 1 && data.weightKg <= 10000 &&
+        data.fragileFlag is bool &&
+        data.totalFare is int && data.totalFare >= 0 && data.totalFare <= 200000 &&
+        data.paymentMethod is string && data.paymentMethod in ['RAZORPAY', 'WALLET', 'COD', 'CASH', 'UPI'] &&
+        data.paymentStatus is string && data.paymentStatus in ['PAID', 'PENDING', 'REFUNDED'] &&
+        (!('paymentRef' in data) || (data.paymentRef is string && data.paymentRef.size() <= 120)) &&
+        data.status is string && data.status in ['BOOKED', 'PARTNER_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'REFUNDED'] &&
+        (!('partnerName' in data) || (data.partnerName is string && data.partnerName.size() <= 80)) &&
+        (!('partnerPhone' in data) || (data.partnerPhone is string && data.partnerPhone.size() <= 30)) &&
+        (!('vehicleNumber' in data) || (data.vehicleNumber is string && data.vehicleNumber.size() <= 40)) &&
+        (!('etaMinutes' in data) || (data.etaMinutes is int && data.etaMinutes >= 0 && data.etaMinutes <= 480)) &&
+        data.otp is string && data.otp.size() <= 12 &&
+        data.rating is int && data.rating >= 0 && data.rating <= 5 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    // --- 6B. LIVE RAPIDO RIDES ---
+    match /takeit_rides/{rideId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || canManageOrders() || isStaff());
+      allow list: if isSignedIn() && (canManageOrders() || isStaff() || resource.data.userId == request.auth.uid);
+
+      allow create: if isSignedIn() &&
+        isValidId(rideId) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'REQUESTED' &&
+        isValidRideBooking(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(rideId) &&
+        isValidRideBooking(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          canManageOrders() ||
+          (
+            isOwner(existing().userId) &&
+            existing().status == 'COMPLETED' &&
+            incoming().status == 'COMPLETED' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'updatedAt'])
+          ) ||
+          (
+            isOwner(existing().userId) &&
+            existing().status == 'REQUESTED' &&
+            incoming().status == 'CANCELLED' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isMainAdmin();
+    }
+
+    // --- 6C. LIVE PARCEL & GOODS TRANSPORT ---
+    match /takeit_parcels/{parcelId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || canManageOrders() || isStaff());
+      allow list: if isSignedIn() && (canManageOrders() || isStaff() || resource.data.userId == request.auth.uid);
+
+      allow create: if isSignedIn() &&
+        isValidId(parcelId) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'BOOKED' &&
+        isValidParcelOrder(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(parcelId) &&
+        isValidParcelOrder(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          canManageOrders() ||
+          (
+            isOwner(existing().userId) &&
+            existing().status == 'DELIVERED' &&
+            incoming().status == 'DELIVERED' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'updatedAt'])
+          ) ||
+          (
+            isOwner(existing().userId) &&
+            existing().status == 'BOOKED' &&
+            incoming().status == 'CANCELLED' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isMainAdmin();
+    }
+
     // --- 7. REVIEWS ---
     match /takeit_reviews/{reviewId} {
       allow get, list: if isSignedIn();

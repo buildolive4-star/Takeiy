@@ -1,0 +1,11 @@
+<resources>
+    <string name="app_name">Zipora</string>
+    <string name="tagline">Everything You Need, One App.</string>
+    <string name="sub_tagline">Ride. Eat. Shop. Deliver. Move.</string>
+    <string name="search_placeholder">Search rides, food, groceries, parcels...</string>
+    <string name="delivering_to">Delivering to</string>
+    <string name="change_location">Change</string>
+    <string name="explore_services">Explore Services</string>
+    <string name="switch_your_mode">SWITCH YOUR MODE</string>
+    <string name="prototype_notice">Simulated Prototype Mode</string>
+</resources>

@@ -590,14 +590,14 @@ fun CustomerHomeScreen(
                     val services = listOf(
                         ServiceCardSpec(
                             title = "Ride Booking",
-                            subtitle = "Bike Taxi • Auto • Cab",
+                            subtitle = "Bike • Auto XL • Cab",
                             cta = "Book a Ride",
                             icon = Icons.Rounded.TwoWheeler,
                             bgStart = RideCardStart,
                             bgEnd = RideCardEnd,
                             accent = SkyBlueDark,
                             badge = "2 MIN ETA",
-                            imageRes = R.drawable.img_mobility_fleet_1795421417312,
+                            imageRes = R.drawable.img_char_ride_captain_1795426023899,
                             route = AppRoute.RideBooking,
                             tag = "service_card_ride"
                         ),
@@ -608,9 +608,9 @@ fun CustomerHomeScreen(
                             icon = Icons.Rounded.LunchDining,
                             bgStart = FoodCardStart,
                             bgEnd = FoodCardEnd,
-                            accent = OrangeAccent,
+                            accent = FoodWarmOrange,
                             badge = "50% OFF",
-                            imageRes = R.drawable.img_food_feast_1795421416008,
+                            imageRes = R.drawable.img_char_food_rider_1795426023084,
                             route = AppRoute.FoodDiscovery,
                             tag = "service_card_food"
                         ),
@@ -623,7 +623,7 @@ fun CustomerHomeScreen(
                             bgEnd = GroceryCardEnd,
                             accent = SuccessGreen,
                             badge = "9 MIN",
-                            imageRes = R.drawable.img_grocery_basket_1795421415559,
+                            imageRes = R.drawable.img_char_grocery_buddy_1795426023736,
                             route = AppRoute.GroceryStore,
                             tag = "service_card_grocery"
                         ),
@@ -636,7 +636,7 @@ fun CustomerHomeScreen(
                             bgEnd = ParcelCardEnd,
                             accent = Color(0xFFB45309),
                             badge = "OTP SAFE",
-                            imageRes = null,
+                            imageRes = R.drawable.img_char_porter_mover_1795426024294,
                             route = AppRoute.ParcelDelivery,
                             tag = "service_card_parcel"
                         ),
@@ -647,9 +647,9 @@ fun CustomerHomeScreen(
                             icon = Icons.Rounded.LocalShipping,
                             bgStart = TransportCardStart,
                             bgEnd = TransportCardEnd,
-                            accent = VioletAccent,
+                            accent = IndustrialBlue,
                             badge = "UP TO 3.5T",
-                            imageRes = null,
+                            imageRes = R.drawable.img_mobility_fleet_1795421417312,
                             route = AppRoute.GoodsTransport,
                             tag = "service_card_transport"
                         ),
@@ -679,6 +679,48 @@ fun CustomerHomeScreen(
                                     modifier = Modifier.weight(1f),
                                     onClick = { onNavigate(spec.route) }
                                 )
+                            }
+                        }
+                    }
+
+                    // MEET YOUR ZIPORA 3D CREW CHARACTER SPOTLIGHT
+                    Spacer(Modifier.height(6.dp))
+                    Text("Meet Your Zipora 3D Crew", style = MaterialTheme.typography.titleLarge, color = DeepNavy)
+                    Text("Tap a specialist to launch instant service", style = MaterialTheme.typography.bodySmall, color = MutedText)
+                    Spacer(Modifier.height(10.dp))
+                    val crew = listOf(
+                        Triple("Captain Arjun", "2m Bike & Auto", Pair(R.drawable.img_char_ride_captain_1795426023899, AppRoute.RideBooking)),
+                        Triple("Chef Rider Leo", "Hot Food Hero", Pair(R.drawable.img_char_food_rider_1795426023084, AppRoute.FoodDiscovery)),
+                        Triple("Blink Buddy Sam", "9m Fresh Mart", Pair(R.drawable.img_char_grocery_buddy_1795426023736, AppRoute.GroceryStore)),
+                        Triple("Mover Vikram", "Parcel & Cargo", Pair(R.drawable.img_char_porter_mover_1795426024294, AppRoute.GoodsTransport))
+                    )
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(crew) { (charName, roleTag, pair) ->
+                            val (resId, route) = pair
+                            Surface(
+                                shape = RoundedCornerShape(22.dp),
+                                color = SoftWhite,
+                                shadowElevation = 5.dp,
+                                modifier = Modifier
+                                    .width(126.dp)
+                                    .border(1.dp, LightBorder, RoundedCornerShape(22.dp))
+                                    .bounceClick { onNavigate(route) }
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(10.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Character3DPortrait(
+                                        drawableRes = resId,
+                                        contentDescription = charName,
+                                        borderColor = SkyBlue,
+                                        size = 86.dp,
+                                        bobbing = true
+                                    )
+                                    Text(charName, style = MaterialTheme.typography.labelLarge, color = DeepNavy, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(roleTag, style = MaterialTheme.typography.labelSmall, color = SkyBlueDark, maxLines = 1)
+                                }
                             }
                         }
                     }

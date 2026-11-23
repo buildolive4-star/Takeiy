@@ -5,7 +5,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -15,16 +14,23 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.R
 import com.example.data.DemoCatalog
 import com.example.model.AppRoute
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.viewmodel.SuperAppUiState
+import kotlinx.coroutines.delay
+
+private val CaptainYellow = Color(0xFFFFD43B)
+private val CaptainCharcoal = Color(0xFF111827)
 
 @Composable
 fun DriverCaptainPanelScreen(
@@ -38,9 +44,11 @@ fun DriverCaptainPanelScreen(
 ) {
     val isOnline = uiState.appState.driverOnline
     val currentReq = DemoCatalog.incomingDriverRequests[uiState.activeDriverRequestIndex % DemoCatalog.incomingDriverRequests.size]
-    var acceptedJob by remember(uiState.activeDriverRequestIndex) { mutableStateOf(false) }
-    var otpVerify by remember(uiState.activeDriverRequestIndex) { mutableStateOf("") }
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Radar, 1: Services & Docs, 2: Earnings
+
+    // 0 = Incoming Ping, 1 = Heading to Pickup, 2 = Arrived / Enter PIN, 3 = Trip In Progress
+    var tripStage by remember(uiState.activeDriverRequestIndex) { mutableIntStateOf(0) }
+    var pinInput by remember(uiState.activeDriverRequestIndex) { mutableStateOf("") }
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Duty Radar, 1: Earnings, 2: Services & Docs
 
     val eligibleServices = listOf(
         Triple("Bike Taxi", "Verified • Hero Xtreme 160R", true),
@@ -53,246 +61,413 @@ fun DriverCaptainPanelScreen(
 
     Scaffold(
         containerColor = DarkBackground,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = {
+            // Clean Rapido Captain Bottom Bar
+            Surface(color = CaptainCharcoal, shadowElevation = 12.dp) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly
+                ) {
+                    listOf(
+                        Triple("Duty", Icons.Rounded.Radar, 0),
+                        Triple("Earnings", Icons.Rounded.AccountBalanceWallet, 1),
+                        Triple("Services", Icons.Rounded.TwoWheeler, 2)
+                    ).forEach { (label, icon, idx) ->
+                        val active = selectedTab == idx
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (active) CaptainYellow else Color.Transparent)
+                                .clickable { selectedTab = idx }
+                                .padding(horizontal = 22.dp, vertical = 7.dp)
+                        ) {
+                            Icon(icon, label, tint = if (active) CaptainCharcoal else Color(0xFF9FB3C8), modifier = Modifier.size(20.dp))
+                            Text(
+                                label,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (active) CaptainCharcoal else Color(0xFF9FB3C8),
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                    }
+                }
+            }
+        }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
-            contentPadding = PaddingValues(bottom = 42.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // Dark Navy Command Header
+            // RAPIDO CAPTAIN TOP FLOATING DUTY HEADER
             item {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Brush.verticalGradient(listOf(DeepNavyLight, DeepNavy)))
+                        .background(Brush.verticalGradient(listOf(CaptainCharcoal, DeepNavy)))
                         .statusBarsPadding()
-                        .padding(16.dp),
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         IconButton(
                             onClick = onOpenDrawer,
-                            modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(SoftWhite.copy(alpha = 0.1f)).testTag("driver_menu_button")
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(SoftWhite.copy(alpha = 0.12f))
+                                .testTag("driver_menu_button")
                         ) {
-                            Icon(Icons.Rounded.Menu, "Switch Panel", tint = PremiumYellow)
+                            Icon(Icons.Rounded.Menu, "Switch Panel", tint = CaptainYellow)
                         }
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("CAPTAIN COMMAND", style = MaterialTheme.typography.labelSmall, color = SkyBlue)
-                            Text("Driver / Captain Panel", style = MaterialTheme.typography.titleLarge, color = SoftWhite)
-                        }
+
+                        // Iconic Center ON DUTY / OFF DUTY Toggle Pill
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
+                                .shadow(8.dp, RoundedCornerShape(50))
                                 .clip(RoundedCornerShape(50))
-                                .background(if (isOnline) SuccessGreen.copy(alpha = 0.22f) else CoralDanger.copy(alpha = 0.22f))
-                                .border(1.dp, if (isOnline) SuccessGreen else CoralDanger, RoundedCornerShape(50))
+                                .background(if (isOnline) SuccessGreen else CoralDanger)
+                                .border(2.dp, SoftWhite.copy(alpha = 0.55f), RoundedCornerShape(50))
                                 .clickable { onToggleOnline(!isOnline) }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+                                .padding(horizontal = 18.dp, vertical = 9.dp)
                                 .testTag("driver_online_toggle")
                         ) {
-                            Box(Modifier.size(8.dp).clip(CircleShape).background(if (isOnline) SuccessGreen else CoralDanger))
+                            Box(Modifier.size(10.dp).clip(CircleShape).background(SoftWhite))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                if (isOnline) "ON DUTY" else "OFF DUTY",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = SoftWhite,
+                                fontWeight = FontWeight.ExtraBold
+                            )
                             Spacer(Modifier.width(6.dp))
-                            Text(if (isOnline) "ONLINE" else "OFFLINE", style = MaterialTheme.typography.labelSmall, color = SoftWhite, fontWeight = FontWeight.ExtraBold)
+                            Icon(Icons.Rounded.PowerSettingsNew, null, tint = SoftWhite, modifier = Modifier.size(16.dp))
+                        }
+
+                        // Today's Earnings Quick Pill
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(CaptainYellow)
+                                .clickable { selectedTab = 1 }
+                                .padding(horizontal = 11.dp, vertical = 8.dp)
+                        ) {
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("TODAY", style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp), color = CaptainCharcoal)
+                                Text("₹${uiState.driverEarningsToday}", style = MaterialTheme.typography.titleSmall, color = CaptainCharcoal, fontWeight = FontWeight.ExtraBold)
+                            }
                         }
                     }
 
-                    // KPI Ribbon
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        DarkKpiTile("Today Earnings", "₹${uiState.driverEarningsToday}", PremiumYellow, Modifier.weight(1f))
-                        DarkKpiTile("Trips Done", "${uiState.driverRidesToday}", SkyBlue, Modifier.weight(1f))
-                        DarkKpiTile("Incentives", "₹${uiState.driverIncentivesToday}", SuccessGreen, Modifier.weight(1f))
-                        DarkKpiTile("Rating", "4.92★", OrangeAccent, Modifier.weight(1f))
-                    }
-
-                    // Mode Tabs
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Live Radar", "Services & Docs", "Earnings").forEachIndexed { idx, title ->
-                            FilterChip(
-                                selected = selectedTab == idx,
-                                onClick = { selectedTab = idx },
-                                label = { Text(title, style = MaterialTheme.typography.labelMedium) }
+                    // Daily Target Incentive Progress Strip (Classic Rapido Captain Motivation)
+                    val targetRides = 16
+                    val progress = (uiState.driverRidesToday.toFloat() / targetRides).coerceIn(0f, 1f)
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = DarkCardSurface,
+                        modifier = Modifier.border(1.dp, CaptainYellow.copy(alpha = 0.45f), RoundedCornerShape(16.dp))
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(
+                                    if (uiState.driverRidesToday >= targetRides) "🎉 ₹350 Daily Bonus Unlocked!" else "Complete ${(targetRides - uiState.driverRidesToday).coerceAtLeast(1)} more rides for ₹350 Bonus",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = CaptainYellow,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                                Text("${uiState.driverRidesToday}/$targetRides", style = MaterialTheme.typography.labelMedium, color = SoftWhite, fontWeight = FontWeight.Bold)
+                            }
+                            LinearProgressIndicator(
+                                progress = { progress },
+                                modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(50)),
+                                color = CaptainYellow,
+                                trackColor = DarkBorder
                             )
                         }
                     }
                 }
             }
 
-            if (selectedTab == 0) {
-                item {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        SimulatedMapCanvas(
-                            modifier = Modifier.fillMaxWidth().height(205.dp),
-                            pickupLabel = currentReq.pickupTitle,
-                            dropLabel = currentReq.dropTitle,
-                            distanceKm = currentReq.tripDistKm,
-                            etaMinutes = (currentReq.tripDistKm * 2.5).toInt(),
-                            isDarkStyle = true,
-                            showMatchingRadar = isOnline && !acceptedJob
-                        )
+            when (selectedTab) {
+                0 -> {
+                    item {
+                        Column(modifier = Modifier.padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            SimulatedMapCanvas(
+                                modifier = Modifier.fillMaxWidth().height(235.dp),
+                                pickupLabel = currentReq.pickupTitle,
+                                dropLabel = currentReq.dropTitle,
+                                distanceKm = currentReq.tripDistKm,
+                                etaMinutes = (currentReq.tripDistKm * 2.4).toInt(),
+                                isDarkStyle = true,
+                                showMatchingRadar = isOnline && tripStage == 0
+                            )
 
-                        if (!isOnline) {
-                            Surface(shape = RoundedCornerShape(20.dp), color = DarkCardSurface) {
-                                Column(modifier = Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                    Icon(Icons.Rounded.PowerSettingsNew, null, tint = CoralDanger, modifier = Modifier.size(42.dp))
-                                    Spacer(Modifier.height(8.dp))
-                                    Text("You are currently Offline", style = MaterialTheme.typography.titleLarge, color = SoftWhite)
-                                    Text("Toggle ONLINE above to receive Bike Taxi, Auto & Delivery requests.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9FB3C8))
+                            if (!isOnline) {
+                                Surface(shape = RoundedCornerShape(22.dp), color = DarkCardSurface) {
+                                    Column(
+                                        modifier = Modifier.fillMaxWidth().padding(22.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Character3DPortrait(
+                                            drawableRes = R.drawable.img_char_ride_captain_1795426023899,
+                                            contentDescription = "3D Captain Character",
+                                            borderColor = CaptainYellow,
+                                            size = 86.dp
+                                        )
+                                        Text("You are OFF DUTY", style = MaterialTheme.typography.headlineMedium, color = SoftWhite, fontWeight = FontWeight.ExtraBold)
+                                        Text("Go ON DUTY to start receiving Bike Taxi, Auto & Express Parcel pings in Indiranagar high-demand zone.", style = MaterialTheme.typography.bodySmall, color = Color(0xFF9FB3C8))
+                                        Button(
+                                            onClick = { onToggleOnline(true) },
+                                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen, contentColor = SoftWhite),
+                                            shape = RoundedCornerShape(14.dp),
+                                            modifier = Modifier.fillMaxWidth().height(50.dp)
+                                        ) { Text("GO ON DUTY NOW", fontWeight = FontWeight.ExtraBold) }
+                                    }
                                 }
-                            }
-                        } else if (!acceptedJob) {
-                            // Animated Incoming Request Card
-                            Surface(
-                                shape = RoundedCornerShape(22.dp),
-                                color = DarkCardSurface,
-                                modifier = Modifier.border(1.5.dp, PremiumYellow, RoundedCornerShape(22.dp))
-                            ) {
-                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            IconOrb3D(Icons.Rounded.Bolt, DeepNavy, PremiumYellow, OrangeAccent, size = 40.dp, iconSize = 20.dp)
-                                            Spacer(Modifier.width(10.dp))
-                                            Column {
-                                                Text("INCOMING ${currentReq.serviceType.uppercase()}", style = MaterialTheme.typography.labelSmall, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
-                                                Text(currentReq.customerName, style = MaterialTheme.typography.titleMedium, color = SoftWhite)
+                            } else when (tripStage) {
+                                0 -> {
+                                    // RAPIDO CAPTAIN INCOMING RIDE PING CARD
+                                    var secsLeft by remember(currentReq.id) { mutableIntStateOf(15) }
+                                    LaunchedEffect(currentReq.id) {
+                                        secsLeft = 15
+                                        while (secsLeft > 1) {
+                                            delay(1000)
+                                            secsLeft--
+                                        }
+                                    }
+                                    Surface(
+                                        shape = RoundedCornerShape(24.dp),
+                                        color = CaptainCharcoal,
+                                        modifier = Modifier.border(2.dp, CaptainYellow, RoundedCornerShape(24.dp))
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                Box(Modifier.clip(RoundedCornerShape(8.dp)).background(CaptainYellow).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                                                    Text("⚡ ${currentReq.serviceType.uppercase()}", style = MaterialTheme.typography.labelSmall, color = CaptainCharcoal, fontWeight = FontWeight.ExtraBold)
+                                                }
+                                                Box(Modifier.clip(CircleShape).background(CoralDanger.copy(alpha = 0.22f)).padding(horizontal = 10.dp, vertical = 4.dp)) {
+                                                    Text("${secsLeft}s", style = MaterialTheme.typography.labelLarge, color = CaptainYellow, fontWeight = FontWeight.ExtraBold)
+                                                }
+                                            }
+
+                                            LinearProgressIndicator(
+                                                progress = { secsLeft / 15f },
+                                                modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(50)),
+                                                color = CaptainYellow,
+                                                trackColor = DarkBorder
+                                            )
+
+                                            // Giant Payout + Distance Row
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Bottom) {
+                                                Column {
+                                                    Text("ESTIMATED EARNING", style = MaterialTheme.typography.labelSmall, color = Color(0xFF9FB3C8))
+                                                    Text("₹${currentReq.partnerEarnings}", style = MaterialTheme.typography.displayMedium, color = SuccessGreen, fontWeight = FontWeight.ExtraBold)
+                                                }
+                                                Column(horizontalAlignment = Alignment.End) {
+                                                    Text("${currentReq.paymentType} • Fare ₹${currentReq.fare}", style = MaterialTheme.typography.labelMedium, color = SkyBlue)
+                                                    Text("Pickup ${currentReq.pickupDistKm} km • Drop ${currentReq.tripDistKm} km", style = MaterialTheme.typography.labelMedium, color = SoftWhite, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+
+                                            // Connected Pickup -> Drop Timeline
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(end = 10.dp)) {
+                                                    Box(Modifier.size(10.dp).clip(CircleShape).background(SuccessGreen))
+                                                    Box(Modifier.width(2.dp).height(24.dp).background(DarkBorder))
+                                                    Box(Modifier.size(10.dp).clip(CircleShape).background(CoralDanger))
+                                                }
+                                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    Text(currentReq.pickupTitle, style = MaterialTheme.typography.titleSmall, color = SoftWhite)
+                                                    Text(currentReq.dropTitle, style = MaterialTheme.typography.bodySmall, color = Color(0xFFB8D4EB))
+                                                }
+                                            }
+
+                                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                OutlinedButton(
+                                                    onClick = {
+                                                        onNextRequest(0)
+                                                        onShowMessage("Ride skipped • Scanning next ping")
+                                                    },
+                                                    modifier = Modifier.weight(0.85f).height(52.dp).testTag("driver_reject_btn"),
+                                                    shape = RoundedCornerShape(14.dp),
+                                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralDanger)
+                                                ) { Text("SKIP", fontWeight = FontWeight.ExtraBold) }
+                                                Button(
+                                                    onClick = {
+                                                        tripStage = 1
+                                                        onShowMessage("Ride accepted! Navigating to ${currentReq.pickupTitle}")
+                                                    },
+                                                    modifier = Modifier.weight(1.6f).height(52.dp).testTag("driver_accept_btn"),
+                                                    shape = RoundedCornerShape(14.dp),
+                                                    colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen, contentColor = SoftWhite)
+                                                ) { Text("ACCEPT RIDE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold) }
                                             }
                                         }
-                                        Column(horizontalAlignment = Alignment.End) {
-                                            Text("₹${currentReq.partnerEarnings}", style = MaterialTheme.typography.headlineMedium, color = SuccessGreen, fontWeight = FontWeight.ExtraBold)
-                                            Text("Fare ₹${currentReq.fare} • ${currentReq.paymentType}", style = MaterialTheme.typography.labelSmall, color = SkyBlue)
+                                    }
+                                }
+
+                                1 -> {
+                                    // STAGE 1: HEADING TO PICKUP
+                                    Surface(shape = RoundedCornerShape(22.dp), color = DarkCardSurface, modifier = Modifier.border(1.5.dp, SkyBlue, RoundedCornerShape(22.dp))) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Column {
+                                                    Text("PICKUP RIDER (${currentReq.pickupDistKm} km)", style = MaterialTheme.typography.labelSmall, color = CaptainYellow, fontWeight = FontWeight.ExtraBold)
+                                                    Text(currentReq.customerName, style = MaterialTheme.typography.titleLarge, color = SoftWhite)
+                                                    Text(currentReq.pickupTitle, style = MaterialTheme.typography.bodySmall, color = SkyBlue)
+                                                }
+                                                StatusPill("ACCEPTED")
+                                            }
+                                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                OutlinedButton(onClick = { onShowMessage("Calling ${currentReq.customerName}...") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftWhite)) {
+                                                    Icon(Icons.Rounded.Call, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Call")
+                                                }
+                                                OutlinedButton(onClick = { onShowMessage("Sent: 'Captain is 1 min away!'") }, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = CaptainYellow)) {
+                                                    Icon(Icons.Rounded.Chat, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Chat")
+                                                }
+                                            }
+                                            Button(
+                                                onClick = { tripStage = 2 },
+                                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                                shape = RoundedCornerShape(14.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = CaptainYellow, contentColor = CaptainCharcoal)
+                                            ) { Text("I HAVE ARRIVED AT PICKUP", fontWeight = FontWeight.ExtraBold) }
                                         }
                                     }
-                                    HorizontalDivider(color = DarkBorder)
-                                    Text("Pickup (${currentReq.pickupDistKm} km away): ${currentReq.pickupTitle}", style = MaterialTheme.typography.bodySmall, color = SoftWhite)
-                                    Text("Drop (${currentReq.tripDistKm} km trip): ${currentReq.dropTitle}", style = MaterialTheme.typography.bodySmall, color = Color(0xFFB8D4EB))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        OutlinedButton(
-                                            onClick = {
-                                                onNextRequest(0)
-                                                onShowMessage("Request declined • Searching next nearby request")
-                                            },
-                                            modifier = Modifier.weight(1f).height(48.dp).testTag("driver_reject_btn"),
-                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralDanger)
-                                        ) {
-                                            Text("Reject", fontWeight = FontWeight.Bold)
+                                }
+
+                                2 -> {
+                                    // STAGE 2: ENTER RIDER 4-DIGIT PIN TO START RIDE
+                                    Surface(shape = RoundedCornerShape(22.dp), color = DarkCardSurface, modifier = Modifier.border(1.5.dp, CaptainYellow, RoundedCornerShape(22.dp))) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Text("Ask ${currentReq.customerName} for 4-Digit PIN", style = MaterialTheme.typography.titleMedium, color = SoftWhite, fontWeight = FontWeight.Bold)
+                                            OutlinedTextField(
+                                                value = pinInput,
+                                                onValueChange = { pinInput = it },
+                                                label = { Text("Enter Rider PIN (Demo: ${currentReq.otp})") },
+                                                singleLine = true,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = OutlinedTextFieldDefaults.colors(
+                                                    focusedTextColor = SoftWhite,
+                                                    unfocusedTextColor = SoftWhite,
+                                                    focusedBorderColor = CaptainYellow,
+                                                    unfocusedBorderColor = DarkBorder
+                                                )
+                                            )
+                                            Button(
+                                                onClick = {
+                                                    if (pinInput.isBlank() || pinInput == currentReq.otp) {
+                                                        tripStage = 3
+                                                        onShowMessage("PIN Verified! Ride started toward ${currentReq.dropTitle}")
+                                                    } else {
+                                                        onShowMessage("Wrong PIN. Rider PIN is ${currentReq.otp}")
+                                                    }
+                                                },
+                                                modifier = Modifier.fillMaxWidth().height(52.dp),
+                                                shape = RoundedCornerShape(14.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen, contentColor = SoftWhite)
+                                            ) { Text("VERIFY PIN & START RIDE", fontWeight = FontWeight.ExtraBold) }
                                         }
-                                        Button(
-                                            onClick = {
-                                                acceptedJob = true
-                                                onShowMessage("Trip accepted! Navigate to ${currentReq.pickupTitle}")
-                                            },
-                                            modifier = Modifier.weight(1.4f).height(48.dp).testTag("driver_accept_btn"),
-                                            colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen, contentColor = SoftWhite)
-                                        ) {
-                                            Text("Accept Trip", fontWeight = FontWeight.ExtraBold)
+                                    }
+                                }
+
+                                else -> {
+                                    // STAGE 3: TRIP IN PROGRESS -> COMPLETE & COLLECT
+                                    Surface(shape = RoundedCornerShape(22.dp), color = DarkCardSurface, modifier = Modifier.border(1.5.dp, SuccessGreen, RoundedCornerShape(22.dp))) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Column {
+                                                    Text("ON TRIP TO DROP", style = MaterialTheme.typography.labelSmall, color = SuccessGreen, fontWeight = FontWeight.ExtraBold)
+                                                    Text(currentReq.dropTitle, style = MaterialTheme.typography.titleMedium, color = SoftWhite)
+                                                }
+                                                Text("₹${currentReq.fare}", style = MaterialTheme.typography.headlineMedium, color = CaptainYellow, fontWeight = FontWeight.ExtraBold)
+                                            }
+                                            Text("Collect via ${currentReq.paymentType} • Net Captain Payout: ₹${currentReq.partnerEarnings}", style = MaterialTheme.typography.bodySmall, color = SkyBlue)
+                                            Button(
+                                                onClick = {
+                                                    tripStage = 0
+                                                    pinInput = ""
+                                                    onNextRequest(currentReq.partnerEarnings)
+                                                    onShowMessage("Trip Completed! +₹${currentReq.partnerEarnings} credited.")
+                                                },
+                                                modifier = Modifier.fillMaxWidth().height(54.dp).testTag("driver_complete_trip_btn"),
+                                                shape = RoundedCornerShape(14.dp),
+                                                colors = ButtonDefaults.buttonColors(containerColor = CaptainYellow, contentColor = CaptainCharcoal)
+                                            ) { Text("COMPLETE RIDE (+₹${currentReq.partnerEarnings})", fontWeight = FontWeight.ExtraBold) }
                                         }
                                     }
                                 }
                             }
-                        } else {
-                            // Active Trip Panel with Call, Chat, OTP Complete
-                            Surface(shape = RoundedCornerShape(22.dp), color = DarkCardSurface, modifier = Modifier.border(1.dp, SkyBlue, RoundedCornerShape(22.dp))) {
-                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Active Trip • ${currentReq.customerName}", style = MaterialTheme.typography.titleMedium, color = SoftWhite)
-                                        StatusPill("ON_THE_WAY")
-                                    }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        OutlinedButton(
-                                            onClick = { onShowMessage("Simulated call to ${currentReq.customerName}") },
-                                            modifier = Modifier.weight(1f),
-                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftWhite)
-                                        ) { Icon(Icons.Rounded.Call, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("Call") }
-                                        OutlinedButton(
-                                            onClick = { onShowMessage("Chat opened: 'I am 2 mins away at Gate 2!'") },
-                                            modifier = Modifier.weight(1f),
-                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SkyBlue)
-                                        ) { Icon(Icons.Rounded.Chat, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("In-App Chat") }
-                                    }
-                                    OutlinedTextField(
-                                        value = otpVerify,
-                                        onValueChange = { otpVerify = it },
-                                        label = { Text("Customer OTP (${currentReq.otp})") },
-                                        singleLine = true,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        colors = OutlinedTextFieldDefaults.colors(
-                                            focusedTextColor = SoftWhite,
-                                            unfocusedTextColor = SoftWhite,
-                                            focusedBorderColor = PremiumYellow,
-                                            unfocusedBorderColor = DarkBorder
-                                        )
-                                    )
+                        }
+                    }
+                }
+
+                1 -> {
+                    // EARNINGS, INCENTIVES & WITHDRAWAL
+                    item {
+                        Column(modifier = Modifier.padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                DarkKpiTile("Today", "₹${uiState.driverEarningsToday}", CaptainYellow, Modifier.weight(1f))
+                                DarkKpiTile("Trips", "${uiState.driverRidesToday}", SkyBlue, Modifier.weight(1f))
+                                DarkKpiTile("Incentives", "₹${uiState.driverIncentivesToday}", SuccessGreen, Modifier.weight(1f))
+                                DarkKpiTile("Rating", "4.92★", OrangeAccent, Modifier.weight(1f))
+                            }
+                            Surface(shape = RoundedCornerShape(22.dp), color = DarkCardSurface) {
+                                Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Text("Captain Wallet Balance", style = MaterialTheme.typography.labelMedium, color = SkyBlue)
+                                    AnimatedWalletAmount(uiState.appState.walletBalance, color = CaptainYellow, style = MaterialTheme.typography.displayMedium)
+                                    Text("Zero-Fee Instant Bank Transfer Available", style = MaterialTheme.typography.bodySmall, color = SuccessGreen)
                                     Button(
-                                        onClick = {
-                                            acceptedJob = false
-                                            onNextRequest(currentReq.partnerEarnings)
-                                            onShowMessage("Trip Completed! +₹${currentReq.partnerEarnings} credited to Captain Wallet.")
-                                        },
-                                        modifier = Modifier.fillMaxWidth().height(50.dp).testTag("driver_complete_trip_btn"),
-                                        colors = ButtonDefaults.buttonColors(containerColor = PremiumYellow, contentColor = DeepNavy)
-                                    ) {
-                                        Text("Verify OTP & Complete (+₹${currentReq.partnerEarnings})", fontWeight = FontWeight.ExtraBold)
-                                    }
+                                        onClick = { onShowMessage("Simulated Instant Bank Payout initiated to HDFC ****4821") },
+                                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = CaptainYellow, contentColor = CaptainCharcoal),
+                                        shape = RoundedCornerShape(14.dp)
+                                    ) { Text("Withdraw to Bank (Simulated)", fontWeight = FontWeight.ExtraBold) }
                                 }
                             }
+                            OutlinedButton(
+                                onClick = { onNavigate(AppRoute.OrderHistory("RIDE")) },
+                                modifier = Modifier.fillMaxWidth().height(48.dp),
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftWhite)
+                            ) { Text("View Completed Ride History") }
                         }
                     }
                 }
-            } else if (selectedTab == 1) {
-                item {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text("Eligible Service Toggles", style = MaterialTheme.typography.titleLarge, color = SoftWhite)
-                        eligibleServices.forEach { (name, docStatus, eligible) ->
-                            val active = name in uiState.driverEnabledServices && eligible
-                            Surface(shape = RoundedCornerShape(16.dp), color = DarkCardSurface) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth().padding(14.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(name, style = MaterialTheme.typography.titleSmall, color = SoftWhite)
-                                        Text(docStatus, style = MaterialTheme.typography.bodySmall, color = if (eligible) SuccessGreen else OrangeAccent)
+
+                else -> {
+                    // ELIGIBLE SERVICES & DOCUMENT VAULT
+                    item {
+                        Column(modifier = Modifier.padding(horizontal = 14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text("Active Vehicle Services", style = MaterialTheme.typography.titleLarge, color = SoftWhite)
+                            eligibleServices.forEach { (name, docStatus, eligible) ->
+                                val active = name in uiState.driverEnabledServices && eligible
+                                Surface(shape = RoundedCornerShape(16.dp), color = DarkCardSurface) {
+                                    Row(modifier = Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(name, style = MaterialTheme.typography.titleSmall, color = SoftWhite)
+                                            Text(docStatus, style = MaterialTheme.typography.bodySmall, color = if (eligible) SuccessGreen else OrangeAccent)
+                                        }
+                                        Switch(checked = active, enabled = eligible, onCheckedChange = { onToggleService(name) })
                                     }
-                                    Switch(
-                                        checked = active,
-                                        enabled = eligible,
-                                        onCheckedChange = { onToggleService(name) }
-                                    )
                                 }
                             }
-                        }
-                        Surface(shape = RoundedCornerShape(18.dp), color = DarkCardElevated) {
-                            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text("Document Verification Vault", style = MaterialTheme.typography.titleMedium, color = PremiumYellow)
-                                Text("• Driving License (DL-KA01-2029) — Verified\n• Vehicle RC & Insurance — Active till 2027\n• Police & KYC Background Check — Approved", style = MaterialTheme.typography.bodySmall, color = SoftWhite)
-                            }
-                        }
-                    }
-                }
-            } else {
-                item {
-                    Column(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Surface(shape = RoundedCornerShape(20.dp), color = DarkCardSurface) {
-                            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Text("Captain Wallet Balance", style = MaterialTheme.typography.labelMedium, color = SkyBlue)
-                                AnimatedWalletAmount(uiState.appState.walletBalance, color = PremiumYellow, style = MaterialTheme.typography.displayMedium)
-                                Text("Weekly Streak Bonus: ₹350 unlocked (14/12 rides)", style = MaterialTheme.typography.bodySmall, color = SuccessGreen)
-                                Button(
-                                    onClick = { onShowMessage("Simulated Instant Bank Payout initiated to HDFC ****4821") },
-                                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = SkyBlue, contentColor = DeepNavy)
-                                ) {
-                                    Text("Withdraw to Bank (Simulated)", fontWeight = FontWeight.Bold)
+                            Surface(shape = RoundedCornerShape(18.dp), color = DarkCardElevated) {
+                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text("Verified Captain Documents", style = MaterialTheme.typography.titleMedium, color = CaptainYellow)
+                                    Text("• Driving License (DL-KA01-2029) — Verified\n• Vehicle RC & Insurance — Active till 2027\n• Helmet & Safety Verification — Passed", style = MaterialTheme.typography.bodySmall, color = SoftWhite)
                                 }
                             }
-                        }
-                        OutlinedButton(
-                            onClick = { onNavigate(AppRoute.OrderHistory("RIDE")) },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SoftWhite)
-                        ) {
-                            Text("View Complete Ride History")
                         }
                     }
                 }
@@ -311,7 +486,7 @@ fun FoodDeliveryPartnerPanelScreen(
 ) {
     val isOnline = uiState.appState.deliveryPartnerOnline
     val job = DemoCatalog.incomingFoodDeliveries[uiState.activeFoodDeliveryIndex % DemoCatalog.incomingFoodDeliveries.size]
-    var stage by remember(uiState.activeFoodDeliveryIndex) { mutableIntStateOf(0) } // 0 incoming, 1 pickup, 2 delivering
+    var stage by remember(uiState.activeFoodDeliveryIndex) { mutableIntStateOf(0) }
 
     Scaffold(
         containerColor = DarkBackground,
@@ -335,10 +510,16 @@ fun FoodDeliveryPartnerPanelScreen(
                         IconButton(
                             onClick = onOpenDrawer,
                             modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(SoftWhite.copy(alpha = 0.1f))
-                        ) {
-                            Icon(Icons.Rounded.Menu, "Switch Panel", tint = OrangeAccent)
-                        }
-                        Spacer(Modifier.width(12.dp))
+                        ) { Icon(Icons.Rounded.Menu, "Switch Panel", tint = OrangeAccent) }
+                        Spacer(Modifier.width(10.dp))
+                        Character3DPortrait(
+                            drawableRes = R.drawable.img_char_food_rider_1795426023084,
+                            contentDescription = "3D Food Delivery Partner",
+                            borderColor = OrangeAccent,
+                            size = 48.dp,
+                            bobbing = false
+                        )
+                        Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("DELIVERY FLEET", style = MaterialTheme.typography.labelSmall, color = OrangeAccent)
                             Text("Food Delivery Partner", style = MaterialTheme.typography.titleLarge, color = SoftWhite)
@@ -377,9 +558,7 @@ fun FoodDeliveryPartnerPanelScreen(
 
                             when (stage) {
                                 0 -> Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    OutlinedButton(onClick = { onNextDelivery(0) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralDanger)) {
-                                        Text("Skip")
-                                    }
+                                    OutlinedButton(onClick = { onNextDelivery(0) }, modifier = Modifier.weight(1f), colors = ButtonDefaults.outlinedButtonColors(contentColor = CoralDanger)) { Text("Skip") }
                                     Button(
                                         onClick = { stage = 1; onShowMessage("Heading to ${job.restaurantOrShop} for pickup") },
                                         modifier = Modifier.weight(1.4f),
@@ -404,7 +583,6 @@ fun FoodDeliveryPartnerPanelScreen(
                         }
                     }
 
-                    // Payout History Card
                     Surface(shape = RoundedCornerShape(18.dp), color = DarkCardSurface) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Recent Payout Settlements", style = MaterialTheme.typography.titleMedium, color = SoftWhite)

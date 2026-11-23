@@ -241,9 +241,17 @@ fun ProfileScreen(
                                 FilterChip(selected = uiState.appState.language == lang, onClick = { onSelectLanguage(lang) }, label = { Text(lang) })
                             }
                         }
+                        var highContrastAccessibility by remember { mutableStateOf(false) }
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text("Push Notifications & Live Alerts", style = MaterialTheme.typography.bodyMedium, color = DeepNavy)
                             Switch(checked = uiState.appState.notificationsEnabled, onCheckedChange = onToggleNotifications)
+                        }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Accessibility Mode", style = MaterialTheme.typography.bodyMedium, color = DeepNavy)
+                                Text("Enhanced contrast & simplified cues", style = MaterialTheme.typography.labelSmall, color = MutedText)
+                            }
+                            Switch(checked = highContrastAccessibility, onCheckedChange = { highContrastAccessibility = it })
                         }
                     }
                 }
@@ -257,7 +265,8 @@ fun OrderHistoryScreen(
     initialFilter: String,
     uiState: SuperAppUiState,
     onBack: () -> Unit,
-    onRateOrder: (String, Int) -> Unit
+    onRateOrder: (String, Int) -> Unit,
+    onRepeatOrder: (String) -> Unit = {}
 ) {
     var filter by remember { mutableStateOf(initialFilter) }
     val filtered = remember(uiState.orders, filter) {
@@ -293,20 +302,38 @@ fun OrderHistoryScreen(
                             Text("₹${order.amount.toInt()} • ${order.paymentMethod}", style = MaterialTheme.typography.titleSmall, color = DeepNavy)
                             Text("OTP: ${order.otp}", style = MaterialTheme.typography.labelMedium, color = OrangeAccent, fontWeight = FontWeight.Bold)
                         }
-                        if (order.rating == 0 && order.status == "COMPLETED") {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("Rate: ", style = MaterialTheme.typography.labelSmall, color = MutedText)
-                                for (s in 1..5) {
-                                    Icon(
-                                        Icons.Rounded.StarBorder,
-                                        contentDescription = "Rate $s",
-                                        tint = PremiumYellowDark,
-                                        modifier = Modifier.size(22.dp).clickable { onRateOrder(order.id, s) }
-                                    )
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (order.rating == 0 && order.status == "COMPLETED") {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Rate: ", style = MaterialTheme.typography.labelSmall, color = MutedText)
+                                    for (s in 1..5) {
+                                        Icon(
+                                            Icons.Rounded.StarBorder,
+                                            contentDescription = "Rate $s",
+                                            tint = PremiumYellowDark,
+                                            modifier = Modifier.size(22.dp).clickable { onRateOrder(order.id, s) }
+                                        )
+                                    }
                                 }
+                            } else if (order.rating > 0) {
+                                Text("Rated ${"★".repeat(order.rating)}", style = MaterialTheme.typography.labelSmall, color = PremiumYellowDark)
+                            } else {
+                                Spacer(Modifier.width(1.dp))
                             }
-                        } else if (order.rating > 0) {
-                            Text("Rated ${"★".repeat(order.rating)}", style = MaterialTheme.typography.labelSmall, color = PremiumYellowDark)
+                            OutlinedButton(
+                                onClick = { onRepeatOrder(order.type) },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) {
+                                Icon(Icons.Rounded.Replay, null, Modifier.size(14.dp), tint = SkyBlueDark)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Repeat", style = MaterialTheme.typography.labelSmall, color = DeepNavy, fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
                 }

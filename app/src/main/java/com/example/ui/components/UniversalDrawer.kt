@@ -226,14 +226,33 @@ fun UniversalPanelDrawerContent(
                         .testTag("drawer_panel_${panel.name.lowercase()}"),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    IconOrb3D(
-                        icon = panelIcon(panel),
-                        tint = DeepNavy,
-                        gradientStart = SoftWhite,
-                        gradientEnd = panel.accentColor,
-                        size = 40.dp,
-                        iconSize = 21.dp
-                    )
+                    val charRes = when (panel) {
+                        AppPanel.DRIVER_CAPTAIN -> R.drawable.img_char_ride_captain_1795426023899
+                        AppPanel.FOOD_DELIVERY_PARTNER, AppPanel.RESTAURANT_OWNER -> R.drawable.img_char_food_rider_1795426023084
+                        AppPanel.GROCERY_OWNER -> R.drawable.img_char_grocery_buddy_1795426023736
+                        AppPanel.PARCEL_PARTNER, AppPanel.TRANSPORT_PARTNER -> R.drawable.img_char_porter_mover_1795426024294
+                        else -> null
+                    }
+                    if (charRes != null) {
+                        Image(
+                            painter = painterResource(charRes),
+                            contentDescription = panel.title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(RoundedCornerShape(13.dp))
+                                .border(1.4.dp, panel.accentColor, RoundedCornerShape(13.dp))
+                        )
+                    } else {
+                        IconOrb3D(
+                            icon = panelIcon(panel),
+                            tint = DeepNavy,
+                            gradientStart = SoftWhite,
+                            gradientEnd = panel.accentColor,
+                            size = 42.dp,
+                            iconSize = 21.dp
+                        )
+                    }
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {

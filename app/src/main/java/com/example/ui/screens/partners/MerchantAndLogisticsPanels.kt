@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.R
 import com.example.data.DemoCatalog
 import com.example.model.AppPanel
 import com.example.model.AppRoute
@@ -81,7 +82,15 @@ fun RestaurantOwnerPanelScreen(
                         ) {
                             Icon(Icons.Rounded.Menu, "Switch Panel", tint = PremiumYellow)
                         }
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Character3DPortrait(
+                            drawableRes = R.drawable.img_char_food_rider_1795426023084,
+                            contentDescription = "Restaurant Kitchen Partner",
+                            borderColor = PremiumYellow,
+                            size = 46.dp,
+                            bobbing = false
+                        )
+                        Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("MERCHANT CONSOLE", style = MaterialTheme.typography.labelSmall, color = PremiumYellow)
                             Text("Artisan Crust Pizzeria", style = MaterialTheme.typography.titleLarge, color = SoftWhite)
@@ -258,7 +267,15 @@ fun GroceryOwnerPanelScreen(
                             onClick = onOpenDrawer,
                             modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(SoftWhite.copy(alpha = 0.12f))
                         ) { Icon(Icons.Rounded.Menu, "Switch Panel", tint = PremiumYellow) }
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Character3DPortrait(
+                            drawableRes = R.drawable.img_char_grocery_buddy_1795426023736,
+                            contentDescription = "3D Grocery Store Partner",
+                            borderColor = SuccessGreen,
+                            size = 46.dp,
+                            bobbing = false
+                        )
+                        Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("DARK STORE HUB", style = MaterialTheme.typography.labelSmall, color = SuccessGreen)
                             Text("FreshMart Grocery Store", style = MaterialTheme.typography.titleLarge, color = SoftWhite)
@@ -391,7 +408,15 @@ fun ParcelTransportPartnerPanelScreen(
                         IconButton(onClick = onOpenDrawer, modifier = Modifier.size(48.dp).clip(RoundedCornerShape(14.dp)).background(SoftWhite.copy(alpha = 0.12f))) {
                             Icon(Icons.Rounded.Menu, "Switch Panel", tint = PremiumYellow)
                         }
-                        Spacer(Modifier.width(12.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Character3DPortrait(
+                            drawableRes = R.drawable.img_char_porter_mover_1795426024294,
+                            contentDescription = "3D Logistics Partner",
+                            borderColor = PremiumYellow,
+                            size = 46.dp,
+                            bobbing = false
+                        )
+                        Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(if (isTransport) "HEAVY FLEET LOGISTICS" else "EXPRESS COURIER HUB", style = MaterialTheme.typography.labelSmall, color = accent)
                             Text(panel.title, style = MaterialTheme.typography.titleLarge, color = SoftWhite)

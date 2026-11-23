@@ -167,11 +167,12 @@ object DemoCatalog {
     )
 
     val rideVehicles = listOf(
-        VehicleOption("bike", "Bike Taxi", "Fastest traffic beater", 2, "1 Rider", 25, 8, "FASTEST"),
-        VehicleOption("auto", "Auto Rickshaw", "Zero surge everyday auto", 4, "3 Riders", 40, 13, "POPULAR"),
-        VehicleOption("mini", "Mini Cab", "Compact AC hatchback", 5, "4 Riders", 65, 16, "VALUE"),
-        VehicleOption("sedan", "Prime Sedan", "Spacious boot & top captains", 6, "4 Riders", 95, 20, "COMFORT"),
-        VehicleOption("suv", "Executive SUV", "6-seater group luxury", 8, "6 Riders", 140, 26, "GROUP")
+        VehicleOption("bike", "Bike Taxi", "Fastest traffic beater • Helmet included", 2, "1 Rider", 25, 8, "FASTEST"),
+        VehicleOption("auto", "Auto Rickshaw", "Zero surge everyday doorstep auto", 4, "3 Riders", 40, 13, "POPULAR"),
+        VehicleOption("auto_xl", "Auto XL", "Extra legroom & luggage space auto", 5, "4 Riders", 55, 15, "SPACIOUS"),
+        VehicleOption("mini", "Mini Cab", "Compact AC hatchback for city hops", 5, "4 Riders", 65, 16, "VALUE"),
+        VehicleOption("sedan", "Prime Sedan", "Spacious boot & top-rated captains", 6, "4 Riders", 95, 20, "COMFORT"),
+        VehicleOption("suv", "Executive SUV", "6-seater group & airport luxury", 8, "6 Riders", 140, 26, "GROUP")
     )
 
     val transportVehicles = listOf(
@@ -187,10 +188,11 @@ object DemoCatalog {
         RestaurantInfo("r1", "Artisan Crust Pizzeria", "Wood-Fired Pizza, Italian, Pasta", 4.7, 2410, 22, 1.8, 550, "50% OFF up to ₹120", false, "Pizza", 0xFFFF9F43),
         RestaurantInfo("r2", "Nizam Royal Biryani", "Hyderabadi Biryani, Kebabs, Mughlai", 4.8, 5120, 26, 2.4, 600, "FLAT ₹100 OFF", false, "Biryani", 0xFFEF4444),
         RestaurantInfo("r3", "Smash & Melt Burgers", "Gourmet Burgers, Loaded Fries, Shakes", 4.6, 1890, 19, 1.2, 450, "FREE FRIES ON ₹299+", false, "Burger", 0xFFFFD43B),
-        RestaurantInfo("r4", "Madras Filter Kitchen", "South Indian, Ghee Roast, Filter Coffee", 4.9, 6300, 16, 0.9, 300, "20% OFF + FREE DELIVERY", true, "South Indian", 0xFF22C55E),
+        RestaurantInfo("r4", "Madras Filter Kitchen", "South Indian, Ghee Roast, Filter Coffee", 4.9, 6300, 16, 0.9, 300, "20% OFF + FREE DELIVERY", true, "South Indian", 0xFF16A34A),
         RestaurantInfo("r5", "Tandoor Haveli Express", "North Indian, Dal Makhani, Naan", 4.5, 3100, 28, 3.1, 650, "₹125 OFF above ₹499", false, "North Indian", 0xFF8B5CF6),
         RestaurantInfo("r6", "Wok Dragon Street", "Chinese, Dimsum, Schezwan Noodles", 4.4, 1450, 24, 2.2, 480, "BUY 1 GET 1 BOWLS", false, "Chinese", 0xFF38BDF8),
-        RestaurantInfo("r7", "Velvet Bean Patisserie", "Desserts, Tiramisu, Cold Brew", 4.8, 2280, 18, 1.5, 400, "30% OFF DESSERTS", true, "Desserts", 0xFFEC4899)
+        RestaurantInfo("r7", "Velvet Bean Patisserie", "Desserts, Tiramisu, Cold Brew", 4.8, 2280, 18, 1.5, 400, "30% OFF DESSERTS", true, "Desserts", 0xFFEC4899),
+        RestaurantInfo("r8", "GreenBowl Fresh Kitchen", "Healthy Food, Protein Bowls, Salads", 4.8, 1740, 17, 1.3, 420, "FLAT ₹90 OFF HEALTHY", true, "Healthy Food", 0xFF16A34A)
     )
 
     val localShopProducts = listOf(

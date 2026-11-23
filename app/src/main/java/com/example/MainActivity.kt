@@ -264,7 +264,18 @@ fun ZiporaSuperAppRoot(viewModel: SuperAppViewModel = viewModel()) {
                                 initialFilter = route.filterType,
                                 uiState = uiState,
                                 onBack = { viewModel.navigateBack() },
-                                onRateOrder = viewModel::rateOrder
+                                onRateOrder = viewModel::rateOrder,
+                                onRepeatOrder = { type ->
+                                    val target = when (type.uppercase()) {
+                                        "RIDE" -> AppRoute.RideBooking
+                                        "FOOD" -> AppRoute.FoodDiscovery
+                                        "GROCERY" -> AppRoute.GroceryStore
+                                        "PARCEL" -> AppRoute.ParcelDelivery
+                                        "TRANSPORT" -> AppRoute.GoodsTransport
+                                        else -> AppRoute.LocalShopping
+                                    }
+                                    viewModel.navigateTo(target)
+                                }
                             )
 
                             AppRoute.CouponsOffers -> CouponsOffersScreen(

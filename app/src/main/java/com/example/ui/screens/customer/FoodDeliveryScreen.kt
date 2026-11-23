@@ -45,10 +45,10 @@ import com.example.ui.theme.*
 import com.example.viewmodel.SuperAppUiState
 import kotlinx.coroutines.delay
 
-private val FoodCrimson = Color(0xFFE23744)
-private val FoodCrimsonDark = Color(0xFFB91C2A)
-private val FoodSurfaceBg = Color(0xFFF8FAFC)
-private val RatingGreen = Color(0xFF1C7C3D)
+private val FoodCrimson = FoodWarmOrange
+private val FoodCrimsonDark = Color(0xFFC2410C)
+private val FoodSurfaceBg = Color(0xFFFFFBF5)
+private val RatingGreen = Color(0xFF16A34A)
 
 private data class CravingCategory(
     val name: String,
@@ -68,15 +68,16 @@ fun FoodDiscoveryScreen(
 ) {
     val cravings = remember {
         listOf(
-            CravingCategory("All", Icons.Rounded.Restaurant, Color(0xFFFFE4E6), Color(0xFFFECDD3), FoodCrimson),
-            CravingCategory("Biryani", Icons.Rounded.RiceBowl, Color(0xFFFFEDD5), Color(0xFFFED7AA), Color(0xFFC2410C)),
+            CravingCategory("All", Icons.Rounded.Restaurant, Color(0xFFFFEDD5), Color(0xFFFED7AA), FoodWarmOrange),
+            CravingCategory("Biryani", Icons.Rounded.RiceBowl, Color(0xFFFFF3E0), Color(0xFFFFE0B2), Color(0xFFC2410C)),
             CravingCategory("Pizza", Icons.Rounded.LocalPizza, Color(0xFFFEF3C7), Color(0xFFFDE68A), Color(0xFFB45309)),
             CravingCategory("Burger", Icons.Rounded.LunchDining, Color(0xFFDCFCE7), Color(0xFFBBF7D0), RatingGreen),
             CravingCategory("South Indian", Icons.Rounded.BreakfastDining, Color(0xFFE0F2FE), Color(0xFFBAE6FD), SkyBlueDark),
             CravingCategory("North Indian", Icons.Rounded.SoupKitchen, Color(0xFFF3E8FF), Color(0xFFE9D5FF), VioletAccent),
-            CravingCategory("Chinese", Icons.Rounded.RamenDining, Color(0xFFFFE4E6), Color(0xFFFECACA), FoodCrimson),
+            CravingCategory("Chinese", Icons.Rounded.RamenDining, Color(0xFFFFE4E6), Color(0xFFFECACA), CoralDanger),
             CravingCategory("Desserts", Icons.Rounded.Cake, Color(0xFFFCE7F3), Color(0xFFFBCFE8), PinkAccent),
-            CravingCategory("Beverages", Icons.Rounded.LocalCafe, Color(0xFFCCFBF1), Color(0xFF99F6E4), TealAccent)
+            CravingCategory("Beverages", Icons.Rounded.LocalCafe, Color(0xFFCCFBF1), Color(0xFF99F6E4), TealAccent),
+            CravingCategory("Healthy Food", Icons.Rounded.Eco, Color(0xFFDCFCE7), Color(0xFF86EFAC), RatingGreen)
         )
     }
 
@@ -238,48 +239,61 @@ fun FoodDiscoveryScreen(
                 }
             }
 
-            // 2. ZIPORA FOOD PASS / GOLD HERO BANNER
+            // 2. ZIPORA FOOD GOLD HERO BANNER WITH 3D FOOD RIDER CHARACTER
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 14.dp)
-                        .height(142.dp)
-                        .shadow(10.dp, RoundedCornerShape(24.dp), spotColor = FoodCrimson)
+                        .height(148.dp)
+                        .shadow(10.dp, RoundedCornerShape(24.dp), spotColor = FoodWarmOrange)
                         .clip(RoundedCornerShape(24.dp))
-                        .background(Brush.horizontalGradient(listOf(Color(0xFF1F0A10), FoodCrimsonDark, FoodCrimson)))
+                        .background(Brush.horizontalGradient(listOf(Color(0xFF431407), FoodCrimsonDark, FoodWarmOrange)))
+                        .border(1.2.dp, PremiumYellow.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
                 ) {
                     Image(
                         painter = painterResource(R.drawable.img_food_feast_1795421416008),
                         contentDescription = "Gourmet Feast Offer",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop,
-                        alpha = 0.38f
+                        alpha = 0.30f
                     )
                     Box(
                         modifier = Modifier.fillMaxSize().background(
-                            Brush.horizontalGradient(listOf(Color(0xEE18080D), Color(0xAA991B1B), Color.Transparent))
+                            Brush.horizontalGradient(listOf(Color(0xEE2B0E06), Color(0xBB9A3412), Color(0x44F97316)))
                         )
                     )
-                    Column(
-                        modifier = Modifier.fillMaxHeight().padding(18.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
+                    Row(
+                        modifier = Modifier.fillMaxSize().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Brush.horizontalGradient(listOf(PremiumYellow, OrangeAccent)))
-                                    .padding(horizontal = 8.dp, vertical = 3.dp)
-                            ) {
-                                Text("ZIPORA GOLD", style = MaterialTheme.typography.labelSmall, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
+                        Column(
+                            modifier = Modifier.weight(1f).fillMaxHeight(),
+                            verticalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Brush.horizontalGradient(listOf(PremiumYellow, OrangeAccent)))
+                                        .padding(horizontal = 8.dp, vertical = 3.dp)
+                                ) {
+                                    Text("ZIPORA GOLD", style = MaterialTheme.typography.labelSmall, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
+                                }
+                                Text("FREE DELIVERY", style = MaterialTheme.typography.labelSmall, color = SoftWhite.copy(alpha = 0.92f))
                             }
-                            Text("FREE DELIVERY ON ALL ORDERS", style = MaterialTheme.typography.labelSmall, color = SoftWhite.copy(alpha = 0.9f))
+                            Column {
+                                Text("Flat 50% OFF + Hot & Fast", style = MaterialTheme.typography.titleLarge, color = SoftWhite, fontWeight = FontWeight.ExtraBold)
+                                Text("Use code ZIP50 • Delivered piping hot by our 3D Food Crew", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFFEDD5))
+                            }
                         }
-                        Column {
-                            Text("Flat 50% OFF + Zero Delivery Fee", style = MaterialTheme.typography.headlineMedium, color = SoftWhite, fontWeight = FontWeight.ExtraBold)
-                            Text("Use code ZIP50 • Handpicked top-rated kitchens near you", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFFE4E6))
-                        }
+                        Spacer(Modifier.width(10.dp))
+                        Character3DPortrait(
+                            drawableRes = R.drawable.img_char_food_rider_1795426023084,
+                            contentDescription = "3D Food Delivery Hero",
+                            borderColor = PremiumYellow,
+                            size = 92.dp
+                        )
                     }
                 }
             }
@@ -386,6 +400,80 @@ fun FoodDiscoveryScreen(
                             selected = pureVegMode,
                             onClick = { pureVegMode = !pureVegMode }
                         )
+                    }
+                }
+            }
+
+            // 4.5 DISCOVERY SHELVES: FASTEST DELIVERY, BUDGET-FRIENDLY & TRENDING DISHES
+            if (search.isBlank() && selectedCategory == "All") {
+                item {
+                    val fastestList = remember { DemoCatalog.restaurants.sortedBy { it.deliveryMins }.take(4) }
+                    val budgetList = remember { DemoCatalog.restaurants.filter { it.priceForTwo <= 500 }.take(4) }
+                    val trendingDishes = remember(uiState.menuItems) { uiState.menuItems.filter { it.isBestseller }.take(5) }
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(bottom = 12.dp)) {
+                        // Fastest Delivery Shelf
+                        Text("⚡ Fastest Delivery Near You", style = MaterialTheme.typography.titleMedium, color = DeepNavy, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
+                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(fastestList, key = { "fast_${it.id}" }) { r ->
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = SoftWhite,
+                                    shadowElevation = 2.dp,
+                                    modifier = Modifier
+                                        .width(164.dp)
+                                        .border(1.dp, FoodWarmOrange.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                                        .clickable { onOpenRestaurant(r.id) }
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                            Box(Modifier.clip(RoundedCornerShape(6.dp)).background(PremiumYellow).padding(horizontal = 6.dp, vertical = 2.dp)) {
+                                                Text("⚡ ${r.deliveryMins} min", style = MaterialTheme.typography.labelSmall, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
+                                            }
+                                            Text("★ ${r.rating}", style = MaterialTheme.typography.labelSmall, color = RatingGreen, fontWeight = FontWeight.Bold)
+                                        }
+                                        Text(r.name, style = MaterialTheme.typography.titleSmall, color = DeepNavy, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(r.offerText, style = MaterialTheme.typography.labelSmall, color = FoodWarmOrange, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        // Trending Dishes + Budget Picks Strip
+                        Text("🔥 Trending Dishes & Budget Picks", style = MaterialTheme.typography.titleMedium, color = DeepNavy, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 16.dp))
+                        LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            items(trendingDishes, key = { "trend_${it.id}" }) { dish ->
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color(0xFFFFF7ED),
+                                    modifier = Modifier
+                                        .width(172.dp)
+                                        .border(1.dp, OrangeAccent.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                                        .clickable { onOpenRestaurant(dish.restaurantId) }
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("🔥 TRENDING", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = FoodWarmOrange, fontWeight = FontWeight.ExtraBold)
+                                        Text(dish.name, style = MaterialTheme.typography.titleSmall, color = DeepNavy, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("₹${dish.price} • ★ ${dish.rating}", style = MaterialTheme.typography.labelMedium, color = SlateText, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                            items(budgetList, key = { "budget_${it.id}" }) { r ->
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = SoftWhite,
+                                    modifier = Modifier
+                                        .width(164.dp)
+                                        .border(1.dp, RatingGreen.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                                        .clickable { onOpenRestaurant(r.id) }
+                                ) {
+                                    Column(modifier = Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                        Text("💰 BUDGET PICK", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = RatingGreen, fontWeight = FontWeight.ExtraBold)
+                                        Text(r.name, style = MaterialTheme.typography.titleSmall, color = DeepNavy, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("₹${r.priceForTwo} for two", style = MaterialTheme.typography.labelSmall, color = MutedText)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1130,40 +1218,128 @@ fun CartCheckoutScreen(
         }
     ) { innerPadding ->
         if (orderConfirmed) {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(innerPadding).padding(22.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+            val foodTrackSteps = remember {
+                listOf(
+                    "Order Placed & Confirmed",
+                    "Restaurant Accepted Your Order",
+                    "Chef Preparing Fresh Food",
+                    "Food Packed & Ready",
+                    "3D Delivery Partner Assigned (Kabir)",
+                    "Order Picked Up from Kitchen",
+                    "On The Way to ${uiState.appState.activeAddressLabel}",
+                    "Delivered at Your Doorstep"
+                )
+            }
+            var foodStepIdx by remember { mutableIntStateOf(2) }
+            var actionBanner by remember { mutableStateOf<String?>(null) }
+
+            LaunchedEffect(orderConfirmed) {
+                while (foodStepIdx < 6) {
+                    delay(2600)
+                    foodStepIdx++
+                }
+            }
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize().padding(innerPadding),
+                contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 36.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                IconOrb3D(Icons.Rounded.CheckCircle, SoftWhite, RatingGreen, Color(0xFF14532D), size = 76.dp, iconSize = 42.dp)
-                Spacer(Modifier.height(14.dp))
-                Text("Order Placed! Chef is Preparing", style = MaterialTheme.typography.headlineMedium, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
-                Spacer(Modifier.height(6.dp))
-                Text(
-                    "Live synced! Switch to Restaurant Owner or Food Delivery Partner via ☰ menu to manage this order live.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = SlateText,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(14.dp))
-                LiveOrderMilestoneBar(status = "PREPARING")
-                Spacer(Modifier.height(16.dp))
-                SimulatedMapCanvas(
-                    modifier = Modifier.fillMaxWidth().height(190.dp),
-                    pickupLabel = "Kitchen Hub",
-                    dropLabel = uiState.appState.activeAddressLabel,
-                    distanceKm = 2.1,
-                    etaMinutes = 18,
-                    driverProgress = -1f
-                )
-                Spacer(Modifier.height(20.dp))
-                Button(
-                    onClick = onOrderPlacedSuccess,
-                    modifier = Modifier.fillMaxWidth().height(54.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = FoodCrimson, contentColor = SoftWhite),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Text("Track Live in My Orders", fontWeight = FontWeight.ExtraBold)
+                item {
+                    Surface(shape = RoundedCornerShape(22.dp), color = DeepNavy) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Character3DPortrait(
+                                    drawableRes = R.drawable.img_char_food_rider_1795426023084,
+                                    contentDescription = "3D Food Delivery Partner Kabir",
+                                    borderColor = PremiumYellow,
+                                    size = 72.dp
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("LIVE ORDER TRACKING • 18 MINS", style = MaterialTheme.typography.labelSmall, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
+                                    Text(foodTrackSteps[foodStepIdx], style = MaterialTheme.typography.titleMedium, color = SoftWhite, fontWeight = FontWeight.ExtraBold)
+                                    Text("Partner Kabir • Thermal Insulated Bag • 4.9★", style = MaterialTheme.typography.bodySmall, color = Color(0xFFFFEDD5))
+                                }
+                            }
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { actionBanner = "Calling Delivery Partner Kabir (+91 98*** **312)..." },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SoftWhite.copy(alpha = 0.14f), contentColor = SoftWhite),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Call, null, Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Call", style = MaterialTheme.typography.labelMedium)
+                                }
+                                Button(
+                                    onClick = { actionBanner = "Message sent to Kabir: 'Please ring the bell once!'" },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SoftWhite.copy(alpha = 0.14f), contentColor = PremiumYellow),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Rounded.Chat, null, Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Chat", style = MaterialTheme.typography.labelMedium)
+                                }
+                                Button(
+                                    onClick = { actionBanner = "Zipora 24x7 Food Support Desk connected!" },
+                                    modifier = Modifier.weight(1f),
+                                    colors = ButtonDefaults.buttonColors(containerColor = SoftWhite.copy(alpha = 0.14f), contentColor = SkyBlue),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Icon(Icons.Rounded.SupportAgent, null, Modifier.size(16.dp))
+                                    Spacer(Modifier.width(4.dp))
+                                    Text("Support", style = MaterialTheme.typography.labelMedium)
+                                }
+                            }
+                            if (actionBanner != null) {
+                                Text(actionBanner ?: "", style = MaterialTheme.typography.labelSmall, color = PremiumYellow)
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    SimulatedMapCanvas(
+                        modifier = Modifier.fillMaxWidth().height(195.dp),
+                        pickupLabel = "Kitchen Hub",
+                        dropLabel = uiState.appState.activeAddressLabel,
+                        distanceKm = 2.1,
+                        etaMinutes = (18 - foodStepIdx * 2).coerceAtLeast(2),
+                        driverProgress = (foodStepIdx / 7f).coerceIn(0.15f, 0.95f)
+                    )
+                }
+
+                item {
+                    Surface(shape = RoundedCornerShape(20.dp), color = SoftWhite, shadowElevation = 3.dp) {
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("8-STEP LIVE FOOD TIMELINE", style = MaterialTheme.typography.labelMedium, color = FoodWarmOrange, fontWeight = FontWeight.ExtraBold)
+                                TextButton(onClick = { foodStepIdx = (foodStepIdx + 1) % foodTrackSteps.size }) {
+                                    Text("Simulate Next →", style = MaterialTheme.typography.labelSmall, color = DeepNavy, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            MultiStepStatusTimeline(
+                                steps = foodTrackSteps,
+                                currentStepIndex = foodStepIdx,
+                                accentColor = FoodWarmOrange
+                            )
+                        }
+                    }
+                }
+
+                item {
+                    Button(
+                        onClick = onOrderPlacedSuccess,
+                        modifier = Modifier.fillMaxWidth().height(54.dp).navigationBarsPadding(),
+                        colors = ButtonDefaults.buttonColors(containerColor = FoodCrimson, contentColor = SoftWhite),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text("View All Orders in History", fontWeight = FontWeight.ExtraBold)
+                    }
                 }
             }
         } else if (uiState.cart.isEmpty()) {

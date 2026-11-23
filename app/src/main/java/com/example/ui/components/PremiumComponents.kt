@@ -249,6 +249,129 @@ fun LiveOrderMilestoneBar(status: String, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * Animated floating 3D Character Portrait with soft studio glow border.
+ */
+@Composable
+fun Character3DPortrait(
+    drawableRes: Int,
+    contentDescription: String,
+    borderColor: Color = SkyBlue,
+    size: Dp = 76.dp,
+    bobbing: Boolean = true,
+    modifier: Modifier = Modifier
+) {
+    val infinite = rememberInfiniteTransition(label = "charBob")
+    val offsetY by infinite.animateFloat(
+        initialValue = 0f,
+        targetValue = if (bobbing) -4f else 0f,
+        animationSpec = infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "bobY"
+    )
+    androidx.compose.foundation.Image(
+        painter = androidx.compose.ui.res.painterResource(id = drawableRes),
+        contentDescription = contentDescription,
+        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+        modifier = modifier
+            .offset(y = offsetY.dp)
+            .size(size)
+            .shadow(10.dp, RoundedCornerShape(size * 0.28f), ambientColor = borderColor, spotColor = borderColor)
+            .clip(RoundedCornerShape(size * 0.28f))
+            .border(2.dp, borderColor, RoundedCornerShape(size * 0.28f))
+    )
+}
+
+/**
+ * Reusable vertical multi-step live status timeline for Ride (6 steps), Food (8 steps),
+ * Grocery (6 steps), and Goods Transport (5 steps).
+ */
+@Composable
+fun MultiStepStatusTimeline(
+    steps: List<String>,
+    currentStepIndex: Int,
+    accentColor: Color = SuccessGreen,
+    isDark: Boolean = false,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        steps.forEachIndexed { idx, label ->
+            val completed = idx <= currentStepIndex
+            val isCurrent = idx == currentStepIndex
+            Row(verticalAlignment = Alignment.Top) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.width(24.dp)) {
+                    Box(
+                        modifier = Modifier
+                            .size(if (isCurrent) 16.dp else 13.dp)
+                            .clip(CircleShape)
+                            .background(if (completed) accentColor else if (isDark) DarkBorder else Color(0xFFCBD5E1))
+                            .border(
+                                width = if (isCurrent) 2.5.dp else 0.dp,
+                                color = if (isCurrent) PremiumYellow else Color.Transparent,
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (completed && !isCurrent) {
+                            Icon(Icons.Rounded.Check, null, tint = SoftWhite, modifier = Modifier.size(9.dp))
+                        }
+                    }
+                    if (idx < steps.lastIndex) {
+                        Box(
+                            modifier = Modifier
+                                .width(2.5.dp)
+                                .height(20.dp)
+                                .background(if (idx < currentStepIndex) accentColor else if (isDark) DarkBorder else Color(0xFFE2E8F0))
+                        )
+                    }
+                }
+                Spacer(Modifier.width(10.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = label,
+                        style = if (isCurrent) MaterialTheme.typography.titleSmall else MaterialTheme.typography.bodySmall,
+                        color = when {
+                            isCurrent -> if (isDark) PremiumYellow else DeepNavy
+                            completed -> if (isDark) SoftWhite else SlateText
+                            else -> MutedText
+                        },
+                        fontWeight = if (isCurrent) FontWeight.ExtraBold else FontWeight.Medium
+                    )
+                    if (isCurrent) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(accentColor.copy(alpha = 0.18f))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text("LIVE", style = MaterialTheme.typography.labelSmall, color = accentColor, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ShimmerLoadingCard(modifier: Modifier = Modifier) {
+    val infinite = rememberInfiniteTransition(label = "shimmer")
+    val alpha by infinite.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.85f,
+        animationSpec = infiniteRepeatable(tween(800), RepeatMode.Reverse),
+        label = "shimmerAlpha"
+    )
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(18.dp))
+            .background(Color(0xFFE2E8F0).copy(alpha = alpha))
+    )
+}
+
 @Composable
 fun AnimatedWalletAmount(
     amount: Double,

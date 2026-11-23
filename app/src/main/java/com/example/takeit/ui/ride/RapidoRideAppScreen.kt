@@ -30,6 +30,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -56,6 +57,15 @@ import com.example.network.TakeItPaymentGateway
 import com.example.takeit.model.RideBooking
 import com.example.takeit.model.RideTab
 import com.example.takeit.theme.*
+import com.example.takeit.ui.components.Nav3DTabItem
+import com.example.takeit.ui.components.TakeIt3DBackdrop
+import com.example.takeit.ui.components.TakeIt3DButton
+import com.example.takeit.ui.components.TakeIt3DCard
+import com.example.takeit.ui.components.TakeIt3DFloatingNavBar
+import com.example.takeit.ui.components.TakeIt3DHeroBanner
+import com.example.takeit.ui.components.TakeIt3DIconOrb
+import com.example.takeit.ui.components.darken3D
+import com.example.takeit.ui.components.lighten3D
 import com.example.takeit.ui.customer.CustomerWalletScreen
 import com.example.takeit.viewmodel.TakeItUiState
 import com.example.takeit.viewmodel.TakeItViewModel
@@ -200,6 +210,25 @@ fun RapidoRideAppRoot(
         }
     }
 
+    val navItems = remember(uiState.rideTab) {
+        RideTab.entries.map { tab ->
+            val icon = when (tab) {
+                RideTab.BOOK -> Icons.Rounded.TwoWheeler
+                RideTab.TRIPS -> Icons.Rounded.Route
+                RideTab.WALLET -> Icons.Rounded.AccountBalanceWallet
+                RideTab.ACCOUNT -> Icons.Rounded.Person
+            }
+            Nav3DTabItem(
+                id = tab.name,
+                label = tab.label,
+                icon = icon,
+                selected = uiState.rideTab == tab,
+                testTag = "ride_nav_${tab.name.lowercase()}",
+                onClick = { viewModel.selectRideTab(tab) }
+            )
+        }
+    }
+
     Scaffold(
         containerColor = TakeItBg,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -208,8 +237,9 @@ fun RapidoRideAppRoot(
                 if (uiState.rideTab == RideTab.BOOK) {
                     Surface(
                         color = Color.White,
-                        shadowElevation = 14.dp,
+                        shadowElevation = 18.dp,
                         border = BorderStroke(1.dp, TakeItBorder),
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -234,16 +264,16 @@ fun RapidoRideAppRoot(
                                     color = RideCharcoal
                                 )
                             }
-                            Button(
+                            TakeIt3DButton(
                                 onClick = startBooking,
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = RideYellow,
-                                    contentColor = RideCharcoal
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
+                                containerColor = RideYellow,
+                                depthColor = RideYellow.darken3D(0.42f),
+                                contentColor = RideCharcoal,
+                                cornerRadius = 16.dp,
+                                depth = 5.dp,
+                                height = 50.dp,
                                 modifier = Modifier
-                                    .height(52.dp)
+                                    .widthIn(min = 148.dp)
                                     .testTag("ride_sticky_pay_button")
                             ) {
                                 Text(
@@ -258,39 +288,14 @@ fun RapidoRideAppRoot(
                     }
                 }
 
-                NavigationBar(
+                TakeIt3DFloatingNavBar(
+                    items = navItems,
                     containerColor = Color.White,
-                    tonalElevation = 8.dp
-                ) {
-                    RideTab.entries.forEach { tab ->
-                        val selected = uiState.rideTab == tab
-                        val icon = when (tab) {
-                            RideTab.BOOK -> Icons.Rounded.TwoWheeler
-                            RideTab.TRIPS -> Icons.Rounded.Route
-                            RideTab.WALLET -> Icons.Rounded.AccountBalanceWallet
-                            RideTab.ACCOUNT -> Icons.Rounded.Person
-                        }
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { viewModel.selectRideTab(tab) },
-                            icon = { Icon(icon, contentDescription = tab.label) },
-                            label = {
-                                Text(
-                                    tab.label,
-                                    fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = RideCharcoal,
-                                selectedTextColor = RideCharcoal,
-                                indicatorColor = RideYellow,
-                                unselectedIconColor = TakeItMuted,
-                                unselectedTextColor = TakeItMuted
-                            ),
-                            modifier = Modifier.testTag("ride_nav_${tab.name.lowercase()}")
-                        )
-                    }
-                }
+                    activePodColor = RideYellow,
+                    activeContentColor = RideCharcoal,
+                    inactiveColor = TakeItMuted,
+                    borderColor = TakeItBorder
+                )
             }
         }
     ) { innerPadding ->
@@ -397,80 +402,101 @@ private fun RideBookingTabContent(
         label = "rideHeroFloat"
     )
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(TakeItBg),
-        contentPadding = PaddingValues(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+    TakeIt3DBackdrop(
+        accentPrimary = RideYellow,
+        accentSecondary = RideBlue,
+        baseColor = TakeItBg
     ) {
-        // Charcoal & Rapido Yellow Header
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(RideCharcoal, Color(0xFF1E293B))))
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // 3D Charcoal & Rapido Yellow Header Deck
+            item {
+                TakeIt3DCard(
+                    containerColor = RideCharcoal,
+                    depthColor = Color.Black,
+                    borderColor = RideYellow.copy(alpha = 0.45f),
+                    cornerRadius = 26.dp,
+                    depth = 6.dp,
+                    shadowElevation = 12.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Image(
-                            painter = painterResource(R.drawable.logo_takeit_ride),
-                            contentDescription = "Take It Ride Logo",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(CircleShape)
-                                .border(2.dp, RideYellow, CircleShape)
-                        )
-                        Column {
-                            Text(
-                                "Take It Ride",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = RideYellow,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                            Text(
-                                "Bike • Auto • Cab in ${uiState.config.cityName}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White.copy(alpha = 0.85f)
-                            )
-                        }
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = RideYellow.copy(alpha = 0.16f),
-                        border = BorderStroke(1.dp, RideYellow)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Brush.verticalGradient(listOf(RideCharcoal, Color(0xFF1E293B))))
+                            .statusBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
                     ) {
-                        Text(
-                            "₹${uiState.profile.walletBalance.toInt()}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = RideYellow,
-                            fontWeight = FontWeight.ExtraBold,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .shadow(8.dp, CircleShape, ambientColor = RideYellow, spotColor = RideYellow)
+                                        .clip(CircleShape)
+                                        .background(RideYellow)
+                                        .padding(2.dp)
+                                ) {
+                                    Image(
+                                        painter = painterResource(R.drawable.logo_takeit_ride),
+                                        contentDescription = "Take It Ride Logo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(CircleShape)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        "Take It Ride",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = RideYellow,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                    Text(
+                                        "Bike • Auto • Cab in ${uiState.config.cityName}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color.White.copy(alpha = 0.85f)
+                                    )
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = RideYellow.copy(alpha = 0.16f),
+                                border = BorderStroke(1.dp, RideYellow)
+                            ) {
+                                Text(
+                                    "₹${uiState.profile.walletBalance.toInt()}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = RideYellow,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
-        }
 
-        // Animated 2nd Image Welcome Showcase Banner
-        item {
-            Surface(
-                shape = RoundedCornerShape(22.dp),
-                shadowElevation = 6.dp,
-                border = BorderStroke(2.dp, RideYellow),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(170.dp)
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
+            // 3D Perspective 2nd Image Welcome Showcase Banner
+            item {
+                TakeIt3DHeroBanner(
+                    borderColor = RideYellow,
+                    depthColor = RideCharcoal,
+                    cornerRadius = 26.dp,
+                    depth = 6.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .height(178.dp)
+                ) {
                     Image(
                         painter = painterResource(R.drawable.welcome_rapido_ride),
                         contentDescription = "Take It Ride Welcome",
@@ -488,7 +514,7 @@ private fun RideBookingTabContent(
                             .fillMaxSize()
                             .background(
                                 Brush.horizontalGradient(
-                                    listOf(Color.Black.copy(alpha = 0.72f), Color.Transparent)
+                                    listOf(Color.Black.copy(alpha = 0.74f), Color.Transparent)
                                 )
                             )
                     )
@@ -498,7 +524,7 @@ private fun RideBookingTabContent(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Surface(shape = RoundedCornerShape(50), color = RideYellow) {
+                        Surface(shape = RoundedCornerShape(50), color = RideYellow, shadowElevation = 4.dp) {
                             Text(
                                 "RAPIDO SPEED",
                                 style = MaterialTheme.typography.labelSmall,
@@ -521,230 +547,236 @@ private fun RideBookingTabContent(
                     }
                 }
             }
-        }
 
-        // Pending Razorpay check card if returning from Chrome
-        if (pendingPayRef != null) {
+            if (pendingPayRef != null) {
+                item {
+                    TakeIt3DCard(
+                        containerColor = RideYellowSoft,
+                        depthColor = RideYellow.darken3D(0.35f),
+                        borderColor = RideCharcoal,
+                        cornerRadius = 20.dp,
+                        depth = 4.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Waiting for Razorpay Confirmation", fontWeight = FontWeight.ExtraBold, color = RideCharcoal)
+                                Text("Completed payment in Chrome? Tap Verify now.", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
+                            }
+                            Button(
+                                onClick = onVerifyPendingPayment,
+                                colors = ButtonDefaults.buttonColors(containerColor = RideCharcoal, contentColor = RideYellow),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Verify", fontWeight = FontWeight.ExtraBold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (activeRide != null) {
+                item {
+                    ActiveRideTrackingCard(
+                        ride = activeRide,
+                        onCancel = { onCancelRide(activeRide.id) }
+                    )
+                }
+            }
+
+            // 3D Pickup, Drop & Isometric Route Map Card
             item {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = RideYellowSoft,
-                    border = BorderStroke(1.5.dp, RideCharcoal),
+                TakeIt3DCard(
+                    containerColor = Color.White,
+                    depthColor = Color(0xFFD5DCE6),
+                    cornerRadius = 24.dp,
+                    depth = 5.dp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Waiting for Razorpay Confirmation", fontWeight = FontWeight.ExtraBold, color = RideCharcoal)
-                            Text("Completed payment in Chrome? Tap Verify now.", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
-                        }
-                        Button(
-                            onClick = onVerifyPendingPayment,
-                            colors = ButtonDefaults.buttonColors(containerColor = RideCharcoal, contentColor = RideYellow),
-                            shape = RoundedCornerShape(12.dp)
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("Verify", fontWeight = FontWeight.ExtraBold)
-                        }
-                    }
-                }
-            }
-        }
-
-        // Live Active Ride Tracking Card
-        if (activeRide != null) {
-            item {
-                ActiveRideTrackingCard(
-                    ride = activeRide,
-                    onCancel = { onCancelRide(activeRide.id) }
-                )
-            }
-        }
-
-        // Pickup, Drop & Live Route Map Card
-        item {
-            Surface(
-                shape = RoundedCornerShape(22.dp),
-                color = Color.White,
-                shadowElevation = 3.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Where are you going?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                        IconButton(onClick = onSwapLocations, modifier = Modifier.size(36.dp)) {
-                            Icon(Icons.Rounded.SwapVert, "Swap Pickup & Drop", tint = RideBlue)
-                        }
-                    }
-
-                    LiveRideRouteCanvas(distanceKm = distanceKm)
-
-                    OutlinedTextField(
-                        value = pickup,
-                        onValueChange = onPickupChange,
-                        label = { Text("Pickup Location") },
-                        leadingIcon = { Icon(Icons.Rounded.MyLocation, null, tint = TakeItGreen) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("ride_pickup_input")
-                    )
-                    OutlinedTextField(
-                        value = drop,
-                        onValueChange = onDropChange,
-                        label = { Text("Drop Location") },
-                        leadingIcon = { Icon(Icons.Rounded.Place, null, tint = TakeItRed) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("ride_drop_input")
-                    )
-
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(
-                            listOf(
-                                "Pari Chowk Metro",
-                                "Alpha 1 Market",
-                                "Knowledge Park III",
-                                "Sector 62 Noida",
-                                "Botanical Garden"
-                            )
-                        ) { spot ->
-                            AssistChip(
-                                onClick = { onDropChange(spot) },
-                                label = { Text(spot, fontWeight = FontWeight.SemiBold) }
+                            Text("Where are you going?", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                            TakeIt3DIconOrb(
+                                icon = Icons.Rounded.SwapVert,
+                                containerColor = RideBlue,
+                                size = 38.dp,
+                                contentDescription = "Swap Pickup & Drop",
+                                onClick = onSwapLocations
                             )
                         }
-                    }
 
-                    Text("Estimated Distance: $distanceKm km", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(listOf(2, 4, 6, 10, 15, 22)) { km ->
-                            FilterChip(
-                                selected = distanceKm == km,
-                                onClick = { onDistanceChange(km) },
-                                label = { Text("$km km", fontWeight = FontWeight.Bold) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RideYellow,
-                                    selectedLabelColor = RideCharcoal
+                        LiveRideRouteCanvas(distanceKm = distanceKm)
+
+                        OutlinedTextField(
+                            value = pickup,
+                            onValueChange = onPickupChange,
+                            label = { Text("Pickup Location") },
+                            leadingIcon = { Icon(Icons.Rounded.MyLocation, null, tint = TakeItGreen) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("ride_pickup_input")
+                        )
+                        OutlinedTextField(
+                            value = drop,
+                            onValueChange = onDropChange,
+                            label = { Text("Drop Location") },
+                            leadingIcon = { Icon(Icons.Rounded.Place, null, tint = TakeItRed) },
+                            singleLine = true,
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .testTag("ride_drop_input")
+                        )
+
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(
+                                listOf(
+                                    "Pari Chowk Metro",
+                                    "Alpha 1 Market",
+                                    "Knowledge Park III",
+                                    "Sector 62 Noida",
+                                    "Botanical Garden"
                                 )
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Vehicle Options
-        item {
-            Text(
-                "Choose Your Ride",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
-
-        items(rideVehicles, key = { it.code }) { v ->
-            val selected = v.code == selectedVehicle.code
-            val fare = v.fareFor(distanceKm)
-            Surface(
-                onClick = { onSelectVehicle(v.code) },
-                shape = RoundedCornerShape(18.dp),
-                color = if (selected) RideYellowSoft else Color.White,
-                border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) RideCharcoal else TakeItBorder),
-                shadowElevation = if (selected) 4.dp else 1.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .testTag("ride_vehicle_${v.code.lowercase()}")
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(50.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (selected) RideYellow else TakeItBg),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(v.icon, null, tint = RideCharcoal, modifier = Modifier.size(28.dp))
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(v.title, fontWeight = FontWeight.ExtraBold, color = RideCharcoal)
-                            Surface(shape = RoundedCornerShape(50), color = TakeItGreenSoft) {
-                                Text(
-                                    "${v.etaMin} min away",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = TakeItGreen,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                            ) { spot ->
+                                AssistChip(
+                                    onClick = { onDropChange(spot) },
+                                    label = { Text(spot, fontWeight = FontWeight.SemiBold) }
                                 )
                             }
                         }
-                        Text(v.subtitle, style = MaterialTheme.typography.bodySmall, color = TakeItMuted)
-                        Text("₹${v.baseFare} base + ₹${v.perKm}/km", style = MaterialTheme.typography.labelSmall, color = RideBlue)
-                    }
-                    Text(
-                        "₹$fare",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = RideCharcoal
-                    )
-                }
-            }
-        }
 
-        // Payment Method Selector Card
-        item {
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color.White,
-                shadowElevation = 2.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Payment Mode", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf("RAZORPAY" to "Razorpay Online", "WALLET" to "Wallet (₹${uiState.profile.walletBalance.toInt()})", "CASH" to "Cash").forEach { (key, label) ->
-                            FilterChip(
-                                selected = paymentMethod == key,
-                                onClick = { onSelectPayment(key) },
-                                label = { Text(label, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RideCharcoal,
-                                    selectedLabelColor = RideYellow
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
+                        Text("Estimated Distance: $distanceKm km", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(listOf(2, 4, 6, 10, 15, 22)) { km ->
+                                FilterChip(
+                                    selected = distanceKm == km,
+                                    onClick = { onDistanceChange(km) },
+                                    label = { Text("$km km", fontWeight = FontWeight.Bold) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = RideYellow,
+                                        selectedLabelColor = RideCharcoal
+                                    )
+                                )
+                            }
                         }
                     }
-                    Text(
-                        "Total payable: ₹$calculatedFare • Tap the yellow button below to confirm ride.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TakeItMuted
-                    )
+                }
+            }
+
+            item {
+                Text(
+                    "Choose Your Ride",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+
+            items(rideVehicles, key = { it.code }) { v ->
+                val selected = v.code == selectedVehicle.code
+                val fare = v.fareFor(distanceKm)
+                TakeIt3DCard(
+                    onClick = { onSelectVehicle(v.code) },
+                    containerColor = if (selected) RideYellowSoft else Color.White,
+                    depthColor = if (selected) RideYellow.darken3D(0.4f) else Color(0xFFD5DCE6),
+                    borderColor = if (selected) RideCharcoal else Color.White,
+                    cornerRadius = 20.dp,
+                    depth = if (selected) 6.dp else 4.dp,
+                    shadowElevation = if (selected) 10.dp else 5.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .testTag("ride_vehicle_${v.code.lowercase()}")
+                ) {
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        TakeIt3DIconOrb(
+                            icon = v.icon,
+                            containerColor = if (selected) RideYellow else RideCharcoal,
+                            depthColor = if (selected) RideYellow.darken3D(0.35f) else Color.Black,
+                            iconTint = if (selected) RideCharcoal else RideYellow,
+                            size = 50.dp,
+                            shape = RoundedCornerShape(15.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text(v.title, fontWeight = FontWeight.ExtraBold, color = RideCharcoal)
+                                Surface(shape = RoundedCornerShape(50), color = TakeItGreenSoft) {
+                                    Text(
+                                        "${v.etaMin} min away",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TakeItGreen,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            Text(v.subtitle, style = MaterialTheme.typography.bodySmall, color = TakeItMuted)
+                            Text("₹${v.baseFare} base + ₹${v.perKm}/km", style = MaterialTheme.typography.labelSmall, color = RideBlue)
+                        }
+                        Text(
+                            "₹$fare",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = RideCharcoal
+                        )
+                    }
+                }
+            }
+
+            // 3D Payment Method Card
+            item {
+                TakeIt3DCard(
+                    containerColor = Color.White,
+                    depthColor = Color(0xFFD5DCE6),
+                    cornerRadius = 22.dp,
+                    depth = 4.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Payment Mode", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("RAZORPAY" to "Razorpay Online", "WALLET" to "Wallet (₹${uiState.profile.walletBalance.toInt()})", "CASH" to "Cash").forEach { (key, label) ->
+                                FilterChip(
+                                    selected = paymentMethod == key,
+                                    onClick = { onSelectPayment(key) },
+                                    label = { Text(label, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = RideCharcoal,
+                                        selectedLabelColor = RideYellow
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                        Text(
+                            "Total payable: ₹$calculatedFare • Tap the yellow 3D Pay/Book bar below to confirm ride.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TakeItMuted
+                        )
+                    }
                 }
             }
         }
@@ -763,10 +795,11 @@ private fun LiveRideRouteCanvas(distanceKm: Int) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(92.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFFF8FAFC))
-            .border(1.dp, TakeItBorder, RoundedCornerShape(14.dp))
+            .height(98.dp)
+            .shadow(4.dp, RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(Brush.verticalGradient(listOf(Color(0xFFF1F5F9), Color(0xFFE2E8F0))))
+            .border(1.5.dp, Color.White, RoundedCornerShape(16.dp))
     ) {
         Canvas(modifier = Modifier.fillMaxSize().padding(horizontal = 24.dp, vertical = 18.dp)) {
             val start = Offset(0f, size.height * 0.72f)
@@ -777,20 +810,26 @@ private fun LiveRideRouteCanvas(distanceKm: Int) {
                 moveTo(start.x, start.y)
                 quadraticTo(ctrl.x, ctrl.y, end.x, end.y)
             }
-            drawPath(path = path, color = RideCharcoal.copy(alpha = 0.25f), style = Stroke(width = 7f, cap = StrokeCap.Round))
+            // 3D Road Drop Shadow
+            drawPath(path = path, color = Color.Black.copy(alpha = 0.14f), style = Stroke(width = 12f, cap = StrokeCap.Round))
+            drawPath(path = path, color = RideCharcoal, style = Stroke(width = 8f, cap = StrokeCap.Round))
             drawPath(path = path, color = RideYellow, style = Stroke(width = 4f, cap = StrokeCap.Round))
 
             val oneMinusT = 1f - t
             val cx = oneMinusT * oneMinusT * start.x + 2f * oneMinusT * t * ctrl.x + t * t * end.x
             val cy = oneMinusT * oneMinusT * start.y + 2f * oneMinusT * t * ctrl.y + t * t * end.y
-            drawCircle(color = RideCharcoal, radius = 14f, center = Offset(cx, cy))
+            drawCircle(color = RideYellow.copy(alpha = 0.3f), radius = 24f, center = Offset(cx, cy))
+            drawCircle(color = RideCharcoal, radius = 15f, center = Offset(cx, cy))
             drawCircle(color = RideYellow, radius = 8f, center = Offset(cx, cy))
-            drawCircle(color = TakeItGreen, radius = 11f, center = start)
-            drawCircle(color = TakeItRed, radius = 11f, center = end)
+            drawCircle(color = Color.Black.copy(alpha = 0.22f), radius = 12f, center = Offset(start.x, start.y + 5f))
+            drawCircle(color = TakeItGreen, radius = 12f, center = start)
+            drawCircle(color = Color.Black.copy(alpha = 0.22f), radius = 12f, center = Offset(end.x, end.y + 5f))
+            drawCircle(color = TakeItRed, radius = 12f, center = end)
         }
         Surface(
             shape = RoundedCornerShape(50),
             color = RideCharcoal,
+            shadowElevation = 4.dp,
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(8.dp)
@@ -800,7 +839,7 @@ private fun LiveRideRouteCanvas(distanceKm: Int) {
                 style = MaterialTheme.typography.labelSmall,
                 color = RideYellow,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
             )
         }
     }
@@ -812,11 +851,12 @@ private fun ActiveRideTrackingCard(
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = RideCharcoal,
-        border = BorderStroke(2.dp, RideYellow),
-        shadowElevation = 6.dp,
+    TakeIt3DCard(
+        containerColor = RideCharcoal,
+        depthColor = Color.Black,
+        borderColor = RideYellow,
+        cornerRadius = 22.dp,
+        depth = 6.dp,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
@@ -836,7 +876,7 @@ private fun ActiveRideTrackingCard(
                         fontWeight = FontWeight.ExtraBold
                     )
                 }
-                Surface(shape = RoundedCornerShape(10.dp), color = RideYellow) {
+                Surface(shape = RoundedCornerShape(10.dp), color = RideYellow, shadowElevation = 4.dp) {
                     Text(
                         "OTP ${ride.otp}",
                         color = RideCharcoal,
@@ -864,14 +904,17 @@ private fun ActiveRideTrackingCard(
                         )
                     }
                     if (ride.captainPhone.isNotBlank()) {
-                        IconButton(
+                        TakeIt3DIconOrb(
+                            icon = Icons.Rounded.Call,
+                            containerColor = RideYellow,
+                            iconTint = RideCharcoal,
+                            size = 40.dp,
+                            contentDescription = "Call Captain",
                             onClick = {
                                 val dial = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${ride.captainPhone}"))
                                 context.startActivity(dial)
                             }
-                        ) {
-                            Icon(Icons.Rounded.Call, "Call Captain", tint = RideYellow)
-                        }
+                        )
                     }
                 }
             }
@@ -895,103 +938,126 @@ private fun RideHistoryTab(
     onRateRide: (String, Int) -> Unit,
     onCancelRide: (String) -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(TakeItBg),
-        contentPadding = PaddingValues(bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Surface(color = RideCharcoal) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 18.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+    TakeIt3DBackdrop(RideYellow, RideCharcoal, baseColor = TakeItBg) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                TakeIt3DCard(
+                    containerColor = RideCharcoal,
+                    depthColor = Color.Black,
+                    borderColor = RideYellow.copy(alpha = 0.45f),
+                    cornerRadius = 24.dp,
+                    depth = 5.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("My Rides", style = MaterialTheme.typography.headlineSmall, color = RideYellow, fontWeight = FontWeight.ExtraBold)
-                    Surface(shape = RoundedCornerShape(50), color = RideYellow) {
-                        Text(
-                            "${rides.size} Trips",
-                            color = RideCharcoal,
-                            fontWeight = FontWeight.ExtraBold,
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 18.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("My Rides", style = MaterialTheme.typography.headlineSmall, color = RideYellow, fontWeight = FontWeight.ExtraBold)
+                        Surface(shape = RoundedCornerShape(50), color = RideYellow) {
+                            Text(
+                                "${rides.size} Trips",
+                                color = RideCharcoal,
+                                fontWeight = FontWeight.ExtraBold,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                            )
+                        }
                     }
                 }
             }
-        }
-        if (rides.isEmpty()) {
-            item {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(40.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Rounded.TwoWheeler, null, tint = RideCharcoal, modifier = Modifier.size(56.dp))
-                    Text("No rides booked yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Book your first Bike, Auto, or Cab ride in Book Ride tab!", color = TakeItMuted)
+            if (rides.isEmpty()) {
+                item {
+                    TakeIt3DCard(
+                        containerColor = Color.White,
+                        depthColor = Color(0xFFD5DCE6),
+                        cornerRadius = 24.dp,
+                        depth = 5.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 20.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(36.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            TakeIt3DIconOrb(
+                                icon = Icons.Rounded.TwoWheeler,
+                                containerColor = RideCharcoal,
+                                iconTint = RideYellow,
+                                size = 64.dp
+                            )
+                            Text("No rides booked yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Book your first Bike, Auto, or Cab ride in Book Ride tab!", color = TakeItMuted)
+                        }
+                    }
                 }
-            }
-        } else {
-            items(rides, key = { it.id }) { ride ->
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = Color.White,
-                    shadowElevation = 2.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("${ride.rideNumber} • ${ride.vehicleType}", fontWeight = FontWeight.ExtraBold)
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = if (ride.status == "COMPLETED") TakeItGreenSoft else RideYellowSoft
+            } else {
+                items(rides, key = { it.id }) { ride ->
+                    TakeIt3DCard(
+                        containerColor = Color.White,
+                        depthColor = Color(0xFFD5DCE6),
+                        cornerRadius = 20.dp,
+                        depth = 5.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    ride.status.replace("_", " "),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (ride.status == "COMPLETED") TakeItGreen else RideCharcoal,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-                        Text("From: ${ride.pickupAddress}", style = MaterialTheme.typography.bodySmall, color = TakeItMuted)
-                        Text("To: ${ride.dropAddress}", style = MaterialTheme.typography.bodySmall, color = TakeItInk, fontWeight = FontWeight.SemiBold)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text("OTP: ${ride.otp} • Captain: ${ride.captainName}", style = MaterialTheme.typography.labelSmall, color = RideBlue)
-                            Text("₹${ride.totalFare} (${ride.paymentMethod})", fontWeight = FontWeight.ExtraBold, color = RideCharcoal)
-                        }
-                        if (ride.status == "REQUESTED") {
-                            OutlinedButton(onClick = { onCancelRide(ride.id) }, modifier = Modifier.fillMaxWidth()) {
-                                Text("Cancel Ride", color = TakeItRed)
-                            }
-                        }
-                        if (ride.status == "COMPLETED" && ride.rating == 0) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Rate Captain:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                                (1..5).forEach { stars ->
-                                    IconButton(onClick = { onRateRide(ride.id, stars) }, modifier = Modifier.size(34.dp)) {
-                                        Icon(Icons.Rounded.Star, "Rate $stars", tint = TakeItGold)
-                                    }
+                                Text("${ride.rideNumber} • ${ride.vehicleType}", fontWeight = FontWeight.ExtraBold)
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = if (ride.status == "COMPLETED") TakeItGreenSoft else RideYellowSoft
+                                ) {
+                                    Text(
+                                        ride.status.replace("_", " "),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (ride.status == "COMPLETED") TakeItGreen else RideCharcoal,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
                                 }
                             }
-                        } else if (ride.rating > 0) {
-                            Text("Rated ${ride.rating} ★", color = TakeItGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                            Text("From: ${ride.pickupAddress}", style = MaterialTheme.typography.bodySmall, color = TakeItMuted)
+                            Text("To: ${ride.dropAddress}", style = MaterialTheme.typography.bodySmall, color = TakeItInk, fontWeight = FontWeight.SemiBold)
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("OTP: ${ride.otp} • Captain: ${ride.captainName}", style = MaterialTheme.typography.labelSmall, color = RideBlue)
+                                Text("₹${ride.totalFare} (${ride.paymentMethod})", fontWeight = FontWeight.ExtraBold, color = RideCharcoal)
+                            }
+                            if (ride.status == "REQUESTED") {
+                                OutlinedButton(onClick = { onCancelRide(ride.id) }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Cancel Ride", color = TakeItRed)
+                                }
+                            }
+                            if (ride.status == "COMPLETED" && ride.rating == 0) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("Rate Captain:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                    (1..5).forEach { stars ->
+                                        IconButton(onClick = { onRateRide(ride.id, stars) }, modifier = Modifier.size(34.dp)) {
+                                            Icon(Icons.Rounded.Star, "Rate $stars", tint = TakeItGold)
+                                        }
+                                    }
+                                }
+                            } else if (ride.rating > 0) {
+                                Text("Rated ${ride.rating} ★", color = TakeItGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                            }
                         }
                     }
                 }
@@ -1010,80 +1076,103 @@ private fun RideAccountTab(
 ) {
     var showEdit by remember { mutableStateOf(false) }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(TakeItBg),
-        contentPadding = PaddingValues(bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Brush.horizontalGradient(listOf(RideCharcoal, Color(0xFF1E293B))))
-                    .statusBarsPadding()
-                    .padding(20.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    TakeIt3DBackdrop(RideYellow, RideCharcoal, baseColor = TakeItBg) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                TakeIt3DCard(
+                    containerColor = RideCharcoal,
+                    depthColor = Color.Black,
+                    borderColor = RideYellow,
+                    cornerRadius = 26.dp,
+                    depth = 6.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(RideYellow),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .background(Brush.horizontalGradient(listOf(RideCharcoal, Color(0xFF1E293B))))
+                            .statusBarsPadding()
+                            .padding(20.dp)
                     ) {
-                        Text(
-                            uiState.profile.name.ifBlank { uiState.displayName }.take(1).uppercase(),
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = RideCharcoal,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(uiState.profile.name.ifBlank { uiState.displayName }, style = MaterialTheme.typography.titleLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
-                        Text(uiState.email, style = MaterialTheme.typography.bodySmall, color = RideYellow)
-                        Text(uiState.profile.phone.ifBlank { "Tap edit to add phone" }, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
-                    }
-                    IconButton(onClick = { showEdit = true }) {
-                        Icon(Icons.Rounded.Edit, "Edit Profile", tint = RideYellow)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(66.dp)
+                                    .shadow(8.dp, CircleShape)
+                                    .clip(CircleShape)
+                                    .background(RideYellow)
+                                    .border(2.dp, Color.White, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    uiState.profile.name.ifBlank { uiState.displayName }.take(1).uppercase(),
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = RideCharcoal,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(uiState.profile.name.ifBlank { uiState.displayName }, style = MaterialTheme.typography.titleLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                                Text(uiState.email, style = MaterialTheme.typography.bodySmall, color = RideYellow)
+                                Text(uiState.profile.phone.ifBlank { "Tap edit to add phone" }, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                            }
+                            TakeIt3DIconOrb(
+                                icon = Icons.Rounded.Edit,
+                                containerColor = RideYellow,
+                                iconTint = RideCharcoal,
+                                size = 40.dp,
+                                contentDescription = "Edit Profile",
+                                onClick = { showEdit = true }
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        item {
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color.White,
-                shadowElevation = 2.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Column {
-                    ListItem(
-                        headlineContent = { Text("My Ride History", fontWeight = FontWeight.Bold) },
-                        supportingContent = { Text("${uiState.myRides.size} rides") },
-                        leadingContent = { Icon(Icons.Rounded.Route, null, tint = RideCharcoal) },
-                        modifier = Modifier.clickable(onClick = onOpenRides)
-                    )
-                    HorizontalDivider(color = TakeItBorder)
-                    ListItem(
-                        headlineContent = { Text("Take It Wallet & Razorpay", fontWeight = FontWeight.Bold) },
-                        supportingContent = { Text("Balance: ₹${uiState.profile.walletBalance.toInt()}") },
-                        leadingContent = { Icon(Icons.Rounded.AccountBalanceWallet, null, tint = RideBlue) },
-                        modifier = Modifier.clickable(onClick = onOpenWallet)
-                    )
-                    HorizontalDivider(color = TakeItBorder)
-                    ListItem(
-                        headlineContent = { Text("Switch Google Account / Sign Out", fontWeight = FontWeight.ExtraBold, color = TakeItRed) },
-                        supportingContent = { Text("Pick any Gmail account cleanly") },
-                        leadingContent = { Icon(Icons.Rounded.SwitchAccount, null, tint = TakeItRed) },
-                        modifier = Modifier
-                            .clickable(onClick = onSignOut)
-                            .testTag("ride_switch_account_btn")
-                    )
+            item {
+                TakeIt3DCard(
+                    containerColor = Color.White,
+                    depthColor = Color(0xFFD5DCE6),
+                    cornerRadius = 22.dp,
+                    depth = 5.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Column {
+                        ListItem(
+                            headlineContent = { Text("My Ride History", fontWeight = FontWeight.Bold) },
+                            supportingContent = { Text("${uiState.myRides.size} rides") },
+                            leadingContent = {
+                                TakeIt3DIconOrb(Icons.Rounded.Route, RideCharcoal, iconTint = RideYellow, size = 36.dp)
+                            },
+                            modifier = Modifier.clickable(onClick = onOpenRides)
+                        )
+                        HorizontalDivider(color = TakeItBorder)
+                        ListItem(
+                            headlineContent = { Text("Take It Wallet & Razorpay", fontWeight = FontWeight.Bold) },
+                            supportingContent = { Text("Balance: ₹${uiState.profile.walletBalance.toInt()}") },
+                            leadingContent = {
+                                TakeIt3DIconOrb(Icons.Rounded.AccountBalanceWallet, RideBlue, iconTint = Color.White, size = 36.dp)
+                            },
+                            modifier = Modifier.clickable(onClick = onOpenWallet)
+                        )
+                        HorizontalDivider(color = TakeItBorder)
+                        ListItem(
+                            headlineContent = { Text("Switch Google Account / Sign Out", fontWeight = FontWeight.ExtraBold, color = TakeItRed) },
+                            supportingContent = { Text("Pick any Gmail account cleanly") },
+                            leadingContent = {
+                                TakeIt3DIconOrb(Icons.Rounded.SwitchAccount, TakeItRed, iconTint = Color.White, size = 36.dp)
+                            },
+                            modifier = Modifier
+                                .clickable(onClick = onSignOut)
+                                .testTag("ride_switch_account_btn")
+                        )
+                    }
                 }
             }
         }

@@ -43,6 +43,12 @@ import com.example.takeit.theme.*
 import com.example.takeit.ui.admin.AdminCommandCenterRoot
 import com.example.takeit.ui.auth.TakeItFoodAuthScreen
 import com.example.takeit.ui.auth.TakeItFoodSplashScreen
+import com.example.takeit.ui.components.Nav3DTabItem
+import com.example.takeit.ui.components.TakeIt3DBackdrop
+import com.example.takeit.ui.components.TakeIt3DButton
+import com.example.takeit.ui.components.TakeIt3DCard
+import com.example.takeit.ui.components.TakeIt3DFloatingNavBar
+import com.example.takeit.ui.components.darken3D
 import com.example.takeit.ui.customer.*
 import com.example.takeit.ui.ride.RapidoRideAppRoot
 import com.example.takeit.ui.transport.ParcelTransportAppRoot
@@ -280,7 +286,7 @@ private fun AuthenticatedTakeItShell(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
                             .navigationBarsPadding()
-                            .padding(bottom = 78.dp, start = 14.dp, end = 14.dp)
+                            .padding(bottom = 92.dp, start = 14.dp, end = 14.dp)
                     ) { data ->
                         Snackbar(
                             snackbarData = data,
@@ -311,41 +317,29 @@ private fun CustomerAppRoot(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar(
-                    containerColor = Color.White,
-                    tonalElevation = 8.dp
-                ) {
-                    CustomerTab.entries.forEach { tab ->
-                        val selected = uiState.customerTab == tab
+                TakeIt3DFloatingNavBar(
+                    items = CustomerTab.entries.map { tab ->
                         val icon = when (tab) {
                             CustomerTab.HOME -> Icons.Rounded.Home
                             CustomerTab.ORDERS -> Icons.Rounded.ReceiptLong
                             CustomerTab.OFFERS -> Icons.Rounded.LocalOffer
                             CustomerTab.ACCOUNT -> Icons.Rounded.Person
                         }
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { viewModel.selectCustomerTab(tab) },
-                            icon = {
-                                Icon(icon, contentDescription = tab.label)
-                            },
-                            label = {
-                                Text(
-                                    tab.label,
-                                    fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = TakeItRed,
-                                selectedTextColor = TakeItRed,
-                                indicatorColor = Color(0xFFFFE4E6),
-                                unselectedIconColor = TakeItMuted,
-                                unselectedTextColor = TakeItMuted
-                            ),
-                            modifier = Modifier.testTag("customer_nav_${tab.name.lowercase()}")
+                        Nav3DTabItem(
+                            id = tab.name,
+                            label = tab.label,
+                            icon = icon,
+                            selected = uiState.customerTab == tab,
+                            testTag = "customer_nav_${tab.name.lowercase()}",
+                            onClick = { viewModel.selectCustomerTab(tab) }
                         )
-                    }
-                }
+                    },
+                    containerColor = Color.White,
+                    activePodColor = TakeItRed,
+                    activeContentColor = Color.White,
+                    inactiveColor = TakeItMuted,
+                    borderColor = TakeItBorder
+                )
             }
         }
     ) { innerPadding ->
@@ -503,54 +497,70 @@ private fun CustomerMaintenanceScreen(
     config: TakeItAppConfig,
     onSignOut: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(TakeItBg)
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
+    TakeIt3DBackdrop(
+        accentPrimary = TakeItRed,
+        accentSecondary = TakeItOrange,
+        baseColor = TakeItBg
     ) {
-        Surface(
-            shape = RoundedCornerShape(24.dp),
-            color = Color.White,
-            border = BorderStroke(1.dp, TakeItBorder),
-            shadowElevation = 6.dp,
-            modifier = Modifier.fillMaxWidth()
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            TakeIt3DCard(
+                containerColor = Color.White,
+                depthColor = Color(0xFFD5DAE3),
+                borderColor = TakeItBorder,
+                cornerRadius = 26.dp,
+                depth = 6.dp,
+                shadowElevation = 14.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 460.dp)
             ) {
-                Image(
-                    painter = painterResource(R.drawable.logo_takeit_food),
-                    contentDescription = "Take It Logo",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(88.dp)
-                        .clip(CircleShape)
-                        .border(2.dp, TakeItRed, CircleShape)
-                )
-                Icon(Icons.Rounded.Engineering, null, tint = TakeItOrange, modifier = Modifier.size(40.dp))
-                Text(
-                    "Take It is Under Maintenance",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.ExtraBold,
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    "Our kitchens & delivery systems are getting an upgrade. We'll be back online shortly!\nSupport: ${config.supportPhone}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TakeItMuted,
-                    textAlign = TextAlign.Center
-                )
-                OutlinedButton(
-                    onClick = onSignOut,
-                    shape = RoundedCornerShape(12.dp)
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("Sign Out", color = TakeItRed, fontWeight = FontWeight.Bold)
+                    Image(
+                        painter = painterResource(R.drawable.logo_takeit_food),
+                        contentDescription = "Take It Logo",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(90.dp)
+                            .clip(CircleShape)
+                            .border(2.5.dp, TakeItRed, CircleShape)
+                    )
+                    Icon(Icons.Rounded.Engineering, null, tint = TakeItOrange, modifier = Modifier.size(40.dp))
+                    Text(
+                        "Take It is Under Maintenance",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TakeItInk,
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        "Our kitchens & delivery systems are getting an upgrade. We'll be back online shortly!\nSupport: ${config.supportPhone}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TakeItMuted,
+                        textAlign = TextAlign.Center
+                    )
+                    TakeIt3DButton(
+                        onClick = onSignOut,
+                        containerColor = TakeItRed,
+                        depthColor = TakeItRed.darken3D(0.38f),
+                        contentColor = Color.White,
+                        cornerRadius = 16.dp,
+                        depth = 4.dp,
+                        height = 48.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Sign Out", fontWeight = FontWeight.ExtraBold)
+                    }
                 }
             }
         }

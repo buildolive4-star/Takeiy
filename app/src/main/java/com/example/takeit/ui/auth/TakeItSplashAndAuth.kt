@@ -49,6 +49,12 @@ import com.example.firebase.signInWithGoogleBrowser
 import com.example.takeit.model.MAIN_ADMIN_EMAIL
 import com.example.takeit.model.TakeItAppVariant
 import com.example.takeit.theme.*
+import com.example.takeit.ui.components.TakeIt3DBackdrop
+import com.example.takeit.ui.components.TakeIt3DButton
+import com.example.takeit.ui.components.TakeIt3DCard
+import com.example.takeit.ui.components.TakeIt3DHeroBanner
+import com.example.takeit.ui.components.darken3D
+import com.example.takeit.ui.components.lighten3D
 import com.google.firebase.Firebase
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.tasks.await
@@ -80,31 +86,37 @@ fun TakeItFoodSplashScreen(
 ) {
     var visible by remember { mutableStateOf(false) }
     val logoScale by animateFloatAsState(
-        targetValue = if (visible) 1f else 0.82f,
+        targetValue = if (visible) 1f else 0.78f,
         animationSpec = tween(700),
         label = "splashScale"
     )
     LaunchedEffect(Unit) { visible = true }
 
-    val inf = rememberInfiniteTransition(label = "splashKenBurns")
+    val inf = rememberInfiniteTransition(label = "splash3DKenBurns")
     val kenScale by inf.animateFloat(
         initialValue = 1.0f,
         targetValue = 1.08f,
         animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "kenScale"
     )
-    val kenShiftY by inf.animateFloat(
-        initialValue = 0f,
-        targetValue = -14f,
-        animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "kenShiftY"
+    val tiltY by inf.animateFloat(
+        initialValue = -3.2f,
+        targetValue = 3.2f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "splashTiltY"
+    )
+    val floatY by inf.animateFloat(
+        initialValue = -8f,
+        targetValue = 8f,
+        animationSpec = infiniteRepeatable(tween(2000, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "splashFloatY"
     )
 
     if (variant == TakeItAppVariant.ADMIN) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(AdminBg, AdminSurface, Color(0xFF1E293B))))
+        TakeIt3DBackdrop(
+            accentPrimary = AdminGold,
+            accentSecondary = AdminCyan,
+            darkMode = true
         ) {
             Column(
                 modifier = Modifier
@@ -115,14 +127,19 @@ fun TakeItFoodSplashScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+                // 3D Orbiting Gold Emblem
                 Box(
                     modifier = Modifier
                         .scale(logoScale)
-                        .size(164.dp)
-                        .shadow(20.dp, CircleShape)
+                        .graphicsLayer {
+                            rotationY = tiltY * 2.2f
+                            translationY = floatY
+                            cameraDistance = 14f * density
+                        }
+                        .size(168.dp)
+                        .shadow(28.dp, CircleShape, ambientColor = AdminGold, spotColor = AdminGold)
                         .clip(CircleShape)
-                        .background(Color.White)
-                        .border(4.dp, AdminGold, CircleShape)
+                        .background(Brush.linearGradient(listOf(AdminGold.lighten3D(0.3f), AdminGold, AdminGold.darken3D(0.3f))))
                         .padding(6.dp),
                     contentAlignment = Alignment.Center
                 ) {
@@ -133,23 +150,31 @@ fun TakeItFoodSplashScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(CircleShape)
+                            .background(Color.White)
                     )
                 }
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(26.dp))
                 Text(
                     text = "TAKE IT ADMIN",
                     style = MaterialTheme.typography.headlineLarge,
                     color = AdminGold,
                     fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = 1.6.sp
+                    letterSpacing = 1.8.sp
                 )
                 Spacer(Modifier.height(6.dp))
-                Text(
-                    text = "Executive Command Center • Live Cloud Sync",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = Color.White.copy(alpha = 0.88f),
-                    textAlign = TextAlign.Center
-                )
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = AdminCard,
+                    border = BorderStroke(1.dp, AdminGold.copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        text = "3D Command Center • Live Cloud Sync",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = AdminInk,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
+                    )
+                }
                 Spacer(Modifier.height(24.dp))
                 CircularProgressIndicator(color = AdminGold, strokeWidth = 3.dp, modifier = Modifier.size(32.dp))
             }
@@ -167,60 +192,89 @@ fun TakeItFoodSplashScreen(
         TakeItAppVariant.TRANSPORT -> TransportOrange
         else -> TakeItGold
     }
+    val secondary = when (variant) {
+        TakeItAppVariant.RIDE -> RideCharcoal
+        TakeItAppVariant.TRANSPORT -> TransportNavy
+        else -> TakeItRed
+    }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(welcomeDrawable),
-            contentDescription = "Take It Welcome Showcase",
-            contentScale = ContentScale.Crop,
-            modifier = Modifier
-                .fillMaxSize()
-                .scale(logoScale)
-                .graphicsLayer {
-                    scaleX = kenScale
-                    scaleY = kenScale
-                    translationY = kenShiftY
-                }
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.Black.copy(alpha = 0.12f),
-                            Color.Transparent,
-                            Color.Black.copy(alpha = 0.65f)
-                        )
-                    )
-                )
-        )
+    TakeIt3DBackdrop(
+        accentPrimary = accent,
+        accentSecondary = secondary,
+        darkMode = true,
+        baseColor = secondary.darken3D(0.45f)
+    ) {
         Column(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .fillMaxSize()
+                .statusBarsPadding()
                 .navigationBarsPadding()
-                .padding(bottom = 36.dp),
+                .padding(horizontal = 22.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Surface(
-                shape = RoundedCornerShape(50),
-                color = Color.Black.copy(alpha = 0.65f),
-                border = BorderStroke(1.dp, accent)
+            Spacer(Modifier.height(8.dp))
+
+            // 3D Framed Welcome Showcase Card
+            TakeIt3DHeroBanner(
+                borderColor = accent,
+                depthColor = secondary.darken3D(0.55f),
+                cornerRadius = 32.dp,
+                depth = 8.dp,
+                tiltAmplitude = 3.2f,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .padding(vertical = 12.dp)
+                    .scale(logoScale)
             ) {
-                Text(
-                    text = when (variant) {
-                        TakeItAppVariant.RIDE -> "TAKE IT RIDE • BIKE • AUTO • CAB"
-                        TakeItAppVariant.TRANSPORT -> "TAKE IT TRANSPORT • PARCEL & CARGO"
-                        else -> "TAKE IT • FOOD DELIVERY"
-                    },
-                    style = MaterialTheme.typography.labelLarge,
-                    color = accent,
-                    fontWeight = FontWeight.ExtraBold,
-                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp)
+                Image(
+                    painter = painterResource(welcomeDrawable),
+                    contentDescription = "Take It Welcome Showcase",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            scaleX = kenScale
+                            scaleY = kenScale
+                            translationY = floatY
+                        }
+                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(Color.Transparent, Color.Transparent, Color.Black.copy(alpha = 0.65f))
+                            )
+                        )
                 )
             }
-            CircularProgressIndicator(color = accent, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = Color.Black.copy(alpha = 0.7f),
+                    border = BorderStroke(1.5.dp, accent),
+                    shadowElevation = 10.dp
+                ) {
+                    Text(
+                        text = when (variant) {
+                            TakeItAppVariant.RIDE -> "TAKE IT RIDE • BIKE • AUTO • CAB"
+                            TakeItAppVariant.TRANSPORT -> "TAKE IT TRANSPORT • PARCEL & CARGO"
+                            else -> "TAKE IT • FOOD DELIVERY"
+                        },
+                        style = MaterialTheme.typography.labelLarge,
+                        color = accent,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)
+                    )
+                }
+                CircularProgressIndicator(color = accent, strokeWidth = 3.dp, modifier = Modifier.size(28.dp))
+            }
         }
     }
 }
@@ -261,10 +315,10 @@ fun TakeItFoodAuthScreen(
         isCheckingPending = false
     }
 
-    val inf = rememberInfiniteTransition(label = "authAnim")
+    val inf = rememberInfiniteTransition(label = "auth3DAnim")
     val artScale by inf.animateFloat(
         initialValue = 1.0f,
-        targetValue = 1.06f,
+        targetValue = 1.07f,
         animationSpec = infiniteRepeatable(tween(4200, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "artScale"
     )
@@ -273,6 +327,12 @@ fun TakeItFoodAuthScreen(
         targetValue = 6f,
         animationSpec = infiniteRepeatable(tween(2600, easing = FastOutSlowInEasing), RepeatMode.Reverse),
         label = "floatOffset"
+    )
+    val adminTilt by inf.animateFloat(
+        initialValue = -6f,
+        targetValue = 6f,
+        animationSpec = infiniteRepeatable(tween(2800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+        label = "adminTilt"
     )
 
     val welcomeDrawable = when (variant) {
@@ -308,23 +368,34 @@ fun TakeItFoodAuthScreen(
         TakeItAppVariant.TRANSPORT -> TransportOrange
         else -> TakeItRed
     }
+    val primaryBtnDepth = when (variant) {
+        TakeItAppVariant.ADMIN -> AdminGold.darken3D(0.45f)
+        TakeItAppVariant.RIDE -> Color.Black
+        TakeItAppVariant.TRANSPORT -> TransportOrange.darken3D(0.42f)
+        else -> TakeItRedDark.darken3D(0.35f)
+    }
     val primaryBtnContentColor = when (variant) {
         TakeItAppVariant.ADMIN -> AdminBg
         TakeItAppVariant.RIDE -> RideYellow
         else -> Color.White
     }
+    val accentBorder = when (variant) {
+        TakeItAppVariant.ADMIN -> AdminGold
+        TakeItAppVariant.RIDE -> RideYellow
+        TakeItAppVariant.TRANSPORT -> TransportOrange
+        else -> TakeItGold
+    }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                when (variant) {
-                    TakeItAppVariant.ADMIN -> Brush.verticalGradient(listOf(AdminBg, AdminSurface, Color(0xFF0F172A)))
-                    TakeItAppVariant.RIDE -> Brush.verticalGradient(listOf(RideCharcoal, Color(0xFF1F2937), RideYellowSoft))
-                    TakeItAppVariant.TRANSPORT -> Brush.verticalGradient(listOf(TransportNavy, Color(0xFF1E293B), TransportOrangeSoft))
-                    else -> Brush.verticalGradient(listOf(TakeItRedDark, TakeItRed, TakeItOrange, TakeItBg))
-                }
-            )
+    TakeIt3DBackdrop(
+        accentPrimary = accentBorder,
+        accentSecondary = primaryBtnColor,
+        darkMode = true,
+        baseColor = when (variant) {
+            TakeItAppVariant.ADMIN -> AdminBg
+            TakeItAppVariant.RIDE -> RideCharcoal
+            TakeItAppVariant.TRANSPORT -> TransportNavy
+            else -> Color(0xFF7F1D1D)
+        }
     ) {
         Column(
             modifier = Modifier
@@ -339,13 +410,14 @@ fun TakeItFoodAuthScreen(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = Color.Black.copy(alpha = 0.28f),
-                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.35f))
+                    color = Color.Black.copy(alpha = 0.38f),
+                    border = BorderStroke(1.2.dp, accentBorder.copy(alpha = 0.7f)),
+                    shadowElevation = 6.dp
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 7.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        horizontalArrangement = Arrangement.spacedBy(7.dp)
                     ) {
                         Icon(
                             when (variant) {
@@ -355,7 +427,7 @@ fun TakeItFoodAuthScreen(
                                 else -> Icons.Rounded.Restaurant
                             },
                             contentDescription = null,
-                            tint = if (isAdmin || isRide) RideYellow else TakeItGold,
+                            tint = accentBorder,
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
@@ -363,22 +435,25 @@ fun TakeItFoodAuthScreen(
                             style = MaterialTheme.typography.labelSmall,
                             color = Color.White,
                             fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = 0.8.sp
+                            letterSpacing = 0.9.sp
                         )
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(16.dp))
 
                 if (isAdmin) {
                     Box(
                         modifier = Modifier
-                            .size(144.dp)
-                            .graphicsLayer { translationY = floatOffset }
-                            .shadow(18.dp, CircleShape)
+                            .size(148.dp)
+                            .graphicsLayer {
+                                translationY = floatOffset
+                                rotationY = adminTilt
+                                cameraDistance = 14f * density
+                            }
+                            .shadow(22.dp, CircleShape, ambientColor = AdminGold, spotColor = AdminGold)
                             .clip(CircleShape)
-                            .background(Color.White)
-                            .border(4.dp, AdminGold, CircleShape)
+                            .background(Brush.linearGradient(listOf(AdminGold.lighten3D(0.35f), AdminGold, AdminGold.darken3D(0.35f))))
                             .padding(5.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -389,36 +464,37 @@ fun TakeItFoodAuthScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(CircleShape)
+                                .background(Color.White)
                         )
                     }
                 } else {
-                    // Animated Welcome Artwork Banner for Food, Rapido Ride, and Parcel Transport!
-                    Surface(
-                        shape = RoundedCornerShape(26.dp),
-                        shadowElevation = 14.dp,
-                        border = BorderStroke(2.5.dp, if (isRide) RideYellow else if (isTransport) TransportOrange else TakeItGold),
+                    // 3D Perspective Welcome Artwork Banner for Food, Rapido Ride, and Parcel Transport!
+                    TakeIt3DHeroBanner(
+                        borderColor = accentBorder,
+                        depthColor = primaryBtnDepth,
+                        cornerRadius = 28.dp,
+                        depth = 7.dp,
+                        tiltAmplitude = 2.8f,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(275.dp)
-                            .graphicsLayer { translationY = floatOffset }
+                            .height(272.dp)
+                            .graphicsLayer { translationY = floatOffset * 0.5f }
                     ) {
-                        Box(modifier = Modifier.fillMaxSize()) {
-                            Image(
-                                painter = painterResource(welcomeDrawable),
-                                contentDescription = headlineText,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .graphicsLayer {
-                                        scaleX = artScale
-                                        scaleY = artScale
-                                    }
-                            )
-                        }
+                        Image(
+                            painter = painterResource(welcomeDrawable),
+                            contentDescription = headlineText,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    scaleX = artScale
+                                    scaleY = artScale
+                                }
+                        )
                     }
                 }
 
-                Spacer(Modifier.height(14.dp))
+                Spacer(Modifier.height(16.dp))
 
                 Text(
                     text = headlineText,
@@ -431,25 +507,27 @@ fun TakeItFoodAuthScreen(
                 Text(
                     text = subtitleText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.White.copy(alpha = 0.9f),
+                    color = Color.White.copy(alpha = 0.88f),
                     textAlign = TextAlign.Center
                 )
             }
 
             Spacer(Modifier.height(16.dp))
 
-            // Bottom Sign-In Card with Explicit Google Account Chooser!
-            Surface(
-                shape = RoundedCornerShape(28.dp),
-                color = if (isAdmin) AdminCard else Color.White,
-                border = if (isAdmin) BorderStroke(1.dp, AdminBorder) else null,
-                shadowElevation = 14.dp,
+            // 3D Extruded Sign-In Card with Explicit Google Account Chooser!
+            TakeIt3DCard(
+                containerColor = if (isAdmin) AdminCard else Color.White,
+                depthColor = if (isAdmin) Color(0xFF060A15) else Color(0xFFCBD5E1),
+                borderColor = if (isAdmin) AdminGold.copy(alpha = 0.45f) else Color.White,
+                cornerRadius = 28.dp,
+                depth = 7.dp,
+                shadowElevation = 16.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
                         text = if (isAdmin) "Choose Admin / Co-Admin Google Account" else "Choose your Google Account to continue",
@@ -468,6 +546,7 @@ fun TakeItFoodAuthScreen(
                         Surface(
                             shape = RoundedCornerShape(14.dp),
                             color = Color(0xFFFEE2E2),
+                            border = BorderStroke(1.dp, Color(0xFFFCA5A5)),
                             modifier = Modifier.fillMaxWidth()
                         ) {
                             Column(
@@ -505,7 +584,7 @@ fun TakeItFoodAuthScreen(
                         }
                     }
 
-                    Button(
+                    TakeIt3DButton(
                         onClick = {
                             errorMessage = null
                             isSigningIn = true
@@ -525,14 +604,14 @@ fun TakeItFoodAuthScreen(
                             )
                         },
                         enabled = !isSigningIn && !isCheckingPending,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = primaryBtnColor,
-                            contentColor = primaryBtnContentColor
-                        ),
-                        shape = RoundedCornerShape(50),
+                        containerColor = primaryBtnColor,
+                        depthColor = primaryBtnDepth,
+                        contentColor = primaryBtnContentColor,
+                        cornerRadius = 18.dp,
+                        depth = 5.dp,
+                        height = 52.dp,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(54.dp)
                             .testTag("google_sign_in_button")
                     ) {
                         if (isSigningIn || isCheckingPending) {
@@ -558,7 +637,7 @@ fun TakeItFoodAuthScreen(
                         }
                     }
 
-                    OutlinedButton(
+                    TakeIt3DButton(
                         onClick = {
                             errorMessage = null
                             isSigningIn = true
@@ -576,11 +655,14 @@ fun TakeItFoodAuthScreen(
                             )
                         },
                         enabled = !isSigningIn && !isCheckingPending,
-                        shape = RoundedCornerShape(50),
-                        border = BorderStroke(1.dp, if (isAdmin) AdminBorder else TakeItBorder),
+                        containerColor = if (isAdmin) AdminSurface else Color(0xFFF1F5F9),
+                        depthColor = if (isAdmin) AdminBg else Color(0xFFCBD5E1),
+                        contentColor = if (isAdmin) AdminInk else TakeItInk,
+                        cornerRadius = 16.dp,
+                        depth = 4.dp,
+                        height = 48.dp,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
                             .testTag("google_browser_sign_in_button")
                     ) {
                         Icon(
@@ -598,7 +680,7 @@ fun TakeItFoodAuthScreen(
                     }
 
                     Text(
-                        text = "Tip: Tap either button above anytime to pick any Gmail account",
+                        text = "Tip: Tap either 3D button above anytime to pick any Gmail account",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isAdmin) AdminMuted else TakeItMuted,
                         textAlign = TextAlign.Center

@@ -33,6 +33,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.takeit.model.*
 import com.example.takeit.theme.*
+import com.example.takeit.ui.components.TakeIt3DButton
+import com.example.takeit.ui.components.TakeIt3DCard
+import com.example.takeit.ui.components.TakeIt3DIconOrb
+import com.example.takeit.ui.components.darken3D
+import com.example.takeit.ui.components.lighten3D
 import com.example.takeit.ui.customer.FoodPhoto
 import com.example.takeit.ui.customer.VegMarkIcon
 import com.example.takeit.viewmodel.TakeItUiState
@@ -59,33 +64,60 @@ fun AdminCatalogTab(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            FilterChip(
-                selected = section == 0,
+            TakeIt3DCard(
                 onClick = { section = 0 },
-                label = { Text("Restaurants (${uiState.restaurants.size})", fontWeight = FontWeight.Bold) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AdminGold,
-                    selectedLabelColor = AdminBg,
-                    containerColor = AdminSurface,
-                    labelColor = AdminInk
-                )
-            )
-            FilterChip(
-                selected = section == 1,
+                containerColor = if (section == 0) AdminGold else AdminSurface,
+                depthColor = if (section == 0) AdminGold.darken3D(0.42f) else Color(0xFF060A15),
+                borderColor = if (section == 0) AdminGold.lighten3D(0.35f) else AdminBorder,
+                cornerRadius = 14.dp,
+                depth = if (section == 0) 4.dp else 2.dp,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 11.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Restaurants (${uiState.restaurants.size})",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 12.sp,
+                        color = if (section == 0) AdminBg else AdminInk,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            TakeIt3DCard(
                 onClick = { section = 1 },
-                label = { Text("Dishes (${uiState.menuItems.size})", fontWeight = FontWeight.Bold) },
-                colors = FilterChipDefaults.filterChipColors(
-                    selectedContainerColor = AdminGold,
-                    selectedLabelColor = AdminBg,
-                    containerColor = AdminSurface,
-                    labelColor = AdminInk
-                )
-            )
-            Spacer(Modifier.weight(1f))
-            FilledTonalButton(
+                containerColor = if (section == 1) AdminGold else AdminSurface,
+                depthColor = if (section == 1) AdminGold.darken3D(0.42f) else Color(0xFF060A15),
+                borderColor = if (section == 1) AdminGold.lighten3D(0.35f) else AdminBorder,
+                cornerRadius = 14.dp,
+                depth = if (section == 1) 4.dp else 2.dp,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 11.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Dishes (${uiState.menuItems.size})",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 12.sp,
+                        color = if (section == 1) AdminBg else AdminInk,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            TakeIt3DButton(
                 onClick = {
                     if (section == 0) {
                         editingRestaurant = null
@@ -99,13 +131,19 @@ fun AdminCatalogTab(
                         }
                     }
                 },
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.filledTonalButtonColors(containerColor = AdminGold, contentColor = AdminBg),
-                modifier = Modifier.testTag("admin_catalog_add_btn")
+                containerColor = AdminGold,
+                depthColor = AdminGold.darken3D(0.45f),
+                contentColor = AdminBg,
+                cornerRadius = 14.dp,
+                depth = 4.dp,
+                height = 40.dp,
+                modifier = Modifier
+                    .width(96.dp)
+                    .testTag("admin_catalog_add_btn")
             ) {
-                Icon(Icons.Rounded.Add, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-                Text(if (section == 0) "Add" else "Dish", fontWeight = FontWeight.ExtraBold)
+                Icon(Icons.Rounded.Add, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(3.dp))
+                Text(if (section == 0) "Add" else "Dish", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
             }
         }
 
@@ -116,10 +154,13 @@ fun AdminCatalogTab(
         ) {
             if (section == 0) {
                 items(uiState.restaurants, key = { it.id }) { r ->
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = AdminSurface,
-                        border = BorderStroke(1.dp, AdminBorder),
+                    TakeIt3DCard(
+                        containerColor = AdminSurface,
+                        depthColor = Color(0xFF060A15),
+                        borderColor = if (r.openFlag) AdminGold.copy(alpha = 0.4f) else AdminBorder,
+                        cornerRadius = 20.dp,
+                        depth = 5.dp,
+                        shadowElevation = 10.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -149,17 +190,17 @@ fun AdminCatalogTab(
                                         editingRestaurant = r
                                         showRestaurantDialog = true
                                     },
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, AdminBorder),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, AdminCyan.copy(alpha = 0.55f)),
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Icon(Icons.Rounded.Edit, null, tint = AdminCyan, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Edit & Photo", color = AdminCyan)
+                                    Text("Edit & Photo", color = AdminCyan, fontWeight = FontWeight.Bold)
                                 }
                                 OutlinedButton(
                                     onClick = { viewModel.deleteRestaurant(r.id) },
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(1.dp, AdminCrimson.copy(alpha = 0.6f))
                                 ) {
                                     Icon(Icons.Rounded.DeleteOutline, null, tint = AdminCrimson, modifier = Modifier.size(16.dp))
@@ -170,10 +211,13 @@ fun AdminCatalogTab(
                 }
             } else {
                 items(uiState.menuItems, key = { it.id }) { dish ->
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = AdminSurface,
-                        border = BorderStroke(1.dp, AdminBorder),
+                    TakeIt3DCard(
+                        containerColor = AdminSurface,
+                        depthColor = Color(0xFF060A15),
+                        borderColor = if (dish.availableFlag) AdminBorder else AdminCrimson.copy(alpha = 0.45f),
+                        cornerRadius = 20.dp,
+                        depth = 5.dp,
+                        shadowElevation = 10.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -206,17 +250,17 @@ fun AdminCatalogTab(
                                         editingDish = dish
                                         showDishDialog = true
                                     },
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = BorderStroke(1.dp, AdminBorder),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, AdminCyan.copy(alpha = 0.55f)),
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Icon(Icons.Rounded.Edit, null, tint = AdminCyan, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Edit Dish", color = AdminCyan)
+                                    Text("Edit Dish", color = AdminCyan, fontWeight = FontWeight.Bold)
                                 }
                                 OutlinedButton(
                                     onClick = { viewModel.deleteMenuItem(dish.id) },
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(1.dp, AdminCrimson.copy(alpha = 0.6f))
                                 ) {
                                     Icon(Icons.Rounded.DeleteOutline, null, tint = AdminCrimson, modifier = Modifier.size(16.dp))
@@ -512,36 +556,52 @@ fun AdminCouponsTab(
     ) {
         item {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text("Live Promo Coupons", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = AdminInk)
                     Text("Synced instantly to Customer Offers & Cart", style = MaterialTheme.typography.labelSmall, color = AdminMuted)
                 }
-                Button(
+                Spacer(Modifier.width(8.dp))
+                TakeIt3DButton(
                     onClick = {
                         editingCoupon = null
                         showDialog = true
                     },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg)
+                    containerColor = AdminGold,
+                    depthColor = AdminGold.darken3D(0.45f),
+                    contentColor = AdminBg,
+                    cornerRadius = 14.dp,
+                    depth = 4.dp,
+                    height = 42.dp,
+                    modifier = Modifier.width(126.dp)
                 ) {
-                    Icon(Icons.Rounded.Add, null, modifier = Modifier.size(18.dp))
+                    Icon(Icons.Rounded.Add, null, modifier = Modifier.size(17.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("New Code", fontWeight = FontWeight.ExtraBold)
+                    Text("New Code", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
                 }
             }
         }
 
         items(uiState.coupons, key = { it.id }) { coupon ->
-            Surface(
-                shape = RoundedCornerShape(18.dp),
-                color = AdminSurface,
-                border = BorderStroke(1.dp, if (coupon.activeFlag) AdminGold.copy(alpha = 0.5f) else AdminBorder),
+            TakeIt3DCard(
+                containerColor = AdminSurface,
+                depthColor = if (coupon.activeFlag) AdminGold.darken3D(0.72f) else Color(0xFF060A15),
+                borderColor = if (coupon.activeFlag) AdminGold.copy(alpha = 0.55f) else AdminBorder,
+                cornerRadius = 20.dp,
+                depth = 5.dp,
+                shadowElevation = 10.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TakeIt3DIconOrb(
+                        icon = Icons.Rounded.LocalOffer,
+                        containerColor = if (coupon.activeFlag) AdminGold else AdminCard,
+                        iconTint = if (coupon.activeFlag) AdminBg else AdminMuted,
+                        size = 42.dp
+                    )
+                    Spacer(Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFF3B2806)) {
+                            Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFF3B2806), border = BorderStroke(1.dp, AdminGold.copy(alpha = 0.45f))) {
                                 Text(
                                     coupon.code,
                                     color = AdminGold,
@@ -656,18 +716,52 @@ fun AdminPeopleTab(
                 .padding(horizontal = 16.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            FilterChip(
-                selected = subTab == 0,
+            TakeIt3DCard(
                 onClick = { subTab = 0 },
-                label = { Text("Customers (${uiState.allUsers.size})", fontWeight = FontWeight.Bold) },
-                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = AdminGold, selectedLabelColor = AdminBg, containerColor = AdminSurface, labelColor = AdminInk)
-            )
-            FilterChip(
-                selected = subTab == 1,
+                containerColor = if (subTab == 0) AdminGold else AdminSurface,
+                depthColor = if (subTab == 0) AdminGold.darken3D(0.42f) else Color(0xFF060A15),
+                borderColor = if (subTab == 0) AdminGold.lighten3D(0.35f) else AdminBorder,
+                cornerRadius = 14.dp,
+                depth = if (subTab == 0) 4.dp else 2.dp,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Customers (${uiState.allUsers.size})",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.sp,
+                        color = if (subTab == 0) AdminBg else AdminInk,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            TakeIt3DCard(
                 onClick = { subTab = 1 },
-                label = { Text("Support Tickets (${uiState.allTickets.size})", fontWeight = FontWeight.Bold) },
-                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = AdminGold, selectedLabelColor = AdminBg, containerColor = AdminSurface, labelColor = AdminInk)
-            )
+                containerColor = if (subTab == 1) AdminGold else AdminSurface,
+                depthColor = if (subTab == 1) AdminGold.darken3D(0.42f) else Color(0xFF060A15),
+                borderColor = if (subTab == 1) AdminGold.lighten3D(0.35f) else AdminBorder,
+                cornerRadius = 14.dp,
+                depth = if (subTab == 1) 4.dp else 2.dp,
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 10.dp, horizontal = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "Tickets (${uiState.allTickets.size})",
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 13.sp,
+                        color = if (subTab == 1) AdminBg else AdminInk,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
 
         LazyColumn(
@@ -678,17 +772,28 @@ fun AdminPeopleTab(
             if (subTab == 0) {
                 items(uiState.allUsers, key = { it.id.ifBlank { it.userId } }) { user ->
                     val uid = user.id.ifBlank { user.userId }
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = AdminSurface,
-                        border = BorderStroke(1.dp, if (user.suspendedFlag) AdminCrimson else AdminBorder),
+                    TakeIt3DCard(
+                        containerColor = AdminSurface,
+                        depthColor = Color(0xFF060A15),
+                        borderColor = if (user.suspendedFlag) AdminCrimson else AdminBorder,
+                        cornerRadius = 20.dp,
+                        depth = 5.dp,
+                        shadowElevation = 10.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                TakeIt3DIconOrb(
+                                    icon = Icons.Rounded.Person,
+                                    containerColor = if (user.suspendedFlag) AdminCrimson else AdminCyan.copy(alpha = 0.25f),
+                                    depthColor = Color.Black,
+                                    iconTint = if (user.suspendedFlag) Color.White else AdminCyan,
+                                    size = 40.dp
+                                )
+                                Spacer(Modifier.width(10.dp))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(user.name, color = AdminInk, fontWeight = FontWeight.ExtraBold)
-                                    Text(user.email, style = MaterialTheme.typography.bodySmall, color = AdminCyan)
+                                    Text(user.email, style = MaterialTheme.typography.bodySmall, color = AdminCyan, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                     if (user.phone.isNotBlank()) {
                                         Text(user.phone, style = MaterialTheme.typography.labelSmall, color = AdminMuted)
                                     }
@@ -701,17 +806,17 @@ fun AdminPeopleTab(
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
                                     onClick = { walletTarget = user },
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(1.dp, AdminGold),
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Icon(Icons.Rounded.CardGiftcard, null, tint = AdminGold, modifier = Modifier.size(16.dp))
                                     Spacer(Modifier.width(6.dp))
-                                    Text("Credit Bonus", color = AdminGold)
+                                    Text("Credit Bonus", color = AdminGold, fontWeight = FontWeight.Bold)
                                 }
                                 OutlinedButton(
                                     onClick = { viewModel.adminToggleSuspendUser(uid, !user.suspendedFlag) },
-                                    shape = RoundedCornerShape(10.dp),
+                                    shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(1.dp, if (user.suspendedFlag) AdminEmerald else AdminCrimson),
                                     modifier = Modifier.weight(1f)
                                 ) {
@@ -727,13 +832,16 @@ fun AdminPeopleTab(
                 }
             } else {
                 items(uiState.allTickets, key = { it.id }) { ticket ->
-                    Surface(
-                        shape = RoundedCornerShape(18.dp),
-                        color = AdminSurface,
-                        border = BorderStroke(1.dp, AdminBorder),
+                    TakeIt3DCard(
+                        containerColor = AdminSurface,
+                        depthColor = Color(0xFF060A15),
+                        borderColor = AdminBorder,
+                        cornerRadius = 20.dp,
+                        depth = 5.dp,
+                        shadowElevation = 10.dp,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                 Text(ticket.subject, color = AdminInk, fontWeight = FontWeight.ExtraBold, modifier = Modifier.weight(1f))
                                 AdminOrderStatusPill(ticket.status)
@@ -745,12 +853,19 @@ fun AdminPeopleTab(
                                     Text("Admin Reply: ${ticket.adminReply}", style = MaterialTheme.typography.labelSmall, color = AdminEmerald, modifier = Modifier.padding(10.dp))
                                 }
                             }
-                            Button(
+                            TakeIt3DButton(
                                 onClick = { replyTarget = ticket },
-                                shape = RoundedCornerShape(10.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg)
+                                containerColor = AdminGold,
+                                depthColor = AdminGold.darken3D(0.45f),
+                                contentColor = AdminBg,
+                                cornerRadius = 12.dp,
+                                depth = 4.dp,
+                                height = 44.dp,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("Reply & Update Status", fontWeight = FontWeight.Bold)
+                                Icon(Icons.Rounded.Reply, null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(6.dp))
+                                Text("Reply & Update Status", fontWeight = FontWeight.ExtraBold)
                             }
                         }
                     }
@@ -842,15 +957,23 @@ fun AdminCoAdminsTab(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = AdminCard,
-                border = BorderStroke(1.dp, AdminGold),
+            TakeIt3DCard(
+                containerColor = AdminCard,
+                depthColor = Color(0xFF060A15),
+                borderColor = AdminGold.copy(alpha = 0.7f),
+                cornerRadius = 22.dp,
+                depth = 5.dp,
+                shadowElevation = 12.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Icon(Icons.Rounded.AdminPanelSettings, null, tint = AdminGold, modifier = Modifier.size(24.dp))
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TakeIt3DIconOrb(
+                            icon = Icons.Rounded.AdminPanelSettings,
+                            containerColor = AdminGold,
+                            iconTint = AdminBg,
+                            size = 40.dp
+                        )
                         Text("Main Admin Co-Admin Control", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = AdminInk)
                     }
                     Text(
@@ -858,16 +981,19 @@ fun AdminCoAdminsTab(
                         style = MaterialTheme.typography.bodySmall,
                         color = AdminMuted
                     )
-                    Button(
+                    TakeIt3DButton(
                         onClick = {
                             editingCoAdmin = null
                             showCreateDialog = true
                         },
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg),
+                        containerColor = AdminGold,
+                        depthColor = AdminGold.darken3D(0.45f),
+                        contentColor = AdminBg,
+                        cornerRadius = 16.dp,
+                        depth = 5.dp,
+                        height = 50.dp,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
                             .testTag("admin_create_coadmin_btn")
                     ) {
                         Icon(Icons.Rounded.PersonAdd, null, modifier = Modifier.size(18.dp))
@@ -880,18 +1006,20 @@ fun AdminCoAdminsTab(
 
         if (uiState.coAdmins.isEmpty()) {
             item {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = AdminSurface,
-                    border = BorderStroke(1.dp, AdminBorder),
+                TakeIt3DCard(
+                    containerColor = AdminSurface,
+                    depthColor = Color(0xFF060A15),
+                    borderColor = AdminBorder,
+                    cornerRadius = 20.dp,
+                    depth = 4.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(28.dp),
+                        modifier = Modifier.fillMaxWidth().padding(28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Rounded.Security, null, tint = AdminMuted, modifier = Modifier.size(38.dp))
+                        TakeIt3DIconOrb(Icons.Rounded.Security, AdminCard, iconTint = AdminMuted, size = 48.dp)
                         Text("No Co-Admins added yet", color = AdminInk, fontWeight = FontWeight.Bold)
                         Text("Tap the button above to create a Co-Admin login & custom password.", style = MaterialTheme.typography.bodySmall, color = AdminMuted)
                     }
@@ -900,17 +1028,28 @@ fun AdminCoAdminsTab(
         } else {
             items(uiState.coAdmins, key = { it.email.ifBlank { it.id } }) { co ->
                 var showPass by remember(co.email) { mutableStateOf(false) }
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = AdminSurface,
-                    border = BorderStroke(1.dp, if (co.activeFlag) AdminCyan.copy(alpha = 0.5f) else AdminCrimson),
+                TakeIt3DCard(
+                    containerColor = AdminSurface,
+                    depthColor = Color(0xFF060A15),
+                    borderColor = if (co.activeFlag) AdminCyan.copy(alpha = 0.55f) else AdminCrimson,
+                    cornerRadius = 20.dp,
+                    depth = 5.dp,
+                    shadowElevation = 10.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            TakeIt3DIconOrb(
+                                icon = Icons.Rounded.VerifiedUser,
+                                containerColor = if (co.activeFlag) AdminCyan.copy(alpha = 0.25f) else AdminCrimson.copy(alpha = 0.25f),
+                                depthColor = Color.Black,
+                                iconTint = if (co.activeFlag) AdminCyan else AdminCrimson,
+                                size = 40.dp
+                            )
+                            Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(co.name, color = AdminInk, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
-                                Text(co.email, style = MaterialTheme.typography.bodySmall, color = AdminCyan)
+                                Text(co.email, style = MaterialTheme.typography.bodySmall, color = AdminCyan, maxLines = 1, overflow = TextOverflow.Ellipsis)
                                 Text(co.roleTitle, style = MaterialTheme.typography.labelSmall, color = AdminGold)
                             }
                             Switch(
@@ -920,7 +1059,7 @@ fun AdminCoAdminsTab(
                         }
 
                         // Passcode row with reveal + 1-tap Copy
-                        Surface(shape = RoundedCornerShape(12.dp), color = AdminCard, modifier = Modifier.fillMaxWidth()) {
+                        Surface(shape = RoundedCornerShape(12.dp), color = AdminCard, border = BorderStroke(1.dp, AdminBorder), modifier = Modifier.fillMaxWidth()) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
@@ -975,17 +1114,17 @@ fun AdminCoAdminsTab(
                                     editingCoAdmin = co
                                     showCreateDialog = true
                                 },
-                                shape = RoundedCornerShape(10.dp),
-                                border = BorderStroke(1.dp, AdminBorder),
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, AdminCyan.copy(alpha = 0.55f)),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Icon(Icons.Rounded.Edit, null, tint = AdminCyan, modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Edit Password / Access", color = AdminCyan)
+                                Text("Edit Password / Access", color = AdminCyan, fontWeight = FontWeight.Bold)
                             }
                             OutlinedButton(
                                 onClick = { viewModel.deleteCoAdmin(co.email) },
-                                shape = RoundedCornerShape(10.dp),
+                                shape = RoundedCornerShape(12.dp),
                                 border = BorderStroke(1.dp, AdminCrimson.copy(alpha = 0.6f))
                             ) {
                                 Icon(Icons.Rounded.DeleteOutline, null, tint = AdminCrimson, modifier = Modifier.size(16.dp))
@@ -1126,26 +1265,44 @@ fun AdminPaymentsTab(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item {
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = AdminCard,
-                border = BorderStroke(1.dp, AdminEmerald.copy(alpha = 0.6f)),
+            TakeIt3DCard(
+                containerColor = AdminCard,
+                depthColor = AdminEmerald.darken3D(0.72f),
+                borderColor = AdminEmerald.copy(alpha = 0.65f),
+                cornerRadius = 22.dp,
+                depth = 5.dp,
+                shadowElevation = 12.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        Column {
-                            Text("Take It Razorpay Revenue", style = MaterialTheme.typography.labelMedium, color = AdminMuted)
-                            Text("₹${uiState.razorpayTotalRevenue}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = AdminEmerald)
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                            TakeIt3DIconOrb(
+                                icon = Icons.Rounded.AccountBalanceWallet,
+                                containerColor = AdminEmerald,
+                                iconTint = AdminBg,
+                                size = 42.dp
+                            )
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text("Take It Razorpay Revenue", style = MaterialTheme.typography.labelMedium, color = AdminMuted)
+                                Text("₹${uiState.razorpayTotalRevenue}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.ExtraBold, color = AdminEmerald)
+                            }
                         }
-                        FilledTonalButton(
+                        TakeIt3DButton(
                             onClick = { viewModel.refreshRazorpayLedger() },
                             enabled = !uiState.isLoadingLedger,
-                            shape = RoundedCornerShape(12.dp)
+                            containerColor = AdminEmerald,
+                            depthColor = AdminEmerald.darken3D(0.45f),
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 4.dp,
+                            height = 40.dp,
+                            modifier = Modifier.width(114.dp)
                         ) {
-                            Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Rounded.Refresh, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text(if (uiState.isLoadingLedger) "Syncing..." else "Refresh")
+                            Text(if (uiState.isLoadingLedger) "Syncing" else "Refresh", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
                         }
                     }
                     Text(
@@ -1162,28 +1319,32 @@ fun AdminPaymentsTab(
 
         if (uiState.razorpayTransactions.isEmpty()) {
             item {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = AdminSurface,
-                    border = BorderStroke(1.dp, AdminBorder),
+                TakeIt3DCard(
+                    containerColor = AdminSurface,
+                    depthColor = Color(0xFF060A15),
+                    borderColor = AdminBorder,
+                    cornerRadius = 20.dp,
+                    depth = 4.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(28.dp),
+                        modifier = Modifier.fillMaxWidth().padding(28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Rounded.AccountBalanceWallet, null, tint = AdminMuted, modifier = Modifier.size(38.dp))
+                        TakeIt3DIconOrb(Icons.Rounded.AccountBalanceWallet, AdminCard, iconTint = AdminMuted, size = 48.dp)
                         Text("No verified Razorpay transactions yet", color = AdminInk, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         } else {
             items(uiState.razorpayTransactions) { tx ->
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = AdminSurface,
-                    border = BorderStroke(1.dp, AdminBorder),
+                TakeIt3DCard(
+                    containerColor = AdminSurface,
+                    depthColor = Color(0xFF060A15),
+                    borderColor = AdminBorder,
+                    cornerRadius = 18.dp,
+                    depth = 4.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1237,9 +1398,17 @@ fun AdminSettingsTab(
         }
 
         item {
-            Surface(shape = RoundedCornerShape(18.dp), color = AdminSurface, border = BorderStroke(1.dp, AdminBorder), modifier = Modifier.fillMaxWidth()) {
+            TakeIt3DCard(
+                containerColor = AdminSurface,
+                depthColor = Color(0xFF060A15),
+                borderColor = AdminBorder,
+                cornerRadius = 22.dp,
+                depth = 5.dp,
+                shadowElevation = 10.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Banners & City", color = AdminGold, fontWeight = FontWeight.Bold)
+                    Text("Banners & City", color = AdminGold, fontWeight = FontWeight.ExtraBold)
                     OutlinedTextField(value = cityName, onValueChange = { cityName = it }, label = { Text("Default City Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = announcement, onValueChange = { announcement = it }, label = { Text("Live Announcement Bar (Leave blank to hide)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = heroTitle, onValueChange = { heroTitle = it }, label = { Text("Hero Banner Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
@@ -1252,9 +1421,17 @@ fun AdminSettingsTab(
         }
 
         item {
-            Surface(shape = RoundedCornerShape(18.dp), color = AdminSurface, border = BorderStroke(1.dp, AdminBorder), modifier = Modifier.fillMaxWidth()) {
+            TakeIt3DCard(
+                containerColor = AdminSurface,
+                depthColor = Color(0xFF060A15),
+                borderColor = AdminBorder,
+                cornerRadius = 22.dp,
+                depth = 5.dp,
+                shadowElevation = 10.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Fees, Taxes & Support", color = AdminGold, fontWeight = FontWeight.Bold)
+                    Text("Fees, Taxes & Support", color = AdminGold, fontWeight = FontWeight.ExtraBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(value = deliveryFee, onValueChange = { deliveryFee = it.filter(Char::isDigit) }, label = { Text("Delivery ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
                         OutlinedTextField(value = platformFee, onValueChange = { platformFee = it.filter(Char::isDigit) }, label = { Text("Platform ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
@@ -1273,7 +1450,7 @@ fun AdminSettingsTab(
         }
 
         item {
-            Button(
+            TakeIt3DButton(
                 onClick = {
                     viewModel.saveAppConfig(
                         cfg.copy(
@@ -1295,11 +1472,14 @@ fun AdminSettingsTab(
                         )
                     )
                 },
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg),
+                containerColor = AdminGold,
+                depthColor = AdminGold.darken3D(0.45f),
+                contentColor = AdminBg,
+                cornerRadius = 18.dp,
+                depth = 5.dp,
+                height = 54.dp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(54.dp)
                     .testTag("admin_push_live_settings_btn")
             ) {
                 Icon(Icons.Rounded.CloudUpload, null, modifier = Modifier.size(20.dp))

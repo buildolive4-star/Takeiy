@@ -28,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -50,6 +51,14 @@ import com.example.network.TakeItPaymentGateway
 import com.example.takeit.model.ParcelOrder
 import com.example.takeit.model.TransportTab
 import com.example.takeit.theme.*
+import com.example.takeit.ui.components.Nav3DTabItem
+import com.example.takeit.ui.components.TakeIt3DBackdrop
+import com.example.takeit.ui.components.TakeIt3DButton
+import com.example.takeit.ui.components.TakeIt3DCard
+import com.example.takeit.ui.components.TakeIt3DFloatingNavBar
+import com.example.takeit.ui.components.TakeIt3DHeroBanner
+import com.example.takeit.ui.components.TakeIt3DIconOrb
+import com.example.takeit.ui.components.darken3D
 import com.example.takeit.ui.customer.CustomerWalletScreen
 import com.example.takeit.viewmodel.TakeItUiState
 import com.example.takeit.viewmodel.TakeItViewModel
@@ -209,6 +218,25 @@ fun ParcelTransportAppRoot(
         }
     }
 
+    val navItems = remember(uiState.transportTab) {
+        TransportTab.entries.map { tab ->
+            val icon = when (tab) {
+                TransportTab.SEND -> Icons.Rounded.LocalShipping
+                TransportTab.SHIPMENTS -> Icons.Rounded.Inventory2
+                TransportTab.WALLET -> Icons.Rounded.AccountBalanceWallet
+                TransportTab.ACCOUNT -> Icons.Rounded.Person
+            }
+            Nav3DTabItem(
+                id = tab.name,
+                label = tab.label,
+                icon = icon,
+                selected = uiState.transportTab == tab,
+                testTag = "transport_nav_${tab.name.lowercase()}",
+                onClick = { viewModel.selectTransportTab(tab) }
+            )
+        }
+    }
+
     Scaffold(
         containerColor = TakeItBg,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -217,8 +245,9 @@ fun ParcelTransportAppRoot(
                 if (uiState.transportTab == TransportTab.SEND) {
                     Surface(
                         color = Color.White,
-                        shadowElevation = 14.dp,
+                        shadowElevation = 18.dp,
                         border = BorderStroke(1.dp, TakeItBorder),
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -243,16 +272,16 @@ fun ParcelTransportAppRoot(
                                     color = TransportNavy
                                 )
                             }
-                            Button(
+                            TakeIt3DButton(
                                 onClick = startBooking,
-                                shape = RoundedCornerShape(16.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = TransportOrange,
-                                    contentColor = Color.White
-                                ),
-                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp),
+                                containerColor = TransportOrange,
+                                depthColor = TransportOrange.darken3D(0.42f),
+                                contentColor = Color.White,
+                                cornerRadius = 16.dp,
+                                depth = 5.dp,
+                                height = 50.dp,
                                 modifier = Modifier
-                                    .height(52.dp)
+                                    .widthIn(min = 148.dp)
                                     .testTag("transport_sticky_pay_button")
                             ) {
                                 Text(
@@ -267,39 +296,14 @@ fun ParcelTransportAppRoot(
                     }
                 }
 
-                NavigationBar(
+                TakeIt3DFloatingNavBar(
+                    items = navItems,
                     containerColor = Color.White,
-                    tonalElevation = 8.dp
-                ) {
-                    TransportTab.entries.forEach { tab ->
-                        val selected = uiState.transportTab == tab
-                        val icon = when (tab) {
-                            TransportTab.SEND -> Icons.Rounded.LocalShipping
-                            TransportTab.SHIPMENTS -> Icons.Rounded.Inventory2
-                            TransportTab.WALLET -> Icons.Rounded.AccountBalanceWallet
-                            TransportTab.ACCOUNT -> Icons.Rounded.Person
-                        }
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = { viewModel.selectTransportTab(tab) },
-                            icon = { Icon(icon, contentDescription = tab.label) },
-                            label = {
-                                Text(
-                                    tab.label,
-                                    fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium
-                                )
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = TransportOrange,
-                                selectedTextColor = TransportOrange,
-                                indicatorColor = TransportOrangeSoft,
-                                unselectedIconColor = TakeItMuted,
-                                unselectedTextColor = TakeItMuted
-                            ),
-                            modifier = Modifier.testTag("transport_nav_${tab.name.lowercase()}")
-                        )
-                    }
-                }
+                    activePodColor = TransportOrange,
+                    activeContentColor = Color.White,
+                    inactiveColor = TakeItMuted,
+                    borderColor = TakeItBorder
+                )
             }
         }
     ) { innerPadding ->
@@ -416,80 +420,101 @@ private fun TransportSendTab(
         label = "transportHeroFloat"
     )
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(TakeItBg),
-        contentPadding = PaddingValues(bottom = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+    TakeIt3DBackdrop(
+        accentPrimary = TransportOrange,
+        accentSecondary = TransportNavy,
+        baseColor = TakeItBg
     ) {
-        // Navy & Orange Logistics Header
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(TransportNavy, Color(0xFF1E293B))))
-                    .statusBarsPadding()
-                    .padding(horizontal = 16.dp, vertical = 14.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // 3D Navy & Orange Logistics Header Deck
+            item {
+                TakeIt3DCard(
+                    containerColor = TransportNavy,
+                    depthColor = Color(0xFF060A16),
+                    borderColor = TransportOrange.copy(alpha = 0.5f),
+                    cornerRadius = 26.dp,
+                    depth = 6.dp,
+                    shadowElevation = 12.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Image(
-                            painter = painterResource(R.drawable.logo_takeit_transport),
-                            contentDescription = "Take It Transport Logo",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(CircleShape)
-                                .border(2.dp, TransportOrange, CircleShape)
-                        )
-                        Column {
-                            Text(
-                                "Take It Transport",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = Color.White,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                            Text(
-                                "Parcel, Goods & Mini-Trucks • ${uiState.config.cityName}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TransportOrangeSoft
-                            )
-                        }
-                    }
-                    Surface(
-                        shape = RoundedCornerShape(50),
-                        color = TransportOrange.copy(alpha = 0.2f),
-                        border = BorderStroke(1.dp, TransportOrange)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Brush.verticalGradient(listOf(TransportNavy, Color(0xFF1E293B))))
+                            .statusBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 14.dp)
                     ) {
-                        Text(
-                            "₹${uiState.profile.walletBalance.toInt()}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(48.dp)
+                                        .shadow(8.dp, CircleShape, ambientColor = TransportOrange, spotColor = TransportOrange)
+                                        .clip(CircleShape)
+                                        .background(TransportOrange)
+                                        .padding(2.dp)
+                                ) {
+                                    Image(
+                                        painter = painterResource(R.drawable.logo_takeit_transport),
+                                        contentDescription = "Take It Transport Logo",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(CircleShape)
+                                    )
+                                }
+                                Column {
+                                    Text(
+                                        "Take It Transport",
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                    Text(
+                                        "Parcel, Goods & Mini-Trucks • ${uiState.config.cityName}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TransportOrangeSoft
+                                    )
+                                }
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(50),
+                                color = TransportOrange.copy(alpha = 0.2f),
+                                border = BorderStroke(1.dp, TransportOrange)
+                            ) {
+                                Text(
+                                    "₹${uiState.profile.walletBalance.toInt()}",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
-        }
 
-        // Animated 3rd Image Welcome Showcase Banner
-        item {
-            Surface(
-                shape = RoundedCornerShape(22.dp),
-                shadowElevation = 6.dp,
-                border = BorderStroke(2.dp, TransportOrange),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .height(170.dp)
-            ) {
-                Box(modifier = Modifier.fillMaxSize()) {
+            // 3D Perspective 3rd Image Welcome Showcase Banner
+            item {
+                TakeIt3DHeroBanner(
+                    borderColor = TransportOrange,
+                    depthColor = TransportNavy,
+                    cornerRadius = 26.dp,
+                    depth = 6.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .height(178.dp)
+                ) {
                     Image(
                         painter = painterResource(R.drawable.welcome_parcel_transport),
                         contentDescription = "Take It Parcel Transport Welcome",
@@ -507,7 +532,7 @@ private fun TransportSendTab(
                             .fillMaxSize()
                             .background(
                                 Brush.horizontalGradient(
-                                    listOf(TransportNavy.copy(alpha = 0.82f), Color.Transparent)
+                                    listOf(TransportNavy.copy(alpha = 0.84f), Color.Transparent)
                                 )
                             )
                     )
@@ -517,7 +542,7 @@ private fun TransportSendTab(
                             .padding(16.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Surface(shape = RoundedCornerShape(50), color = TransportOrange) {
+                        Surface(shape = RoundedCornerShape(50), color = TransportOrange, shadowElevation = 4.dp) {
                             Text(
                                 "SEND SMART • DELIVER FAST",
                                 style = MaterialTheme.typography.labelSmall,
@@ -540,235 +565,238 @@ private fun TransportSendTab(
                     }
                 }
             }
-        }
 
-        if (pendingPayRef != null) {
+            if (pendingPayRef != null) {
+                item {
+                    TakeIt3DCard(
+                        containerColor = TransportOrangeSoft,
+                        depthColor = TransportOrange.darken3D(0.35f),
+                        borderColor = TransportOrange,
+                        cornerRadius = 20.dp,
+                        depth = 4.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Verify Razorpay Checkout", fontWeight = FontWeight.ExtraBold, color = TransportNavy)
+                                Text("Paid in Chrome? Tap Verify to book shipment.", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
+                            }
+                            Button(
+                                onClick = onVerifyPendingPayment,
+                                colors = ButtonDefaults.buttonColors(containerColor = TransportOrange),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Verify", fontWeight = FontWeight.ExtraBold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (activeParcel != null) {
+                item {
+                    ActiveParcelTrackingCard(
+                        parcel = activeParcel,
+                        onCancel = { onCancelParcel(activeParcel.id) }
+                    )
+                }
+            }
+
+            // 3D Pickup, Drop & Receiver Details Card
             item {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = TransportOrangeSoft,
-                    border = BorderStroke(1.5.dp, TransportOrange),
+                TakeIt3DCard(
+                    containerColor = Color.White,
+                    depthColor = Color(0xFFD5DCE6),
+                    cornerRadius = 24.dp,
+                    depth = 5.dp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Verify Razorpay Checkout", fontWeight = FontWeight.ExtraBold, color = TransportNavy)
-                            Text("Paid in Chrome? Tap Verify to book shipment.", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
-                        }
-                        Button(
-                            onClick = onVerifyPendingPayment,
-                            colors = ButtonDefaults.buttonColors(containerColor = TransportOrange),
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Text("Verify", fontWeight = FontWeight.ExtraBold)
-                        }
-                    }
-                }
-            }
-        }
-
-        if (activeParcel != null) {
-            item {
-                ActiveParcelTrackingCard(
-                    parcel = activeParcel,
-                    onCancel = { onCancelParcel(activeParcel.id) }
-                )
-            }
-        }
-
-        // Pickup, Drop & Receiver Details Card
-        item {
-            Surface(
-                shape = RoundedCornerShape(22.dp),
-                color = Color.White,
-                shadowElevation = 3.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Pickup & Receiver Details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                    OutlinedTextField(
-                        value = pickup,
-                        onValueChange = onPickupChange,
-                        label = { Text("Pickup Address") },
-                        leadingIcon = { Icon(Icons.Rounded.Outbox, null, tint = TransportOrange) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("transport_pickup_input")
-                    )
-                    OutlinedTextField(
-                        value = drop,
-                        onValueChange = onDropChange,
-                        label = { Text("Drop / Delivery Address") },
-                        leadingIcon = { Icon(Icons.Rounded.MoveToInbox, null, tint = TakeItGreen) },
-                        singleLine = true,
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("transport_drop_input")
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Pickup & Receiver Details", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
                         OutlinedTextField(
-                            value = receiverName,
-                            onValueChange = onReceiverNameChange,
-                            label = { Text("Receiver Name") },
+                            value = pickup,
+                            onValueChange = onPickupChange,
+                            label = { Text("Pickup Address") },
+                            leadingIcon = { Icon(Icons.Rounded.Outbox, null, tint = TransportOrange) },
                             singleLine = true,
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
-                                .weight(1f)
-                                .testTag("transport_receiver_name_input")
+                                .fillMaxWidth()
+                                .testTag("transport_pickup_input")
                         )
                         OutlinedTextField(
-                            value = receiverPhone,
-                            onValueChange = onReceiverPhoneChange,
-                            label = { Text("Receiver Phone") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                            value = drop,
+                            onValueChange = onDropChange,
+                            label = { Text("Drop / Delivery Address") },
+                            leadingIcon = { Icon(Icons.Rounded.MoveToInbox, null, tint = TakeItGreen) },
                             singleLine = true,
                             shape = RoundedCornerShape(14.dp),
                             modifier = Modifier
-                                .weight(1f)
-                                .testTag("transport_receiver_phone_input")
+                                .fillMaxWidth()
+                                .testTag("transport_drop_input")
                         )
-                    }
-
-                    Text("Package Category", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(listOf("Box / Documents", "Food / Gift", "Electronics", "Shop Stock", "Furniture")) { cat ->
-                            FilterChip(
-                                selected = packageType == cat,
-                                onClick = { onPackageTypeChange(cat) },
-                                label = { Text(cat, fontWeight = FontWeight.SemiBold) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = TransportOrange,
-                                    selectedLabelColor = Color.White
-                                )
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedTextField(
+                                value = receiverName,
+                                onValueChange = onReceiverNameChange,
+                                label = { Text("Receiver Name") },
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("transport_receiver_name_input")
+                            )
+                            OutlinedTextField(
+                                value = receiverPhone,
+                                onValueChange = onReceiverPhoneChange,
+                                label = { Text("Receiver Phone") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                singleLine = true,
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("transport_receiver_phone_input")
                             )
                         }
-                    }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Weight: $weightKg kg", fontWeight = FontWeight.Bold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(2, 5, 15, 50, 250).forEach { w ->
+                        Text("Package Category", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(listOf("Box / Documents", "Food / Gift", "Electronics", "Shop Stock", "Furniture")) { cat ->
                                 FilterChip(
-                                    selected = weightKg == w,
-                                    onClick = { onWeightChange(w) },
-                                    label = { Text("${w}kg", fontWeight = FontWeight.Bold) }
+                                    selected = packageType == cat,
+                                    onClick = { onPackageTypeChange(cat) },
+                                    label = { Text(cat, fontWeight = FontWeight.SemiBold) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = TransportOrange,
+                                        selectedLabelColor = Color.White
+                                    )
                                 )
                             }
                         }
-                    }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column {
-                            Text("Fragile / Extra Care (+₹30)", fontWeight = FontWeight.Bold)
-                            Text("Padded handling for glass or electronics", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Weight: $weightKg kg", fontWeight = FontWeight.Bold)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(listOf(2, 5, 15, 50, 250)) { w ->
+                                    FilterChip(
+                                        selected = weightKg == w,
+                                        onClick = { onWeightChange(w) },
+                                        label = { Text("${w}kg", fontWeight = FontWeight.Bold) }
+                                    )
+                                }
+                            }
                         }
-                        Switch(checked = fragile, onCheckedChange = onFragileChange)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column {
+                                Text("Fragile / Extra Care (+₹30)", fontWeight = FontWeight.Bold)
+                                Text("Padded handling for glass or electronics", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
+                            }
+                            Switch(checked = fragile, onCheckedChange = onFragileChange)
+                        }
                     }
                 }
             }
-        }
 
-        // Vehicle Selector
-        item {
-            Text(
-                "Select Transport Vehicle",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.ExtraBold,
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
-        }
+            item {
+                Text(
+                    "Select Transport Vehicle",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
 
-        items(transportVehicles, key = { it.code }) { v ->
-            val selected = v.code == selectedVehicle.code
-            val fare = v.fareFor(weightKg, fragile)
-            Surface(
-                onClick = { onSelectVehicle(v.code) },
-                shape = RoundedCornerShape(18.dp),
-                color = if (selected) TransportOrangeSoft else Color.White,
-                border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) TransportOrange else TakeItBorder),
-                shadowElevation = if (selected) 4.dp else 1.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-                    .testTag("transport_vehicle_${v.code.lowercase()}")
-            ) {
-                Row(
-                    modifier = Modifier.padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+            items(transportVehicles, key = { it.code }) { v ->
+                val selected = v.code == selectedVehicle.code
+                val fare = v.fareFor(weightKg, fragile)
+                TakeIt3DCard(
+                    onClick = { onSelectVehicle(v.code) },
+                    containerColor = if (selected) TransportOrangeSoft else Color.White,
+                    depthColor = if (selected) TransportOrange.darken3D(0.4f) else Color(0xFFD5DCE6),
+                    borderColor = if (selected) TransportOrange else Color.White,
+                    cornerRadius = 20.dp,
+                    depth = if (selected) 6.dp else 4.dp,
+                    shadowElevation = if (selected) 10.dp else 5.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .testTag("transport_vehicle_${v.code.lowercase()}")
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(50.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (selected) TransportOrange else TransportNavy.copy(alpha = 0.08f)),
-                        contentAlignment = Alignment.Center
+                    Row(
+                        modifier = Modifier.padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Icon(v.icon, null, tint = if (selected) Color.White else TransportNavy, modifier = Modifier.size(28.dp))
+                        TakeIt3DIconOrb(
+                            icon = v.icon,
+                            containerColor = if (selected) TransportOrange else TransportNavy,
+                            iconTint = Color.White,
+                            size = 50.dp,
+                            shape = RoundedCornerShape(15.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(v.title, fontWeight = FontWeight.ExtraBold, color = TransportNavy)
+                            Text(v.capacity, style = MaterialTheme.typography.bodySmall, color = TakeItMuted)
+                            Text("₹${v.baseFare} base + ₹${v.perKg}/kg", style = MaterialTheme.typography.labelSmall, color = TransportOrange)
+                        }
+                        Text("₹$fare", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = TransportNavy)
                     }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(v.title, fontWeight = FontWeight.ExtraBold, color = TransportNavy)
-                        Text(v.capacity, style = MaterialTheme.typography.bodySmall, color = TakeItMuted)
-                        Text("₹${v.baseFare} base + ₹${v.perKg}/kg", style = MaterialTheme.typography.labelSmall, color = TransportOrange)
-                    }
-                    Text("₹$fare", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = TransportNavy)
                 }
             }
-        }
 
-        // Payment Method Card
-        item {
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color.White,
-                shadowElevation = 2.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Payment Method", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf("RAZORPAY" to "Razorpay Online", "WALLET" to "Wallet (₹${uiState.profile.walletBalance.toInt()})", "COD" to "Pay on Delivery").forEach { (key, label) ->
-                            FilterChip(
-                                selected = paymentMethod == key,
-                                onClick = { onSelectPayment(key) },
-                                label = { Text(label, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = TransportNavy,
-                                    selectedLabelColor = Color.White
-                                ),
-                                modifier = Modifier.weight(1f)
-                            )
+            // 3D Payment Method Card
+            item {
+                TakeIt3DCard(
+                    containerColor = Color.White,
+                    depthColor = Color(0xFFD5DCE6),
+                    cornerRadius = 22.dp,
+                    depth = 4.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Payment Method", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("RAZORPAY" to "Razorpay Online", "WALLET" to "Wallet (₹${uiState.profile.walletBalance.toInt()})", "COD" to "Pay on Delivery").forEach { (key, label) ->
+                                FilterChip(
+                                    selected = paymentMethod == key,
+                                    onClick = { onSelectPayment(key) },
+                                    label = { Text(label, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = TransportNavy,
+                                        selectedLabelColor = Color.White
+                                    ),
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
+                        Text(
+                            "Total fare: ₹$calculatedFare • Tap the orange 3D Pay/Book bar below to confirm shipment.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TakeItMuted
+                        )
                     }
-                    Text(
-                        "Total fare: ₹$calculatedFare • Tap the orange Pay/Book bar below to confirm shipment.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TakeItMuted
-                    )
                 }
             }
         }
@@ -781,11 +809,12 @@ private fun ActiveParcelTrackingCard(
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = TransportNavy,
-        border = BorderStroke(2.dp, TransportOrange),
-        shadowElevation = 6.dp,
+    TakeIt3DCard(
+        containerColor = TransportNavy,
+        depthColor = Color(0xFF060A16),
+        borderColor = TransportOrange,
+        cornerRadius = 22.dp,
+        depth = 6.dp,
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp)
@@ -800,7 +829,7 @@ private fun ActiveParcelTrackingCard(
                     Text("ACTIVE SHIPMENT • ${parcel.parcelNumber}", color = TransportOrange, fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
                     Text(parcel.status.replace("_", " "), style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.ExtraBold)
                 }
-                Surface(shape = RoundedCornerShape(10.dp), color = TransportOrange) {
+                Surface(shape = RoundedCornerShape(10.dp), color = TransportOrange, shadowElevation = 4.dp) {
                     Text("OTP ${parcel.otp}", color = Color.White, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
                 }
             }
@@ -822,14 +851,17 @@ private fun ActiveParcelTrackingCard(
                         )
                     }
                     if (parcel.partnerPhone.isNotBlank()) {
-                        IconButton(
+                        TakeIt3DIconOrb(
+                            icon = Icons.Rounded.Call,
+                            containerColor = TransportOrange,
+                            iconTint = Color.White,
+                            size = 40.dp,
+                            contentDescription = "Call Partner",
                             onClick = {
                                 val dial = Intent(Intent.ACTION_DIAL, Uri.parse("tel:${parcel.partnerPhone}"))
                                 context.startActivity(dial)
                             }
-                        ) {
-                            Icon(Icons.Rounded.Call, "Call Partner", tint = TransportOrange)
-                        }
+                        )
                     }
                 }
             }
@@ -853,100 +885,122 @@ private fun TransportShipmentsTab(
     onRateParcel: (String, Int) -> Unit,
     onCancelParcel: (String) -> Unit
 ) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(TakeItBg),
-        contentPadding = PaddingValues(bottom = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        item {
-            Surface(color = TransportNavy) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(horizontal = 18.dp, vertical = 16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+    TakeIt3DBackdrop(TransportOrange, TransportNavy, baseColor = TakeItBg) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                TakeIt3DCard(
+                    containerColor = TransportNavy,
+                    depthColor = Color(0xFF060A16),
+                    borderColor = TransportOrange.copy(alpha = 0.5f),
+                    cornerRadius = 24.dp,
+                    depth = 5.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("My Shipments", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.ExtraBold)
-                    Surface(shape = RoundedCornerShape(50), color = TransportOrange) {
-                        Text(
-                            "${parcels.size} Total",
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold,
-                            style = MaterialTheme.typography.labelMedium,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
-                        )
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 18.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("My Shipments", style = MaterialTheme.typography.headlineSmall, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                        Surface(shape = RoundedCornerShape(50), color = TransportOrange) {
+                            Text(
+                                "${parcels.size} Total",
+                                color = Color.White,
+                                fontWeight = FontWeight.ExtraBold,
+                                style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                            )
+                        }
                     }
                 }
             }
-        }
-        if (parcels.isEmpty()) {
-            item {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(40.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(Icons.Rounded.LocalShipping, null, tint = TransportOrange, modifier = Modifier.size(56.dp))
-                    Text("No shipments sent yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Text("Send parcels or book mini-trucks safely from the Send Parcel tab!", color = TakeItMuted)
-                }
-            }
-        } else {
-            items(parcels, key = { it.id }) { parcel ->
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = Color.White,
-                    shadowElevation = 2.dp,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                ) {
-                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            if (parcels.isEmpty()) {
+                item {
+                    TakeIt3DCard(
+                        containerColor = Color.White,
+                        depthColor = Color(0xFFD5DCE6),
+                        cornerRadius = 24.dp,
+                        depth = 5.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 20.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(36.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("${parcel.parcelNumber} • ${parcel.vehicleType}", fontWeight = FontWeight.ExtraBold)
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = if (parcel.status == "DELIVERED") TakeItGreenSoft else TransportOrangeSoft
+                            TakeIt3DIconOrb(
+                                icon = Icons.Rounded.LocalShipping,
+                                containerColor = TransportOrange,
+                                size = 64.dp
+                            )
+                            Text("No shipments sent yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                            Text("Send parcels or book mini-trucks safely from the Send Parcel tab!", color = TakeItMuted)
+                        }
+                    }
+                }
+            } else {
+                items(parcels, key = { it.id }) { parcel ->
+                    TakeIt3DCard(
+                        containerColor = Color.White,
+                        depthColor = Color(0xFFD5DCE6),
+                        cornerRadius = 20.dp,
+                        depth = 5.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    parcel.status.replace("_", " "),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (parcel.status == "DELIVERED") TakeItGreen else TransportOrange,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                )
-                            }
-                        }
-                        Text("${parcel.pickupAddress} -> ${parcel.dropAddress}", style = MaterialTheme.typography.bodySmall, color = TakeItInk)
-                        Text("To: ${parcel.receiverName} (${parcel.receiverPhone}) • ${parcel.weightKg}kg", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("OTP: ${parcel.otp} • Partner: ${parcel.partnerName}", style = MaterialTheme.typography.labelSmall, color = TransportNavy)
-                            Text("₹${parcel.totalFare} (${parcel.paymentMethod})", fontWeight = FontWeight.ExtraBold, color = TransportOrange)
-                        }
-                        if (parcel.status == "BOOKED") {
-                            OutlinedButton(onClick = { onCancelParcel(parcel.id) }, modifier = Modifier.fillMaxWidth()) {
-                                Text("Cancel Shipment", color = TakeItRed)
-                            }
-                        }
-                        if (parcel.status == "DELIVERED" && parcel.rating == 0) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("Rate Partner:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                                (1..5).forEach { stars ->
-                                    IconButton(onClick = { onRateParcel(parcel.id, stars) }, modifier = Modifier.size(34.dp)) {
-                                        Icon(Icons.Rounded.Star, "Rate $stars", tint = TakeItGold)
-                                    }
+                                Text("${parcel.parcelNumber} • ${parcel.vehicleType}", fontWeight = FontWeight.ExtraBold)
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = if (parcel.status == "DELIVERED") TakeItGreenSoft else TransportOrangeSoft
+                                ) {
+                                    Text(
+                                        parcel.status.replace("_", " "),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (parcel.status == "DELIVERED") TakeItGreen else TransportOrange,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
                                 }
                             }
-                        } else if (parcel.rating > 0) {
-                            Text("Rated ${parcel.rating} ★", color = TakeItGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                            Text("${parcel.pickupAddress} -> ${parcel.dropAddress}", style = MaterialTheme.typography.bodySmall, color = TakeItInk)
+                            Text("To: ${parcel.receiverName} (${parcel.receiverPhone}) • ${parcel.weightKg}kg", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("OTP: ${parcel.otp} • Partner: ${parcel.partnerName}", style = MaterialTheme.typography.labelSmall, color = TransportNavy)
+                                Text("₹${parcel.totalFare} (${parcel.paymentMethod})", fontWeight = FontWeight.ExtraBold, color = TransportOrange)
+                            }
+                            if (parcel.status == "BOOKED") {
+                                OutlinedButton(onClick = { onCancelParcel(parcel.id) }, modifier = Modifier.fillMaxWidth()) {
+                                    Text("Cancel Shipment", color = TakeItRed)
+                                }
+                            }
+                            if (parcel.status == "DELIVERED" && parcel.rating == 0) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("Rate Partner:", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                    (1..5).forEach { stars ->
+                                        IconButton(onClick = { onRateParcel(parcel.id, stars) }, modifier = Modifier.size(34.dp)) {
+                                            Icon(Icons.Rounded.Star, "Rate $stars", tint = TakeItGold)
+                                        }
+                                    }
+                                }
+                            } else if (parcel.rating > 0) {
+                                Text("Rated ${parcel.rating} ★", color = TakeItGreen, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.labelMedium)
+                            }
                         }
                     }
                 }
@@ -965,80 +1019,103 @@ private fun TransportAccountTab(
 ) {
     var showEdit by remember { mutableStateOf(false) }
 
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(TakeItBg),
-        contentPadding = PaddingValues(bottom = 40.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Brush.horizontalGradient(listOf(TransportNavy, Color(0xFF1E293B))))
-                    .statusBarsPadding()
-                    .padding(20.dp)
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+    TakeIt3DBackdrop(TransportOrange, TransportNavy, baseColor = TakeItBg) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                TakeIt3DCard(
+                    containerColor = TransportNavy,
+                    depthColor = Color(0xFF060A16),
+                    borderColor = TransportOrange,
+                    cornerRadius = 26.dp,
+                    depth = 6.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(TransportOrange),
-                        contentAlignment = Alignment.Center
+                            .fillMaxWidth()
+                            .background(Brush.horizontalGradient(listOf(TransportNavy, Color(0xFF1E293B))))
+                            .statusBarsPadding()
+                            .padding(20.dp)
                     ) {
-                        Text(
-                            uiState.profile.name.ifBlank { uiState.displayName }.take(1).uppercase(),
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(uiState.profile.name.ifBlank { uiState.displayName }, style = MaterialTheme.typography.titleLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
-                        Text(uiState.email, style = MaterialTheme.typography.bodySmall, color = TransportOrangeSoft)
-                        Text(uiState.profile.phone.ifBlank { "Tap edit to add phone" }, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
-                    }
-                    IconButton(onClick = { showEdit = true }) {
-                        Icon(Icons.Rounded.Edit, "Edit Profile", tint = TransportOrange)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                            Box(
+                                modifier = Modifier
+                                    .size(66.dp)
+                                    .shadow(8.dp, CircleShape)
+                                    .clip(CircleShape)
+                                    .background(TransportOrange)
+                                    .border(2.dp, Color.White, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    uiState.profile.name.ifBlank { uiState.displayName }.take(1).uppercase(),
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.ExtraBold
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(uiState.profile.name.ifBlank { uiState.displayName }, style = MaterialTheme.typography.titleLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                                Text(uiState.email, style = MaterialTheme.typography.bodySmall, color = TransportOrangeSoft)
+                                Text(uiState.profile.phone.ifBlank { "Tap edit to add phone" }, style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f))
+                            }
+                            TakeIt3DIconOrb(
+                                icon = Icons.Rounded.Edit,
+                                containerColor = TransportOrange,
+                                iconTint = Color.White,
+                                size = 40.dp,
+                                contentDescription = "Edit Profile",
+                                onClick = { showEdit = true }
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        item {
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = Color.White,
-                shadowElevation = 2.dp,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp)
-            ) {
-                Column {
-                    ListItem(
-                        headlineContent = { Text("My Parcel Shipments", fontWeight = FontWeight.Bold) },
-                        supportingContent = { Text("${uiState.myParcels.size} shipments") },
-                        leadingContent = { Icon(Icons.Rounded.Inventory2, null, tint = TransportOrange) },
-                        modifier = Modifier.clickable(onClick = onOpenShipments)
-                    )
-                    HorizontalDivider(color = TakeItBorder)
-                    ListItem(
-                        headlineContent = { Text("Take It Wallet & Razorpay", fontWeight = FontWeight.Bold) },
-                        supportingContent = { Text("Balance: ₹${uiState.profile.walletBalance.toInt()}") },
-                        leadingContent = { Icon(Icons.Rounded.AccountBalanceWallet, null, tint = TransportNavy) },
-                        modifier = Modifier.clickable(onClick = onOpenWallet)
-                    )
-                    HorizontalDivider(color = TakeItBorder)
-                    ListItem(
-                        headlineContent = { Text("Switch Google Account / Sign Out", fontWeight = FontWeight.ExtraBold, color = TakeItRed) },
-                        supportingContent = { Text("Choose another Gmail account") },
-                        leadingContent = { Icon(Icons.Rounded.SwitchAccount, null, tint = TakeItRed) },
-                        modifier = Modifier
-                            .clickable(onClick = onSignOut)
-                            .testTag("transport_switch_account_btn")
-                    )
+            item {
+                TakeIt3DCard(
+                    containerColor = Color.White,
+                    depthColor = Color(0xFFD5DCE6),
+                    cornerRadius = 22.dp,
+                    depth = 5.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                ) {
+                    Column {
+                        ListItem(
+                            headlineContent = { Text("My Parcel Shipments", fontWeight = FontWeight.Bold) },
+                            supportingContent = { Text("${uiState.myParcels.size} shipments") },
+                            leadingContent = {
+                                TakeIt3DIconOrb(Icons.Rounded.Inventory2, TransportOrange, size = 36.dp)
+                            },
+                            modifier = Modifier.clickable(onClick = onOpenShipments)
+                        )
+                        HorizontalDivider(color = TakeItBorder)
+                        ListItem(
+                            headlineContent = { Text("Take It Wallet & Razorpay", fontWeight = FontWeight.Bold) },
+                            supportingContent = { Text("Balance: ₹${uiState.profile.walletBalance.toInt()}") },
+                            leadingContent = {
+                                TakeIt3DIconOrb(Icons.Rounded.AccountBalanceWallet, TransportNavy, size = 36.dp)
+                            },
+                            modifier = Modifier.clickable(onClick = onOpenWallet)
+                        )
+                        HorizontalDivider(color = TakeItBorder)
+                        ListItem(
+                            headlineContent = { Text("Switch Google Account / Sign Out", fontWeight = FontWeight.ExtraBold, color = TakeItRed) },
+                            supportingContent = { Text("Choose another Gmail account") },
+                            leadingContent = {
+                                TakeIt3DIconOrb(Icons.Rounded.SwitchAccount, TakeItRed, size = 36.dp)
+                            },
+                            modifier = Modifier
+                                .clickable(onClick = onSignOut)
+                                .testTag("transport_switch_account_btn")
+                        )
+                    }
                 }
             }
         }

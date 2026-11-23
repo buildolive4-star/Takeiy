@@ -4,7 +4,6 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -37,6 +37,12 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.takeit.model.*
 import com.example.takeit.theme.*
+import com.example.takeit.ui.components.TakeIt3DBackdrop
+import com.example.takeit.ui.components.TakeIt3DButton
+import com.example.takeit.ui.components.TakeIt3DCard
+import com.example.takeit.ui.components.TakeIt3DIconOrb
+import com.example.takeit.ui.components.darken3D
+import com.example.takeit.ui.components.lighten3D
 import com.example.takeit.viewmodel.TakeItUiState
 import com.example.takeit.viewmodel.TakeItViewModel
 
@@ -83,172 +89,184 @@ fun AdminCommandCenterRoot(
     Scaffold(
         containerColor = AdminBg,
         topBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(listOf(Color(0xFF0F172A), AdminSurface))
-                    )
-                    .statusBarsPadding()
+            TakeIt3DCard(
+                containerColor = AdminSurface,
+                depthColor = Color(0xFF050814),
+                borderColor = AdminGold.copy(alpha = 0.4f),
+                cornerRadius = 26.dp,
+                depth = 5.dp,
+                shadowElevation = 14.dp,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .background(Brush.verticalGradient(listOf(Color(0xFF0F172A), AdminSurface)))
+                        .statusBarsPadding()
                 ) {
-                    Image(
-                        painter = painterResource(R.drawable.logo_takeit_food),
-                        contentDescription = "Take It Admin Logo",
-                        contentScale = ContentScale.Crop,
+                    Row(
                         modifier = Modifier
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(Color.White)
-                            .border(2.dp, AdminGold, CircleShape)
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Take It Command",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = AdminInk,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.width(6.dp))
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(AdminEmerald)
-                            )
-                        }
-                        Spacer(Modifier.height(2.dp))
-                        val badgeLabel = if (uiState.isMainAdmin) {
-                            "MAIN ADMIN • SUPER OWNER"
-                        } else {
-                            "CO-ADMIN • ${uiState.activeCoAdmin?.roleTitle?.uppercase() ?: "STAFF"}"
-                        }
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = if (uiState.isMainAdmin) Color(0xFF3B2806) else Color(0xFF0C2D48),
-                            border = BorderStroke(1.dp, if (uiState.isMainAdmin) AdminGold else AdminCyan)
-                        ) {
-                            Text(
-                                text = badgeLabel,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (uiState.isMainAdmin) AdminGold else AdminCyan,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
-                    if (uiState.appVariant == TakeItAppVariant.CUSTOMER) {
-                        FilledTonalButton(
-                            onClick = { viewModel.exitAdminMode() },
-                            shape = RoundedCornerShape(12.dp),
-                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = AdminCard,
-                                contentColor = AdminInk
-                            ),
-                            modifier = Modifier
-                                .height(38.dp)
-                                .testTag("admin_switch_to_customer_btn")
-                        ) {
-                            Icon(Icons.Rounded.Storefront, contentDescription = null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(4.dp))
-                            Text("App", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(Modifier.width(6.dp))
-                    }
-
-                    IconButton(
-                        onClick = onSignOut,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .clip(CircleShape)
-                            .background(AdminCard)
-                            .testTag("admin_sign_out_btn")
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.Logout,
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .shadow(8.dp, CircleShape, ambientColor = AdminGold, spotColor = AdminGold)
+                                .clip(CircleShape)
+                                .background(Brush.linearGradient(listOf(AdminGold.lighten3D(0.3f), AdminGold)))
+                                .padding(2.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.logo_takeit_food),
+                                contentDescription = "Take It Admin Logo",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clip(CircleShape)
+                                    .background(Color.White)
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Take It Command",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = AdminInk,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .clip(CircleShape)
+                                        .background(AdminEmerald)
+                                )
+                            }
+                            Spacer(Modifier.height(2.dp))
+                            val badgeLabel = if (uiState.isMainAdmin) {
+                                "MAIN ADMIN • SUPER OWNER"
+                            } else {
+                                "CO-ADMIN • ${uiState.activeCoAdmin?.roleTitle?.uppercase() ?: "STAFF"}"
+                            }
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (uiState.isMainAdmin) Color(0xFF3B2806) else Color(0xFF0C2D48),
+                                border = BorderStroke(1.dp, if (uiState.isMainAdmin) AdminGold else AdminCyan)
+                            ) {
+                                Text(
+                                    text = badgeLabel,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (uiState.isMainAdmin) AdminGold else AdminCyan,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+
+                        if (uiState.appVariant == TakeItAppVariant.CUSTOMER) {
+                            FilledTonalButton(
+                                onClick = { viewModel.exitAdminMode() },
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = AdminCard,
+                                    contentColor = AdminInk
+                                ),
+                                modifier = Modifier
+                                    .height(38.dp)
+                                    .testTag("admin_switch_to_customer_btn")
+                            ) {
+                                Icon(Icons.Rounded.Storefront, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("App", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.width(6.dp))
+                        }
+
+                        TakeIt3DIconOrb(
+                            icon = Icons.AutoMirrored.Rounded.Logout,
+                            containerColor = AdminCard,
+                            depthColor = Color.Black,
+                            iconTint = AdminCrimson,
+                            size = 40.dp,
                             contentDescription = "Sign Out",
-                            tint = AdminCrimson,
-                            modifier = Modifier.size(19.dp)
+                            onClick = onSignOut,
+                            modifier = Modifier.testTag("admin_sign_out_btn")
                         )
                     }
-                }
 
-                // Executive Horizontal Tab Strip
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(bottom = 10.dp),
-                    contentPadding = PaddingValues(horizontal = 14.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(allowedTabs) { tab ->
-                        val selected = tab == activeTab
-                        val icon = when (tab) {
-                            AdminTab.OVERVIEW -> Icons.Rounded.Dashboard
-                            AdminTab.ORDERS -> Icons.Rounded.ReceiptLong
-                            AdminTab.CATALOG -> Icons.Rounded.RestaurantMenu
-                            AdminTab.OFFERS -> Icons.Rounded.LocalOffer
-                            AdminTab.PEOPLE -> Icons.Rounded.Groups
-                            AdminTab.CO_ADMINS -> Icons.Rounded.AdminPanelSettings
-                            AdminTab.PAYMENTS -> Icons.Rounded.AccountBalanceWallet
-                            AdminTab.SETTINGS -> Icons.Rounded.Tune
-                        }
-                        Surface(
-                            onClick = { viewModel.selectAdminTab(tab) },
-                            shape = RoundedCornerShape(14.dp),
-                            color = if (selected) AdminGold else AdminCard,
-                            border = BorderStroke(1.dp, if (selected) AdminGold else AdminBorder),
-                            modifier = Modifier
-                                .height(42.dp)
-                                .testTag("admin_tab_${tab.name.lowercase()}")
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 14.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    // 3D Beveled Horizontal Tab Strip
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(allowedTabs) { tab ->
+                            val selected = tab == activeTab
+                            val icon = when (tab) {
+                                AdminTab.OVERVIEW -> Icons.Rounded.Dashboard
+                                AdminTab.ORDERS -> Icons.Rounded.ReceiptLong
+                                AdminTab.CATALOG -> Icons.Rounded.RestaurantMenu
+                                AdminTab.OFFERS -> Icons.Rounded.LocalOffer
+                                AdminTab.PEOPLE -> Icons.Rounded.Groups
+                                AdminTab.CO_ADMINS -> Icons.Rounded.AdminPanelSettings
+                                AdminTab.PAYMENTS -> Icons.Rounded.AccountBalanceWallet
+                                AdminTab.SETTINGS -> Icons.Rounded.Tune
+                            }
+                            TakeIt3DCard(
+                                onClick = { viewModel.selectAdminTab(tab) },
+                                containerColor = if (selected) AdminGold else AdminCard,
+                                depthColor = if (selected) AdminGold.darken3D(0.42f) else Color(0xFF070C1A),
+                                borderColor = if (selected) AdminGold.lighten3D(0.4f) else AdminBorder,
+                                cornerRadius = 14.dp,
+                                depth = if (selected) 4.dp else 2.dp,
+                                shadowElevation = if (selected) 8.dp else 2.dp,
+                                modifier = Modifier.testTag("admin_tab_${tab.name.lowercase()}")
                             ) {
-                                Icon(
-                                    imageVector = icon,
-                                    contentDescription = tab.label,
-                                    tint = if (selected) AdminBg else AdminMuted,
-                                    modifier = Modifier.size(17.dp)
-                                )
-                                Text(
-                                    text = tab.label,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (selected) AdminBg else AdminInk
-                                )
-                                if (tab == AdminTab.ORDERS) {
-                                    val liveCount =
-                                        uiState.allOrders.count { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") } +
-                                        uiState.allRides.count { it.status !in listOf("COMPLETED", "CANCELLED", "REFUNDED") } +
-                                        uiState.allParcels.count { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") }
-                                    if (liveCount > 0) {
-                                        Surface(
-                                            shape = CircleShape,
-                                            color = if (selected) AdminBg else AdminCrimson
-                                        ) {
-                                            Text(
-                                                text = "$liveCount",
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = if (selected) AdminGold else Color.White,
-                                                fontWeight = FontWeight.ExtraBold,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
-                                            )
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = icon,
+                                        contentDescription = tab.label,
+                                        tint = if (selected) AdminBg else AdminMuted,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                    Text(
+                                        text = tab.label,
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (selected) AdminBg else AdminInk
+                                    )
+                                    if (tab == AdminTab.ORDERS) {
+                                        val liveCount =
+                                            uiState.allOrders.count { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") } +
+                                            uiState.allRides.count { it.status !in listOf("COMPLETED", "CANCELLED", "REFUNDED") } +
+                                            uiState.allParcels.count { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") }
+                                        if (liveCount > 0) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (selected) AdminBg else AdminCrimson
+                                            ) {
+                                                Text(
+                                                    text = "$liveCount",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = if (selected) AdminGold else Color.White,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -256,11 +274,14 @@ fun AdminCommandCenterRoot(
                         }
                     }
                 }
-                HorizontalDivider(color = AdminBorder)
             }
         }
     ) { innerPadding ->
-        Box(
+        TakeIt3DBackdrop(
+            accentPrimary = AdminGold,
+            accentSecondary = AdminCyan,
+            darkMode = true,
+            baseColor = AdminBg,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
@@ -289,191 +310,207 @@ private fun AdminAccessGateScreen(
     var passcode by remember { mutableStateOf("") }
     var showPassword by remember { mutableStateOf(false) }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(AdminBg, Color(0xFF141D35), AdminBg)))
-            .statusBarsPadding()
-            .navigationBarsPadding()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
+    TakeIt3DBackdrop(
+        accentPrimary = AdminGold,
+        accentSecondary = AdminCyan,
+        darkMode = true,
+        baseColor = AdminBg
     ) {
-        Surface(
-            shape = RoundedCornerShape(26.dp),
-            color = AdminSurface,
-            border = BorderStroke(1.dp, AdminBorder),
-            shadowElevation = 12.dp,
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 460.dp)
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+            TakeIt3DCard(
+                containerColor = AdminSurface,
+                depthColor = Color(0xFF040711),
+                borderColor = AdminGold.copy(alpha = 0.5f),
+                cornerRadius = 28.dp,
+                depth = 7.dp,
+                shadowElevation = 16.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 460.dp)
             ) {
-                Image(
-                    painter = painterResource(R.drawable.logo_takeit_food),
-                    contentDescription = "Take It Admin Logo",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(92.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .border(3.dp, AdminGold, CircleShape)
-                )
-                Spacer(Modifier.height(14.dp))
-                Surface(
-                    shape = RoundedCornerShape(50),
-                    color = Color(0xFF3B2806),
-                    border = BorderStroke(1.dp, AdminGold)
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    Box(
+                        modifier = Modifier
+                            .size(96.dp)
+                            .shadow(14.dp, CircleShape, ambientColor = AdminGold, spotColor = AdminGold)
+                            .clip(CircleShape)
+                            .background(Brush.linearGradient(listOf(AdminGold.lighten3D(0.3f), AdminGold)))
+                            .padding(3.dp)
                     ) {
-                        Icon(Icons.Rounded.VerifiedUser, null, tint = AdminGold, modifier = Modifier.size(15.dp))
-                        Text(
-                            "CO-ADMIN SECURITY VAULT",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AdminGold,
-                            fontWeight = FontWeight.ExtraBold
+                        Image(
+                            painter = painterResource(R.drawable.logo_takeit_food),
+                            contentDescription = "Take It Admin Logo",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                                .background(Color.White)
                         )
                     }
-                }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Take It Command Center",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = AdminInk,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    "Signed in as ${uiState.email}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AdminCyan,
-                    fontWeight = FontWeight.SemiBold,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Enter the Co-Admin password created for your Gmail by Main Admin ($MAIN_ADMIN_EMAIL).",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = AdminMuted,
-                    textAlign = TextAlign.Center
-                )
-
-                Spacer(Modifier.height(18.dp))
-
-                OutlinedTextField(
-                    value = passcode,
-                    onValueChange = { passcode = it },
-                    label = { Text("Co-Admin Password") },
-                    placeholder = { Text("Enter assigned passcode") },
-                    singleLine = true,
-                    visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
-                    trailingIcon = {
-                        IconButton(onClick = { showPassword = !showPassword }) {
-                            Icon(
-                                if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
-                                contentDescription = "Toggle password visibility",
-                                tint = AdminMuted
-                            )
-                        }
-                    },
-                    shape = RoundedCornerShape(14.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = AdminGold,
-                        unfocusedBorderColor = AdminBorder,
-                        focusedTextColor = AdminInk,
-                        unfocusedTextColor = AdminInk,
-                        focusedContainerColor = AdminCard,
-                        unfocusedContainerColor = AdminCard
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("coadmin_passcode_input")
-                )
-
-                if (!uiState.coAdminAuthError.isNullOrBlank()) {
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(14.dp))
                     Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = Color(0xFF3F1219),
-                        border = BorderStroke(1.dp, AdminCrimson),
-                        modifier = Modifier.fillMaxWidth()
+                        shape = RoundedCornerShape(50),
+                        color = Color(0xFF3B2806),
+                        border = BorderStroke(1.dp, AdminGold)
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Icon(Icons.Rounded.ErrorOutline, null, tint = AdminCrimson, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Rounded.VerifiedUser, null, tint = AdminGold, modifier = Modifier.size(15.dp))
                             Text(
-                                uiState.coAdminAuthError,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFFCA5A5)
+                                "CO-ADMIN SECURITY VAULT",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = AdminGold,
+                                fontWeight = FontWeight.ExtraBold
                             )
                         }
                     }
-                }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Take It Command Center",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = AdminInk,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Signed in as ${uiState.email}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AdminCyan,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        "Enter the Co-Admin password created for your Gmail by Main Admin ($MAIN_ADMIN_EMAIL).",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = AdminMuted,
+                        textAlign = TextAlign.Center
+                    )
 
-                Spacer(Modifier.height(18.dp))
+                    Spacer(Modifier.height(18.dp))
 
-                Button(
-                    onClick = { onVerifyPasscode(passcode) },
-                    enabled = passcode.isNotBlank() && !uiState.isCheckingCoAdmin,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = AdminGold,
-                        contentColor = AdminBg
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(52.dp)
-                        .testTag("coadmin_unlock_btn")
-                ) {
-                    if (uiState.isCheckingCoAdmin) {
-                        CircularProgressIndicator(color = AdminBg, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(10.dp))
-                        Text("Verifying...", fontWeight = FontWeight.ExtraBold)
-                    } else {
-                        Icon(Icons.Rounded.LockOpen, null, modifier = Modifier.size(19.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("Unlock Admin Panel", fontWeight = FontWeight.ExtraBold)
-                    }
-                }
+                    OutlinedTextField(
+                        value = passcode,
+                        onValueChange = { passcode = it },
+                        label = { Text("Co-Admin Password") },
+                        placeholder = { Text("Enter assigned passcode") },
+                        singleLine = true,
+                        visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { showPassword = !showPassword }) {
+                                Icon(
+                                    if (showPassword) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                    contentDescription = "Toggle password visibility",
+                                    tint = AdminMuted
+                                )
+                            }
+                        },
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = AdminGold,
+                            unfocusedBorderColor = AdminBorder,
+                            focusedTextColor = AdminInk,
+                            unfocusedTextColor = AdminInk,
+                            focusedContainerColor = AdminCard,
+                            unfocusedContainerColor = AdminCard
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("coadmin_passcode_input")
+                    )
 
-                Spacer(Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    if (onReturnToCustomer != null) {
-                        OutlinedButton(
-                            onClick = onReturnToCustomer,
+                    if (!uiState.coAdminAuthError.isNullOrBlank()) {
+                        Spacer(Modifier.height(12.dp))
+                        Surface(
                             shape = RoundedCornerShape(12.dp),
-                            border = BorderStroke(1.dp, AdminBorder),
+                            color = Color(0xFF3F1219),
+                            border = BorderStroke(1.dp, AdminCrimson),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(Icons.Rounded.ErrorOutline, null, tint = AdminCrimson, modifier = Modifier.size(18.dp))
+                                Text(
+                                    uiState.coAdminAuthError,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = Color(0xFFFCA5A5)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(Modifier.height(18.dp))
+
+                    TakeIt3DButton(
+                        onClick = { onVerifyPasscode(passcode) },
+                        enabled = passcode.isNotBlank() && !uiState.isCheckingCoAdmin,
+                        containerColor = AdminGold,
+                        depthColor = AdminGold.darken3D(0.45f),
+                        contentColor = AdminBg,
+                        cornerRadius = 16.dp,
+                        depth = 5.dp,
+                        height = 50.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("coadmin_unlock_btn")
+                    ) {
+                        if (uiState.isCheckingCoAdmin) {
+                            CircularProgressIndicator(color = AdminBg, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Text("Verifying...", fontWeight = FontWeight.ExtraBold)
+                        } else {
+                            Icon(Icons.Rounded.LockOpen, null, modifier = Modifier.size(19.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Unlock Admin Panel", fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        if (onReturnToCustomer != null) {
+                            OutlinedButton(
+                                onClick = onReturnToCustomer,
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, AdminBorder),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(46.dp)
+                            ) {
+                                Text("Customer App", color = AdminInk)
+                            }
+                        }
+                        OutlinedButton(
+                            onClick = onSignOut,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, AdminCrimson.copy(alpha = 0.6f)),
                             modifier = Modifier
                                 .weight(1f)
                                 .height(46.dp)
+                                .testTag("coadmin_gate_signout_btn")
                         ) {
-                            Text("Customer App", color = AdminInk)
+                            Text("Switch Account", color = AdminCrimson)
                         }
-                    }
-                    OutlinedButton(
-                        onClick = onSignOut,
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, AdminCrimson.copy(alpha = 0.6f)),
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(46.dp)
-                            .testTag("coadmin_gate_signout_btn")
-                    ) {
-                        Text("Switch Account", color = AdminCrimson)
                     }
                 }
             }
@@ -504,18 +541,25 @@ fun AdminOverviewTab(
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        // Live System Banner
+        // 3D Live System Banner
         item {
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = AdminCard,
-                border = BorderStroke(1.dp, AdminGold.copy(alpha = 0.45f)),
+            TakeIt3DCard(
+                containerColor = AdminCard,
+                depthColor = Color(0xFF070C1A),
+                borderColor = AdminGold.copy(alpha = 0.55f),
+                cornerRadius = 22.dp,
+                depth = 5.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.Bolt, null, tint = AdminGold, modifier = Modifier.size(22.dp))
-                        Spacer(Modifier.width(8.dp))
+                        TakeIt3DIconOrb(
+                            icon = Icons.Rounded.Bolt,
+                            containerColor = AdminGold,
+                            iconTint = AdminBg,
+                            size = 34.dp
+                        )
+                        Spacer(Modifier.width(10.dp))
                         Text(
                             "Live Cloud Command Sync",
                             style = MaterialTheme.typography.titleMedium,
@@ -523,7 +567,7 @@ fun AdminOverviewTab(
                             color = AdminInk
                         )
                         Spacer(Modifier.weight(1f))
-                        Surface(shape = RoundedCornerShape(50), color = Color(0xFF064E3B)) {
+                        Surface(shape = RoundedCornerShape(50), color = Color(0xFF064E3B), border = BorderStroke(1.dp, AdminEmerald)) {
                             Text(
                                 "LIVE",
                                 style = MaterialTheme.typography.labelSmall,
@@ -589,7 +633,7 @@ fun AdminOverviewTab(
             }
         }
 
-        // KPI Grid Row 1
+        // 3D KPI Grid Row 1
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -614,7 +658,7 @@ fun AdminOverviewTab(
             }
         }
 
-        // KPI Grid Row 2
+        // 3D KPI Grid Row 2
         item {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -639,12 +683,14 @@ fun AdminOverviewTab(
             }
         }
 
-        // Quick Actions Bar
+        // 3D Quick Actions Card
         item {
-            Surface(
-                shape = RoundedCornerShape(20.dp),
-                color = AdminSurface,
-                border = BorderStroke(1.dp, AdminBorder),
+            TakeIt3DCard(
+                containerColor = AdminSurface,
+                depthColor = Color(0xFF060A15),
+                borderColor = AdminBorder,
+                cornerRadius = 22.dp,
+                depth = 5.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -656,13 +702,16 @@ fun AdminOverviewTab(
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                         if (uiState.canManageRestaurants) {
-                            Button(
+                            TakeIt3DButton(
                                 onClick = { viewModel.seedStarterCatalog() },
-                                shape = RoundedCornerShape(14.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg),
+                                containerColor = AdminGold,
+                                depthColor = AdminGold.darken3D(0.45f),
+                                contentColor = AdminBg,
+                                cornerRadius = 14.dp,
+                                depth = 4.dp,
+                                height = 46.dp,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp)
                                     .testTag("admin_seed_catalog_btn")
                             ) {
                                 Icon(Icons.Rounded.AutoAwesome, null, modifier = Modifier.size(18.dp))
@@ -671,13 +720,16 @@ fun AdminOverviewTab(
                             }
                         }
                         if (uiState.isMainAdmin) {
-                            OutlinedButton(
+                            TakeIt3DButton(
                                 onClick = { viewModel.selectAdminTab(AdminTab.CO_ADMINS) },
-                                shape = RoundedCornerShape(14.dp),
-                                border = BorderStroke(1.dp, AdminCyan),
+                                containerColor = AdminCard,
+                                depthColor = Color.Black,
+                                contentColor = AdminCyan,
+                                cornerRadius = 14.dp,
+                                depth = 4.dp,
+                                height = 46.dp,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .height(48.dp)
                                     .testTag("admin_quick_coadmins_btn")
                             ) {
                                 Icon(Icons.Rounded.PersonAdd, null, tint = AdminCyan, modifier = Modifier.size(18.dp))
@@ -713,18 +765,20 @@ fun AdminOverviewTab(
 
         if (uiState.allOrders.isEmpty()) {
             item {
-                Surface(
-                    shape = RoundedCornerShape(18.dp),
-                    color = AdminSurface,
-                    border = BorderStroke(1.dp, AdminBorder),
+                TakeIt3DCard(
+                    containerColor = AdminSurface,
+                    depthColor = Color(0xFF060A15),
+                    borderColor = AdminBorder,
+                    cornerRadius = 20.dp,
+                    depth = 4.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(28.dp),
+                        modifier = Modifier.fillMaxWidth().padding(28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Icon(Icons.Rounded.ReceiptLong, null, tint = AdminMuted, modifier = Modifier.size(38.dp))
+                        TakeIt3DIconOrb(Icons.Rounded.ReceiptLong, AdminCard, iconTint = AdminMuted, size = 50.dp)
                         Text("No customer orders yet", color = AdminInk, fontWeight = FontWeight.Bold)
                         Text(
                             "Orders placed from Take It Customer app appear here live.",
@@ -737,11 +791,13 @@ fun AdminOverviewTab(
             }
         } else {
             items(uiState.allOrders.take(5), key = { it.id }) { order ->
-                Surface(
+                TakeIt3DCard(
                     onClick = { if (uiState.canManageOrders) viewModel.selectAdminTab(AdminTab.ORDERS) },
-                    shape = RoundedCornerShape(16.dp),
-                    color = AdminSurface,
-                    border = BorderStroke(1.dp, AdminBorder),
+                    containerColor = AdminSurface,
+                    depthColor = Color(0xFF060A15),
+                    borderColor = AdminBorder,
+                    cornerRadius = 18.dp,
+                    depth = 4.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
@@ -790,24 +846,26 @@ private fun AdminKpiCard(
     accent: Color,
     modifier: Modifier = Modifier
 ) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = AdminSurface,
-        border = BorderStroke(1.dp, AdminBorder),
+    TakeIt3DCard(
+        containerColor = AdminSurface,
+        depthColor = accent.darken3D(0.65f),
+        borderColor = accent.copy(alpha = 0.45f),
+        cornerRadius = 20.dp,
+        depth = 5.dp,
+        shadowElevation = 10.dp,
         modifier = modifier
     ) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                 Text(title, style = MaterialTheme.typography.labelMedium, color = AdminMuted, fontWeight = FontWeight.SemiBold)
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(RoundedCornerShape(9.dp))
-                        .background(accent.copy(alpha = 0.16f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, null, tint = accent, modifier = Modifier.size(17.dp))
-                }
+                TakeIt3DIconOrb(
+                    icon = icon,
+                    containerColor = accent.copy(alpha = 0.28f),
+                    depthColor = Color.Black,
+                    iconTint = accent,
+                    size = 34.dp,
+                    shape = RoundedCornerShape(10.dp)
+                )
             }
             Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold, color = AdminInk)
             Text(subtitle, style = MaterialTheme.typography.labelSmall, color = accent)
@@ -824,7 +882,7 @@ fun AdminOrderStatusPill(status: String) {
         "DELIVERED" -> Color(0xFF064E3B) to AdminEmerald
         else -> Color(0xFF450A0A) to AdminCrimson
     }
-    Surface(shape = RoundedCornerShape(50), color = bg) {
+    Surface(shape = RoundedCornerShape(50), color = bg, border = BorderStroke(0.5.dp, fg.copy(alpha = 0.5f))) {
         Text(
             text = status.replace("_", " "),
             style = MaterialTheme.typography.labelSmall,
@@ -840,7 +898,7 @@ fun AdminOrdersTab(
     uiState: TakeItUiState,
     viewModel: TakeItViewModel
 ) {
-    var verticalMode by remember { mutableStateOf("FOOD") } // FOOD, RIDE, PARCEL
+    var verticalMode by remember { mutableStateOf("FOOD") }
     var filter by remember { mutableStateOf("ALL") }
     var dispatchTarget by remember { mutableStateOf<FoodOrder?>(null) }
     var dispatchRideTarget by remember { mutableStateOf<RideBooking?>(null) }
@@ -874,7 +932,6 @@ fun AdminOrdersTab(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Vertical Switcher: Food Orders | Rapido Rides | Parcel Transport
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1051,18 +1108,20 @@ fun AdminOrdersTab(
 
 @Composable
 private fun AdminEmptyOrdersCard(message: String) {
-    Surface(
-        shape = RoundedCornerShape(18.dp),
-        color = AdminSurface,
-        border = BorderStroke(1.dp, AdminBorder),
+    TakeIt3DCard(
+        containerColor = AdminSurface,
+        depthColor = Color(0xFF060A15),
+        borderColor = AdminBorder,
+        cornerRadius = 20.dp,
+        depth = 4.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(32.dp),
+            modifier = Modifier.fillMaxWidth().padding(32.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Icon(Icons.Rounded.Inventory2, null, tint = AdminMuted, modifier = Modifier.size(40.dp))
+            TakeIt3DIconOrb(Icons.Rounded.Inventory2, AdminCard, iconTint = AdminMuted, size = 50.dp)
             Text(message, color = AdminInk, fontWeight = FontWeight.Bold)
         }
     }
@@ -1078,10 +1137,12 @@ private fun AdminOrderCard(
     onCancel: () -> Unit,
     onRefund: () -> Unit
 ) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = AdminSurface,
-        border = BorderStroke(1.dp, AdminBorder),
+    TakeIt3DCard(
+        containerColor = AdminSurface,
+        depthColor = Color(0xFF060A15),
+        borderColor = AdminBorder,
+        cornerRadius = 22.dp,
+        depth = 5.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1125,64 +1186,55 @@ private fun AdminOrderCard(
                 }
             }
 
-            // Live 1-tap Order Progression Controls
             if (order.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED")) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     when (order.status) {
-                        "PLACED" -> {
-                            Button(
-                                onClick = onConfirm,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AdminCyan, contentColor = AdminBg),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                            ) {
-                                Text("Confirm Order", fontWeight = FontWeight.ExtraBold)
-                            }
+                        "PLACED" -> TakeIt3DButton(
+                            onClick = onConfirm,
+                            containerColor = AdminCyan,
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Confirm Order", fontWeight = FontWeight.ExtraBold) }
+                        "CONFIRMED" -> TakeIt3DButton(
+                            onClick = onPreparing,
+                            containerColor = AdminGold,
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Start Preparing", fontWeight = FontWeight.ExtraBold) }
+                        "PREPARING" -> TakeIt3DButton(
+                            onClick = onOpenDispatch,
+                            containerColor = Color(0xFFA855F7),
+                            contentColor = Color.White,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Rounded.TwoWheeler, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Assign Rider & Dispatch", fontWeight = FontWeight.ExtraBold)
                         }
-                        "CONFIRMED" -> {
-                            Button(
-                                onClick = onPreparing,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                            ) {
-                                Text("Start Preparing", fontWeight = FontWeight.ExtraBold)
-                            }
-                        }
-                        "PREPARING" -> {
-                            Button(
-                                onClick = onOpenDispatch,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFA855F7), contentColor = Color.White),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                            ) {
-                                Icon(Icons.Rounded.TwoWheeler, null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Assign Rider & Dispatch", fontWeight = FontWeight.ExtraBold)
-                            }
-                        }
-                        "OUT_FOR_DELIVERY" -> {
-                            Button(
-                                onClick = onMarkDelivered,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = AdminEmerald, contentColor = AdminBg),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(44.dp)
-                            ) {
-                                Icon(Icons.Rounded.CheckCircle, null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Mark Delivered", fontWeight = FontWeight.ExtraBold)
-                            }
+                        "OUT_FOR_DELIVERY" -> TakeIt3DButton(
+                            onClick = onMarkDelivered,
+                            containerColor = AdminEmerald,
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Rounded.CheckCircle, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Mark Delivered", fontWeight = FontWeight.ExtraBold)
                         }
                     }
 
@@ -1226,9 +1278,7 @@ private fun DispatchRiderDialog(
         onDismissRequest = onDismiss,
         containerColor = AdminSurface,
         titleContentColor = AdminInk,
-        title = {
-            Text("Dispatch ${order.orderNumber}", fontWeight = FontWeight.ExtraBold)
-        },
+        title = { Text("Dispatch ${order.orderNumber}", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
@@ -1236,36 +1286,10 @@ private fun DispatchRiderDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = AdminMuted
                 )
-                OutlinedTextField(
-                    value = riderName,
-                    onValueChange = { riderName = it },
-                    label = { Text("Rider Full Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = riderPhone,
-                    onValueChange = { riderPhone = it },
-                    label = { Text("Rider Phone Number") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = riderVehicle,
-                    onValueChange = { riderVehicle = it },
-                    label = { Text("Vehicle Plate No.") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                OutlinedTextField(
-                    value = etaText,
-                    onValueChange = { etaText = it.filter { c -> c.isDigit() } },
-                    label = { Text("ETA (Minutes)") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                OutlinedTextField(value = riderName, onValueChange = { riderName = it }, label = { Text("Rider Full Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = riderPhone, onValueChange = { riderPhone = it }, label = { Text("Rider Phone Number") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = riderVehicle, onValueChange = { riderVehicle = it }, label = { Text("Vehicle Plate No.") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = etaText, onValueChange = { etaText = it.filter { c -> c.isDigit() } }, label = { Text("ETA (Minutes)") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
             }
         },
         confirmButton = {
@@ -1279,13 +1303,9 @@ private fun DispatchRiderDialog(
                     )
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg)
-            ) {
-                Text("Dispatch Live", fontWeight = FontWeight.ExtraBold)
-            }
+            ) { Text("Dispatch Live", fontWeight = FontWeight.ExtraBold) }
         },
-        dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel", color = AdminMuted) }
-        }
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = AdminMuted) } }
     )
 }
 
@@ -1298,10 +1318,12 @@ private fun AdminRideCard(
     onComplete: () -> Unit,
     onCancel: () -> Unit
 ) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = AdminSurface,
-        border = BorderStroke(1.dp, AdminBorder),
+    TakeIt3DCard(
+        containerColor = AdminSurface,
+        depthColor = Color(0xFF060A15),
+        borderColor = RideYellow.copy(alpha = 0.35f),
+        cornerRadius = 22.dp,
+        depth = 5.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1328,25 +1350,41 @@ private fun AdminRideCard(
             if (ride.status !in listOf("COMPLETED", "CANCELLED", "REFUNDED")) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     when (ride.status) {
-                        "REQUESTED" -> Button(
+                        "REQUESTED" -> TakeIt3DButton(
                             onClick = onAssignCaptain,
-                            colors = ButtonDefaults.buttonColors(containerColor = RideYellow, contentColor = AdminBg),
-                            modifier = Modifier.weight(1f).height(44.dp)
+                            containerColor = RideYellow,
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
                         ) { Text("Assign Captain", fontWeight = FontWeight.ExtraBold) }
-                        "CAPTAIN_ASSIGNED" -> Button(
+                        "CAPTAIN_ASSIGNED" -> TakeIt3DButton(
                             onClick = onArriving,
-                            colors = ButtonDefaults.buttonColors(containerColor = AdminCyan, contentColor = AdminBg),
-                            modifier = Modifier.weight(1f).height(44.dp)
+                            containerColor = AdminCyan,
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
                         ) { Text("Mark Arriving", fontWeight = FontWeight.ExtraBold) }
-                        "ARRIVING" -> Button(
+                        "ARRIVING" -> TakeIt3DButton(
                             onClick = onStartTrip,
-                            colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg),
-                            modifier = Modifier.weight(1f).height(44.dp)
+                            containerColor = AdminGold,
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
                         ) { Text("Start Trip", fontWeight = FontWeight.ExtraBold) }
-                        "ON_TRIP" -> Button(
+                        "ON_TRIP" -> TakeIt3DButton(
                             onClick = onComplete,
-                            colors = ButtonDefaults.buttonColors(containerColor = AdminEmerald, contentColor = AdminBg),
-                            modifier = Modifier.weight(1f).height(44.dp)
+                            containerColor = AdminEmerald,
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
                         ) { Text("Complete Ride", fontWeight = FontWeight.ExtraBold) }
                     }
                     OutlinedButton(onClick = onCancel, border = BorderStroke(1.dp, AdminCrimson), modifier = Modifier.height(44.dp)) {
@@ -1367,10 +1405,12 @@ private fun AdminParcelCard(
     onDelivered: () -> Unit,
     onCancel: () -> Unit
 ) {
-    Surface(
-        shape = RoundedCornerShape(20.dp),
-        color = AdminSurface,
-        border = BorderStroke(1.dp, AdminBorder),
+    TakeIt3DCard(
+        containerColor = AdminSurface,
+        depthColor = Color(0xFF060A15),
+        borderColor = TransportOrange.copy(alpha = 0.35f),
+        cornerRadius = 22.dp,
+        depth = 5.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1397,25 +1437,41 @@ private fun AdminParcelCard(
             if (parcel.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED")) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     when (parcel.status) {
-                        "BOOKED" -> Button(
+                        "BOOKED" -> TakeIt3DButton(
                             onClick = onAssignPartner,
-                            colors = ButtonDefaults.buttonColors(containerColor = TransportOrange, contentColor = Color.White),
-                            modifier = Modifier.weight(1f).height(44.dp)
+                            containerColor = TransportOrange,
+                            contentColor = Color.White,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
                         ) { Text("Assign Partner", fontWeight = FontWeight.ExtraBold) }
-                        "PARTNER_ASSIGNED" -> Button(
+                        "PARTNER_ASSIGNED" -> TakeIt3DButton(
                             onClick = onPickedUp,
-                            colors = ButtonDefaults.buttonColors(containerColor = AdminCyan, contentColor = AdminBg),
-                            modifier = Modifier.weight(1f).height(44.dp)
+                            containerColor = AdminCyan,
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
                         ) { Text("Mark Picked Up", fontWeight = FontWeight.ExtraBold) }
-                        "PICKED_UP" -> Button(
+                        "PICKED_UP" -> TakeIt3DButton(
                             onClick = onInTransit,
-                            colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg),
-                            modifier = Modifier.weight(1f).height(44.dp)
+                            containerColor = AdminGold,
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
                         ) { Text("In Transit", fontWeight = FontWeight.ExtraBold) }
-                        "IN_TRANSIT" -> Button(
+                        "IN_TRANSIT" -> TakeIt3DButton(
                             onClick = onDelivered,
-                            colors = ButtonDefaults.buttonColors(containerColor = AdminEmerald, contentColor = AdminBg),
-                            modifier = Modifier.weight(1f).height(44.dp)
+                            containerColor = AdminEmerald,
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 44.dp,
+                            modifier = Modifier.weight(1f)
                         ) { Text("Mark Delivered", fontWeight = FontWeight.ExtraBold) }
                     }
                     OutlinedButton(onClick = onCancel, border = BorderStroke(1.dp, AdminCrimson), modifier = Modifier.height(44.dp)) {
@@ -1494,4 +1550,3 @@ private fun DispatchParcelPartnerDialog(
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = AdminMuted) } }
     )
 }
-

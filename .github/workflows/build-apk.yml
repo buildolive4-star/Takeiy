@@ -49,12 +49,27 @@ jobs:
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platform-tools" "platforms;android-36" "build-tools;36.0.0" || true
           "$SDKMANAGER" --sdk_root="$SDK_ROOT" "platforms;android-36.1" || true
 
+      - name: Cache persistent fallback debug.keystore
+        uses: actions/cache@v4
+        with:
+          path: .ci-keystore/debug.keystore
+          key: takeit-persistent-debug-keystore-v1
+
       - name: Prepare debug.keystore for APK signing
+        env:
+          DEBUG_KEYSTORE_SECRET: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
         run: |
-          if [ -f "debug.keystore.base64" ]; then
+          if [ -n "$DEBUG_KEYSTORE_SECRET" ]; then
+            echo "$DEBUG_KEYSTORE_SECRET" | tr -d '\n\r ' | base64 -d > debug.keystore
+            echo "Decoded debug.keystore from DEBUG_KEYSTORE_BASE64 secret"
+          elif [ -f "debug.keystore.base64" ]; then
             base64 -d debug.keystore.base64 > debug.keystore
             echo "Decoded debug.keystore from debug.keystore.base64"
+          elif [ -f ".ci-keystore/debug.keystore" ]; then
+            cp .ci-keystore/debug.keystore debug.keystore
+            echo "Restored persistent cached debug.keystore"
           elif [ ! -f "debug.keystore" ]; then
+            mkdir -p .ci-keystore
             keytool -genkeypair -v \
               -keystore debug.keystore \
               -storepass android \
@@ -63,18 +78,34 @@ jobs:
               -keyalg RSA \
               -keysize 2048 \
               -validity 10000 \
-              -dname "CN=Android Debug,O=Zipora,C=IN"
-            echo "Generated fresh debug.keystore"
+              -dname "CN=Android Debug,O=TakeIt,C=IN"
+            cp debug.keystore .ci-keystore/debug.keystore
+            echo "Generated & cached persistent debug.keystore"
           fi
-          keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1:|SHA256:" || true
 
-      - name: Connect Client Firebase (google-services.json + default Firestore DB)
+          CERT_OUT=$(keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey)
+          APK_SHA1=$(echo "$CERT_OUT" | grep -m1 "SHA1:" | sed 's/.*SHA1:[[:space:]]*//' | tr -d '\r\n ')
+          APK_SHA256=$(echo "$CERT_OUT" | grep -m1 "SHA256:" | sed 's/.*SHA256:[[:space:]]*//' | tr -d '\r\n ')
+          APK_SHA1_HEX=$(echo "$APK_SHA1" | tr -d ':' | tr '[:upper:]' '[:lower:]')
+          APK_SHA256_HEX=$(echo "$APK_SHA256" | tr -d ':' | tr '[:upper:]' '[:lower:]')
+
+          echo "============================================================"
+          echo "ACTUAL APK SIGNING SHA-1  : $APK_SHA1"
+          echo "ACTUAL APK SIGNING SHA-256: $APK_SHA256"
+          echo "============================================================"
+          echo "APK_SHA1=$APK_SHA1" >> $GITHUB_ENV
+          echo "APK_SHA256=$APK_SHA256" >> $GITHUB_ENV
+          echo "APK_SHA1_HEX=$APK_SHA1_HEX" >> $GITHUB_ENV
+          echo "APK_SHA256_HEX=$APK_SHA256_HEX" >> $GITHUB_ENV
+
+      - name: Connect Client Firebase (google-services.json + Auto SHA Sync + Firestore DB)
         env:
           GOOGLE_SERVICES_SECRET: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+          FIREBASE_SA_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           FIRESTORE_DB_ID: ${{ secrets.FIRESTORE_DATABASE_ID }}
         run: |
           python3 - <<'PY'
-          import base64, json, os, sys
+          import base64, json, os, subprocess, sys, time, urllib.request, urllib.parse, urllib.error
 
           raw = os.environ.get("GOOGLE_SERVICES_SECRET", "").strip()
           if not raw:
@@ -91,31 +122,122 @@ jobs:
           project_id = data.get("project_info", {}).get("project_id", "")
           clients = data.get("client", [])
 
-          # Pick the Android client that has OAuth clients configured (fallback to first client)
           selected_pkg = ""
+          selected_app_id = ""
+          registered_sha1s = set()
           has_web_oauth = False
           has_android_oauth = False
           for c in clients:
               pkg = c.get("client_info", {}).get("android_client_info", {}).get("package_name", "")
+              app_id = c.get("client_info", {}).get("mobilesdk_app_id", "")
               oauths = c.get("oauth_client", []) or []
               web_ok = any(o.get("client_type") == 3 for o in oauths)
               android_ok = any(o.get("client_type") == 1 for o in oauths)
               if pkg and not selected_pkg:
                   selected_pkg = pkg
+                  selected_app_id = app_id
               if pkg and web_ok and android_ok:
                   selected_pkg = pkg
+                  selected_app_id = app_id
                   has_web_oauth = True
                   has_android_oauth = True
+                  for o in oauths:
+                      h = (o.get("android_info") or {}).get("certificate_hash", "").lower()
+                      if h:
+                          registered_sha1s.add(h)
                   break
               if web_ok:
                   has_web_oauth = True
               if android_ok:
                   has_android_oauth = True
 
-          print(f"Configured Client Firebase google-services.json for project_id={project_id}, package_name={selected_pkg}")
+          apk_sha1_hex = os.environ.get("APK_SHA1_HEX", "").strip().lower()
+          apk_sha256_hex = os.environ.get("APK_SHA256_HEX", "").strip().lower()
+          sha1_matches = bool(apk_sha1_hex and apk_sha1_hex in registered_sha1s)
+
+          print(f"Configured Client Firebase project_id={project_id}, package_name={selected_pkg}, app_id={selected_app_id}")
           print(f"OAuth check -> Android OAuth Client (type 1): {has_android_oauth}, Web Client ID (type 3): {has_web_oauth}")
-          if not has_android_oauth or not has_web_oauth:
-              print("WARNING: google-services.json is missing OAuth client(s)! Ensure SHA-1 has NO red warning icon and Google Sign-In is enabled before downloading google-services.json.")
+          print(f"SHA-1 Match Check -> APK={apk_sha1_hex}, Registered={sorted(registered_sha1s)}, MATCH={sha1_matches}")
+
+          # Auto-register ACTUAL APK SHA-1 & SHA-256 into Client Firebase via Firebase Management REST API
+          sa_raw = os.environ.get("FIREBASE_SA_SECRET", "").strip()
+          if sa_raw and project_id and selected_app_id and apk_sha1_hex:
+              key_path = "/tmp/firebase-sha-sa.pem"
+              try:
+                  sa_text = sa_raw if sa_raw.startswith("{") else base64.b64decode("".join(sa_raw.split())).decode("utf-8")
+                  sa_data = json.loads(sa_text)
+                  with open(key_path, "w", encoding="utf-8") as f:
+                      f.write(sa_data["private_key"])
+
+                  def b64url(b: bytes) -> str:
+                      return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
+
+                  now = int(time.time())
+                  header = b64url(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
+                  claim = b64url(json.dumps({
+                      "iss": sa_data["client_email"],
+                      "scope": "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/firebase",
+                      "aud": "https://oauth2.googleapis.com/token",
+                      "iat": now,
+                      "exp": now + 3600,
+                  }).encode())
+                  sig = subprocess.check_output(["openssl", "dgst", "-sha256", "-sign", key_path], input=f"{header}.{claim}".encode())
+                  assertion = f"{header}.{claim}.{b64url(sig)}"
+                  token_req = urllib.request.Request(
+                      "https://oauth2.googleapis.com/token",
+                      data=urllib.parse.urlencode({
+                          "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                          "assertion": assertion,
+                      }).encode(),
+                      headers={"Content-Type": "application/x-www-form-urlencoded"},
+                  )
+                  with urllib.request.urlopen(token_req, timeout=20) as resp:
+                      access_token = json.loads(resp.read().decode())["access_token"]
+
+                  sha_changed = False
+                  for cert_type, sha_val in (("SHA_1", apk_sha1_hex), ("SHA_256", apk_sha256_hex)):
+                      if not sha_val:
+                          continue
+                      if cert_type == "SHA_1" and sha1_matches:
+                          continue
+                      try:
+                          sha_req = urllib.request.Request(
+                              f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps/{selected_app_id}/sha",
+                              data=json.dumps({"shaHash": sha_val, "certType": cert_type}).encode(),
+                              headers={
+                                  "Authorization": f"Bearer {access_token}",
+                                  "Content-Type": "application/json",
+                              },
+                              method="POST",
+                          )
+                          with urllib.request.urlopen(sha_req, timeout=20) as resp:
+                              print(f"Auto-registered {cert_type} ({sha_val}) in Firebase {project_id}!")
+                              sha_changed = True
+                      except urllib.error.HTTPError as he:
+                          body = he.read().decode("utf-8", errors="ignore")
+                          if he.code == 409 or "ALREADY_EXISTS" in body:
+                              print(f"{cert_type} already registered in Firebase {project_id}.")
+                          else:
+                              print(f"Firebase Management API notice for {cert_type} (HTTP {he.code}): {body[:300]}")
+
+                  if sha_changed or not sha1_matches:
+                      time.sleep(3)
+                      cfg_req = urllib.request.Request(
+                          f"https://firebase.googleapis.com/v1beta1/projects/{project_id}/androidApps/{selected_app_id}/config",
+                          headers={"Authorization": f"Bearer {access_token}"},
+                          method="GET",
+                      )
+                      with urllib.request.urlopen(cfg_req, timeout=20) as resp:
+                          cfg_json = json.loads(resp.read().decode())
+                          cfg_b64 = cfg_json.get("configFileContents", "")
+                          if cfg_b64:
+                              data = json.loads(base64.b64decode(cfg_b64).decode("utf-8"))
+                              print("Downloaded freshly synced google-services.json from Firebase Management API!")
+              except Exception as e:
+                  print(f"Auto SHA sync notice: {e}")
+              finally:
+                  if os.path.exists(key_path):
+                      os.remove(key_path)
 
           with open("app/google-services.json", "w", encoding="utf-8") as f:
               json.dump(data, f, indent=2)

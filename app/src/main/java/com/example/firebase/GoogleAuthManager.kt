@@ -1,9 +1,15 @@
 package com.example.firebase
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.PackageManager
+import android.os.Build
 import android.util.Log
+import android.widget.Toast
+import java.security.MessageDigest
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -56,6 +62,31 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
     is Activity -> this
     is ContextWrapper -> baseContext.findActivity()
     else -> null
+}
+
+private fun getInstalledSigningSha1(context: Context): String? {
+    return try {
+        val pm = context.packageManager
+        val certBytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            val info = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
+            val signingInfo = info.signingInfo
+            val sigs = if (signingInfo?.hasMultipleSigners() == true) {
+                signingInfo.apkContentsSigners
+            } else {
+                signingInfo?.signingCertificateHistory
+            }
+            sigs?.firstOrNull()?.toByteArray()
+        } else {
+            @Suppress("DEPRECATION")
+            val info = pm.getPackageInfo(context.packageName, PackageManager.GET_SIGNATURES)
+            @Suppress("DEPRECATION")
+            info.signatures?.firstOrNull()?.toByteArray()
+        } ?: return null
+        val digest = MessageDigest.getInstance("SHA-1").digest(certBytes)
+        digest.joinToString(":") { "%02X".format(it) }
+    } catch (_: Exception) {
+        null
+    }
 }
 
 /**
@@ -354,18 +385,59 @@ fun TakeItAuthScreen(
                     )
 
                     if (errorMessage != null) {
+                        val installedSha1 = remember(context) { getInstalledSigningSha1(context) }
+                        val isCertError = remember(errorMessage) {
+                            val m = errorMessage?.lowercase() ?: ""
+                            m.contains("certificate") || m.contains("hash") || m.contains("sha") || m.contains("cancelled")
+                        }
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = Color(0xFFFEE2E2),
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(
-                                errorMessage ?: "",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = Color(0xFFB91C1C),
+                            Column(
                                 modifier = Modifier.padding(10.dp),
-                                textAlign = TextAlign.Center
-                            )
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    errorMessage ?: "",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = Color(0xFFB91C1C),
+                                    textAlign = TextAlign.Center
+                                )
+                                if (isCertError && !installedSha1.isNullOrBlank()) {
+                                    Text(
+                                        "Pkg: ${context.packageName}\nAPK SHA-1: $installedSha1",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = Color(0xFF7F1D1D),
+                                        textAlign = TextAlign.Center
+                                    )
+                                    TextButton(
+                                        onClick = {
+                                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                            cm?.setPrimaryClip(ClipData.newPlainText("APK SHA-1", installedSha1))
+                                            Toast.makeText(context, "Copied APK SHA-1", Toast.LENGTH_SHORT).show()
+                                        },
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+                                        modifier = Modifier.testTag("copy_sha1_button")
+                                    ) {
+                                        Icon(
+                                            Icons.Rounded.ContentCopy,
+                                            contentDescription = "Copy APK SHA-1",
+                                            tint = Color(0xFF991B1B),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(Modifier.width(4.dp))
+                                        Text(
+                                            "Copy APK SHA-1",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = Color(0xFF991B1B),
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
 

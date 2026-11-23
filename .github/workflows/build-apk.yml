@@ -1,4 +1,4 @@
-name: Build & Download Take It Suite (4 Apps: Food, Ride, Transport, Admin)
+name: "Build & Download Take It Suite (Food, Ride, Transport, Admin)"
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-takeit-apks:
-    name: Build 4 Take It APKs (Food + Ride + Transport + Admin) & Auto Sync Firebase
+    name: "Build 4 Take It APKs (Food + Ride + Transport + Admin) & Auto Sync Firebase"
     runs-on: ubuntu-latest
 
     steps:
@@ -361,11 +361,12 @@ jobs:
               json.dump(data, f, indent=2)
 
           db_id = (os.environ.get("FIRESTORE_DB_ID") or "(default)").strip() or "(default)"
-          xml_content = f'''<?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="firestore_database_id" translatable="false">{db_id}</string>
-          </resources>
-          '''
+          xml_content = (
+              '<?xml version="1.0" encoding="utf-8"?>\n'
+              '<resources>\n'
+              f'    <string name="firestore_database_id" translatable="false">{db_id}</string>\n'
+              '</resources>\n'
+          )
           os.makedirs("app/src/main/res/values", exist_ok=True)
           with open("app/src/main/res/values/firebase_applet_config.xml", "w", encoding="utf-8") as f:
               f.write(xml_content)
@@ -621,11 +622,11 @@ jobs:
           path: release-apk/TakeIt-Admin.apk
           retention-days: 30
 
-      - name: Publish All 4 Take It APKs to Latest Release
+      - name: "Publish All 4 Take It APKs to Latest Release"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk
-          name: Take It Suite — 4 Standalone Apps (Food, Ride, Transport, Admin)
+          name: "Take It Suite - 4 Standalone Apps (Food, Ride, Transport, Admin)"
           body: |
             ### Download & Install All 4 Distinct Take It Apps Side-by-Side
             1. **TakeIt-Customer.apk** — Full **Take It Food Delivery** App (Animated Food Welcome, Zomato-grade UI, Sticky Payment Button, Live Tracking)

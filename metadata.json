@@ -1,6 +1,6 @@
 {
   "name": "Take It",
-  "description": "Take It — All-in-one hyperlocal super app combining bike taxi & cab rides, food delivery, instant grocery, parcel delivery, and goods transport with 9 switchable partner and admin panels.",
+  "description": "Take It — Production food delivery app paired with a real-time Executive Admin Command Center featuring Main Admin and permissioned Co-Admin controls.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

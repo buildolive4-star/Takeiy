@@ -2,28 +2,70 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Global safety net: default-deny everything not explicitly matched
+    // Default deny safety net
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // --- GLOBAL PRIMITIVES ---
+    // --- AUTH & ROLE PRIMITIVES ---
     function isSignedIn() {
       return request.auth != null;
     }
 
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+    function userEmail() {
+      return ('email' in request.auth.token && request.auth.token.email is string)
+        ? request.auth.token.email
+        : '';
     }
 
-    function isAdmin() {
-      return isSignedIn() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        ('email' in request.auth.token &&
-          'email_verified' in request.auth.token &&
-          request.auth.token.email == 'buildolive4@gmail.com' &&
-          request.auth.token.email_verified == true)
-      );
+    function isMainAdmin() {
+      return isSignedIn() &&
+        'email' in request.auth.token &&
+        'email_verified' in request.auth.token &&
+        request.auth.token.email == 'buildolive4@gmail.com' &&
+        request.auth.token.email_verified == true;
+    }
+
+    function coAdminDocExists() {
+      return isSignedIn() &&
+        userEmail() != '' &&
+        exists(/databases/$(database)/documents/takeit_co_admins/$(userEmail()));
+    }
+
+    function coAdminData() {
+      return get(/databases/$(database)/documents/takeit_co_admins/$(userEmail())).data;
+    }
+
+    function isActiveCoAdmin() {
+      return coAdminDocExists() && coAdminData().activeFlag == true;
+    }
+
+    function isStaff() {
+      return isMainAdmin() || isActiveCoAdmin();
+    }
+
+    function canManageOrders() {
+      return isMainAdmin() || (isActiveCoAdmin() && coAdminData().canManageOrders == true);
+    }
+
+    function canManageRestaurants() {
+      return isMainAdmin() || (isActiveCoAdmin() && coAdminData().canManageRestaurants == true);
+    }
+
+    function canManageCoupons() {
+      return isMainAdmin() || (isActiveCoAdmin() && coAdminData().canManageCoupons == true);
+    }
+
+    function canManageUsers() {
+      return isMainAdmin() || (isActiveCoAdmin() && coAdminData().canManageUsers == true);
+    }
+
+    function canManageSettings() {
+      return isMainAdmin() || (isActiveCoAdmin() && coAdminData().canManageSettings == true);
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
     function isValidId(id) {
@@ -42,48 +84,175 @@ service cloud.firestore {
       return ts is timestamp && ts <= request.time;
     }
 
-    // --- ENTITY VALIDATION BLUEPRINTS ---
-    function isValidUserProfile(data, userId) {
-      return data.userId is string && data.userId == userId &&
-        data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 80 &&
-        (!('userPhone' in data) || (data.userPhone is string && data.userPhone.size() <= 30)) &&
-        (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 120)) &&
-        (!('activeAddressLabel' in data) || (data.activeAddressLabel is string && data.activeAddressLabel.size() <= 80)) &&
-        (!('activeAddressLine' in data) || (data.activeAddressLine is string && data.activeAddressLine.size() <= 240)) &&
-        data.walletBalance is number && data.walletBalance >= 0 && data.walletBalance <= 1000000 &&
-        data.rewardPoints is int && data.rewardPoints >= 0 && data.rewardPoints <= 1000000 &&
-        data.activePanelName is string && data.activePanelName in [
-          'CUSTOMER', 'DRIVER_CAPTAIN', 'FOOD_DELIVERY_PARTNER', 'RESTAURANT_OWNER',
-          'GROCERY_OWNER', 'PARCEL_PARTNER', 'TRANSPORT_PARTNER', 'BUSINESS_OWNER', 'ADMIN'
-        ] &&
-        (!('driverOnline' in data) || data.driverOnline is bool) &&
-        (!('deliveryPartnerOnline' in data) || data.deliveryPartnerOnline is bool) &&
-        (!('language' in data) || (data.language is string && data.language.size() <= 40)) &&
-        (!('notificationsEnabled' in data) || data.notificationsEnabled is bool) &&
-        (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 500 && (data.avatarUrl == '' || data.avatarUrl.matches('^https://.*')))) &&
+    function isSafeImageUrl(url) {
+      return url is string && url.size() <= 600 && (url == '' || url.matches('^https://.*'));
+    }
+
+    // --- VALIDATION FUNCTIONS ---
+    function isValidConfig(data) {
+      return data.appName is string && data.appName.size() >= 1 && data.appName.size() <= 60 &&
+        data.cityName is string && data.cityName.size() >= 1 && data.cityName.size() <= 80 &&
+        (!('heroBannerTitle' in data) || (data.heroBannerTitle is string && data.heroBannerTitle.size() <= 120)) &&
+        (!('heroBannerSubtitle' in data) || (data.heroBannerSubtitle is string && data.heroBannerSubtitle.size() <= 180)) &&
+        (!('heroBannerCode' in data) || (data.heroBannerCode is string && data.heroBannerCode.size() <= 40)) &&
+        (!('lateNightTitle' in data) || (data.lateNightTitle is string && data.lateNightTitle.size() <= 120)) &&
+        (!('lateNightSubtitle' in data) || (data.lateNightSubtitle is string && data.lateNightSubtitle.size() <= 180)) &&
+        data.deliveryFee is int && data.deliveryFee >= 0 && data.deliveryFee <= 500 &&
+        data.platformFee is int && data.platformFee >= 0 && data.platformFee <= 200 &&
+        data.gstPercent is int && data.gstPercent >= 0 && data.gstPercent <= 28 &&
+        (!('freeDeliveryAbove' in data) || (data.freeDeliveryAbove is int && data.freeDeliveryAbove >= 0 && data.freeDeliveryAbove <= 50000)) &&
+        data.maintenanceMode is bool &&
+        data.acceptingOrders is bool &&
+        (!('supportPhone' in data) || (data.supportPhone is string && data.supportPhone.size() <= 40)) &&
+        (!('supportEmail' in data) || (data.supportEmail is string && data.supportEmail.size() <= 120)) &&
+        (!('announcementText' in data) || (data.announcementText is string && data.announcementText.size() <= 300)) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidCoAdmin(data, docEmail) {
+      return data.email is string && data.email == docEmail && data.email.size() >= 5 && data.email.size() <= 120 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+        data.roleTitle is string && data.roleTitle.size() >= 1 && data.roleTitle.size() <= 60 &&
+        data.passcode is string && data.passcode.size() >= 4 && data.passcode.size() <= 40 &&
+        data.activeFlag is bool &&
+        data.canManageOrders is bool &&
+        data.canManageRestaurants is bool &&
+        data.canManageCoupons is bool &&
+        data.canManageUsers is bool &&
+        data.canManageSettings is bool &&
+        data.createdBy is string && data.createdBy.size() <= 120 &&
         isValidTimestamp(data.createdAt) &&
         isValidTimestamp(data.updatedAt);
     }
 
-    function isValidOrder(data, userId) {
-      return data.userId is string && data.userId == userId &&
-        data.orderType is string && data.orderType in ['RIDE', 'FOOD', 'GROCERY', 'PARCEL', 'TRANSPORT', 'SHOPPING'] &&
-        data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
-        data.subtitle is string && data.subtitle.size() <= 240 &&
-        data.status is string && data.status in ['PENDING', 'ACCEPTED', 'PREPARING', 'ON_THE_WAY', 'COMPLETED', 'CANCELLED', 'REFUNDED'] &&
-        data.amount is number && data.amount >= 0 && data.amount <= 500000 &&
-        data.paymentMethod is string && data.paymentMethod.size() >= 1 && data.paymentMethod.size() <= 40 &&
-        data.pickupLocation is string && data.pickupLocation.size() <= 240 &&
-        data.dropLocation is string && data.dropLocation.size() <= 240 &&
+    function isValidRestaurant(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        data.cuisine is string && data.cuisine.size() >= 1 && data.cuisine.size() <= 120 &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+        data.rating is number && data.rating >= 0 && data.rating <= 5 &&
+        (!('ratingCount' in data) || (data.ratingCount is string && data.ratingCount.size() <= 40)) &&
+        data.deliveryTime is string && data.deliveryTime.size() >= 1 && data.deliveryTime.size() <= 40 &&
+        data.priceForTwo is int && data.priceForTwo >= 10 && data.priceForTwo <= 50000 &&
+        (!('offerTag' in data) || (data.offerTag is string && data.offerTag.size() <= 40)) &&
+        (!('offerCode' in data) || (data.offerCode is string && data.offerCode.size() <= 40)) &&
+        (!('address' in data) || (data.address is string && data.address.size() <= 240)) &&
+        (!('imageUrl' in data) || isSafeImageUrl(data.imageUrl)) &&
+        (!('pureVegFlag' in data) || data.pureVegFlag is bool) &&
+        (!('freeDeliveryFlag' in data) || data.freeDeliveryFlag is bool) &&
+        (!('verifiedFlag' in data) || data.verifiedFlag is bool) &&
+        data.openFlag is bool &&
+        (!('featuredFlag' in data) || data.featuredFlag is bool) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidMenuItem(data) {
+      return data.restaurantId is string && data.restaurantId.size() >= 1 && data.restaurantId.size() <= 128 &&
+        data.restaurantName is string && data.restaurantName.size() >= 1 && data.restaurantName.size() <= 100 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 300)) &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+        data.price is int && data.price >= 1 && data.price <= 50000 &&
+        (!('originalPrice' in data) || (data.originalPrice is int && data.originalPrice >= 0 && data.originalPrice <= 60000)) &&
+        data.vegFlag is bool &&
+        data.availableFlag is bool &&
+        data.bestsellerFlag is bool &&
+        data.rating is number && data.rating >= 0 && data.rating <= 5 &&
+        (!('imageUrl' in data) || isSafeImageUrl(data.imageUrl)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidCoupon(data) {
+      return data.code is string && data.code.size() >= 2 && data.code.size() <= 30 &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+        (!('description' in data) || (data.description is string && data.description.size() <= 240)) &&
+        data.discountType is string && data.discountType in ['PERCENT', 'FLAT'] &&
+        data.discountValue is int && data.discountValue >= 1 && data.discountValue <= 10000 &&
+        data.maxDiscount is int && data.maxDiscount >= 0 && data.maxDiscount <= 10000 &&
+        data.minOrderAmount is int && data.minOrderAmount >= 0 && data.minOrderAmount <= 50000 &&
+        data.activeFlag is bool &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidFoodOrder(data) {
+      return data.orderNumber is string && data.orderNumber.size() >= 2 && data.orderNumber.size() <= 40 &&
+        data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
+        (!('customerEmail' in data) || (data.customerEmail is string && data.customerEmail.size() <= 120)) &&
+        (!('customerPhone' in data) || (data.customerPhone is string && data.customerPhone.size() <= 30)) &&
+        data.restaurantId is string && data.restaurantId.size() >= 1 && data.restaurantId.size() <= 128 &&
+        data.restaurantName is string && data.restaurantName.size() >= 1 && data.restaurantName.size() <= 120 &&
+        data.itemsSummary is string && data.itemsSummary.size() >= 1 && data.itemsSummary.size() <= 500 &&
+        data.itemTotal is int && data.itemTotal >= 0 && data.itemTotal <= 500000 &&
+        (!('deliveryFee' in data) || (data.deliveryFee is int && data.deliveryFee >= 0 && data.deliveryFee <= 5000)) &&
+        (!('platformFee' in data) || (data.platformFee is int && data.platformFee >= 0 && data.platformFee <= 5000)) &&
+        (!('gstAmount' in data) || (data.gstAmount is int && data.gstAmount >= 0 && data.gstAmount <= 100000)) &&
+        (!('discountAmount' in data) || (data.discountAmount is int && data.discountAmount >= 0 && data.discountAmount <= 100000)) &&
+        (!('couponCode' in data) || (data.couponCode is string && data.couponCode.size() <= 40)) &&
+        data.totalAmount is int && data.totalAmount >= 0 && data.totalAmount <= 500000 &&
+        data.paymentMethod is string && data.paymentMethod in ['RAZORPAY', 'WALLET', 'COD', 'UPI'] &&
+        data.paymentStatus is string && data.paymentStatus in ['PAID', 'PENDING', 'REFUNDED'] &&
+        (!('paymentRef' in data) || (data.paymentRef is string && data.paymentRef.size() <= 120)) &&
+        data.deliveryAddress is string && data.deliveryAddress.size() >= 1 && data.deliveryAddress.size() <= 300 &&
+        data.status is string && data.status in ['PLACED', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'REFUNDED'] &&
+        (!('riderName' in data) || (data.riderName is string && data.riderName.size() <= 80)) &&
+        (!('riderPhone' in data) || (data.riderPhone is string && data.riderPhone.size() <= 30)) &&
+        (!('riderVehicle' in data) || (data.riderVehicle is string && data.riderVehicle.size() <= 40)) &&
+        (!('etaMinutes' in data) || (data.etaMinutes is int && data.etaMinutes >= 0 && data.etaMinutes <= 240)) &&
         data.otp is string && data.otp.size() <= 12 &&
-        data.partnerName is string && data.partnerName.size() <= 80 &&
         data.rating is int && data.rating >= 0 && data.rating <= 5 &&
+        (!('reviewText' in data) || (data.reviewText is string && data.reviewText.size() <= 400)) &&
         isValidTimestamp(data.createdAt) &&
         isValidTimestamp(data.updatedAt);
     }
 
-    function isTerminalOrderStatus(status) {
-      return status in ['COMPLETED', 'CANCELLED', 'REFUNDED'];
+    function isValidTakeItUser(data, userId) {
+      return data.userId is string && data.userId == userId &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 100 &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+        (!('avatarUrl' in data) || isSafeImageUrl(data.avatarUrl)) &&
+        (!('activeAddressLabel' in data) || (data.activeAddressLabel is string && data.activeAddressLabel.size() <= 80)) &&
+        (!('activeAddressLine' in data) || (data.activeAddressLine is string && data.activeAddressLine.size() <= 300)) &&
+        data.walletBalance is number && data.walletBalance >= 0 && data.walletBalance <= 1000000 &&
+        data.goldMemberFlag is bool &&
+        data.suspendedFlag is bool &&
+        (!('favoriteRestaurantIds' in data) || (data.favoriteRestaurantIds is list && data.favoriteRestaurantIds.size() <= 100)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidReview(data) {
+      return data.userId is string && data.userId == request.auth.uid &&
+        data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 80 &&
+        data.restaurantId is string && data.restaurantId.size() >= 1 && data.restaurantId.size() <= 128 &&
+        (!('orderId' in data) || (data.orderId is string && data.orderId.size() <= 128)) &&
+        data.rating is int && data.rating >= 1 && data.rating <= 5 &&
+        data.comment is string && data.comment.size() <= 400 &&
+        isValidTimestamp(data.createdAt);
+    }
+
+    function isValidSupportTicket(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.userName is string && data.userName.size() >= 1 && data.userName.size() <= 80 &&
+        (!('userEmail' in data) || (data.userEmail is string && data.userEmail.size() <= 120)) &&
+        data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 120 &&
+        data.message is string && data.message.size() >= 1 && data.message.size() <= 600 &&
+        data.status is string && data.status in ['OPEN', 'IN_PROGRESS', 'RESOLVED'] &&
+        (!('adminReply' in data) || (data.adminReply is string && data.adminReply.size() <= 600)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAddress(data, userId) {
+      return data.userId is string && data.userId == userId &&
+        data.label is string && data.label.size() >= 1 && data.label.size() <= 60 &&
+        data.fullAddress is string && data.fullAddress.size() >= 1 && data.fullAddress.size() <= 260 &&
+        (!('landmark' in data) || (data.landmark is string && data.landmark.size() <= 160)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
     }
 
     function isValidWalletTx(data, userId) {
@@ -95,287 +264,146 @@ service cloud.firestore {
         isValidTimestamp(data.createdAt);
     }
 
-    function isValidNotification(data, userId) {
-      return data.userId is string && data.userId == userId &&
-        data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
-        data.body is string && data.body.size() >= 1 && data.body.size() <= 400 &&
-        data.category is string && data.category.size() >= 1 && data.category.size() <= 40 &&
-        data.readFlag is bool &&
-        isValidTimestamp(data.createdAt) &&
-        isValidTimestamp(data.updatedAt);
+    // --- 1. CO-ADMINS REGISTRY (MAIN ADMIN ONLY WRITE, SELF-GET FOR PASSCODE CHECK) ---
+    match /takeit_co_admins/{coAdminEmail} {
+      allow get: if isMainAdmin() || (isSignedIn() && userEmail() == coAdminEmail);
+      allow list: if isMainAdmin();
+      allow create, update: if isMainAdmin() && isValidCoAdmin(incoming(), coAdminEmail);
+      allow delete: if isMainAdmin();
     }
 
-    function isValidMenuItem(data, userId) {
-      return data.userId is string && data.userId == userId &&
-        data.restaurantId is string && data.restaurantId.size() >= 1 && data.restaurantId.size() <= 60 &&
-        data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
-        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
-        data.description is string && data.description.size() <= 300 &&
-        data.price is int && data.price >= 1 && data.price <= 50000 &&
-        data.vegFlag is bool &&
-        data.availableFlag is bool &&
-        data.bestsellerFlag is bool &&
-        data.rating is number && data.rating >= 0 && data.rating <= 5 &&
-        (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 500 && (data.imageUrl == '' || data.imageUrl.matches('^https://.*')))) &&
-        isValidTimestamp(data.createdAt) &&
-        isValidTimestamp(data.updatedAt);
+    // --- 2. GLOBAL LIVE APP CONFIG ---
+    match /takeit_config/{configId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if canManageSettings() && isValidId(configId) && isValidConfig(incoming());
+      allow delete: if isMainAdmin();
     }
 
-    function isValidGroceryProduct(data, userId) {
-      return data.userId is string && data.userId == userId &&
-        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
-        data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
-        data.unit is string && data.unit.size() >= 1 && data.unit.size() <= 40 &&
-        data.price is int && data.price >= 1 && data.price <= 50000 &&
-        data.mrp is int && data.mrp >= 1 && data.mrp <= 60000 &&
-        data.stockCount is int && data.stockCount >= 0 && data.stockCount <= 100000 &&
-        data.badge is string && data.badge.size() <= 40 &&
-        (!('imageUrl' in data) || (data.imageUrl is string && data.imageUrl.size() <= 500 && (data.imageUrl == '' || data.imageUrl.matches('^https://.*')))) &&
-        isValidTimestamp(data.createdAt) &&
-        isValidTimestamp(data.updatedAt);
+    // --- 3. RESTAURANTS CATALOG ---
+    match /takeit_restaurants/{restaurantId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if canManageRestaurants() && isValidId(restaurantId) && isValidRestaurant(incoming());
+      allow delete: if canManageRestaurants();
     }
 
-    function isValidAddress(data, userId) {
-      return data.userId is string && data.userId == userId &&
-        data.label is string && data.label.size() >= 1 && data.label.size() <= 60 &&
-        data.fullAddress is string && data.fullAddress.size() >= 1 && data.fullAddress.size() <= 240 &&
-        data.landmark is string && data.landmark.size() <= 160 &&
-        (!('latitude' in data) || (data.latitude is number && data.latitude >= -90 && data.latitude <= 90)) &&
-        (!('longitude' in data) || (data.longitude is number && data.longitude >= -180 && data.longitude <= 180)) &&
-        isValidTimestamp(data.createdAt) &&
-        isValidTimestamp(data.updatedAt);
+    // --- 4. MENU ITEMS ---
+    match /takeit_menu_items/{itemId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if canManageRestaurants() && isValidId(itemId) && isValidMenuItem(incoming());
+      allow delete: if canManageRestaurants();
     }
 
-    // --- ADMINS REGISTRY (READ-ONLY SELF CHECK) ---
-    match /admins/{adminUid} {
-      allow get: if isSignedIn() && request.auth.uid == adminUid;
-      allow list, write: if false;
+    // --- 5. PROMO COUPONS ---
+    match /takeit_coupons/{couponId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if canManageCoupons() && isValidId(couponId) && isValidCoupon(incoming());
+      allow delete: if canManageCoupons();
     }
 
-    // --- USER PROFILE & PRIVATE SUBCOLLECTIONS ---
-    match /users/{userId} {
-      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
-      allow list: if isAdmin();
+    // --- 6. LIVE FOOD ORDERS ---
+    match /takeit_orders/{orderId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || canManageOrders() || isStaff());
+      allow list: if isSignedIn() && (canManageOrders() || isStaff() || resource.data.userId == request.auth.uid);
+
+      allow create: if isSignedIn() &&
+        isValidId(orderId) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'PLACED' &&
+        isValidFoodOrder(incoming());
+
+      allow update: if isSignedIn() &&
+        isValidId(orderId) &&
+        isValidFoodOrder(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          canManageOrders() ||
+          (
+            isOwner(existing().userId) &&
+            existing().status == 'DELIVERED' &&
+            incoming().status == 'DELIVERED' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'reviewText', 'updatedAt'])
+          ) ||
+          (
+            isOwner(existing().userId) &&
+            existing().status == 'PLACED' &&
+            incoming().status == 'CANCELLED' &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+
+      allow delete: if isMainAdmin();
+    }
+
+    // --- 7. REVIEWS ---
+    match /takeit_reviews/{reviewId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn() && isValidId(reviewId) && isValidReview(incoming());
+      allow update: if false;
+      allow delete: if isStaff() || (isSignedIn() && resource.data.userId == request.auth.uid);
+    }
+
+    // --- 8. SUPPORT TICKETS ---
+    match /takeit_support_tickets/{ticketId} {
+      allow get: if isSignedIn() && (isOwner(existing().userId) || isStaff());
+      allow list: if isSignedIn() && (isStaff() || resource.data.userId == request.auth.uid);
+
+      allow create: if isSignedIn() &&
+        isValidId(ticketId) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'OPEN' &&
+        isValidSupportTicket(incoming());
+
+      allow update: if isStaff() &&
+        isValidId(ticketId) &&
+        isValidSupportTicket(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt;
+
+      allow delete: if isMainAdmin();
+    }
+
+    // --- 9. CUSTOMER PROFILES & PRIVATE SUBCOLLECTIONS ---
+    match /takeit_users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || canManageUsers() || isStaff());
+      allow list: if canManageUsers() || isStaff();
 
       allow create: if isSignedIn() &&
         isValidId(userId) &&
         isOwner(userId) &&
-        incoming().keys().hasAll(['userId', 'userName', 'walletBalance', 'rewardPoints', 'activePanelName', 'createdAt', 'updatedAt']) &&
-        incoming().keys().hasOnly([
-          'userId', 'userName', 'userPhone', 'userEmail',
-          'activeAddressLabel', 'activeAddressLine',
-          'walletBalance', 'rewardPoints', 'activePanelName',
-          'driverOnline', 'deliveryPartnerOnline',
-          'language', 'notificationsEnabled', 'avatarUrl', 'createdAt', 'updatedAt'
-        ]) &&
-        isValidUserProfile(incoming(), userId);
+        incoming().suspendedFlag == false &&
+        isValidTakeItUser(incoming(), userId);
 
       allow update: if isSignedIn() &&
         isValidId(userId) &&
-        isValidUserProfile(incoming(), userId) &&
+        isValidTakeItUser(incoming(), userId) &&
         incoming().userId == existing().userId &&
         incoming().createdAt == existing().createdAt &&
         (
-          isAdmin() ||
+          canManageUsers() ||
           (
             isOwner(userId) &&
+            incoming().suspendedFlag == existing().suspendedFlag &&
             incoming().diff(existing()).affectedKeys().hasOnly([
-              'userName', 'userPhone', 'userEmail',
+              'name', 'email', 'phone', 'avatarUrl',
               'activeAddressLabel', 'activeAddressLine',
-              'walletBalance', 'rewardPoints', 'activePanelName',
-              'driverOnline', 'deliveryPartnerOnline',
-              'language', 'notificationsEnabled', 'avatarUrl', 'updatedAt'
+              'walletBalance', 'goldMemberFlag', 'favoriteRestaurantIds', 'updatedAt'
             ])
           )
         );
 
-      allow delete: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow delete: if isMainAdmin();
 
-      // Orders subcollection
-      match /orders/{orderId} {
-        allow get: if isSignedIn() && isValidId(orderId) && (isOwner(userId) || isAdmin());
-        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
-
-        allow create: if isSignedIn() &&
-          isValidId(orderId) &&
-          isOwner(userId) &&
-          incoming().keys().hasAll([
-            'userId', 'orderType', 'title', 'subtitle', 'status', 'amount',
-            'paymentMethod', 'pickupLocation', 'dropLocation', 'otp',
-            'partnerName', 'rating', 'createdAt', 'updatedAt'
-          ]) &&
-          incoming().keys().hasOnly([
-            'userId', 'orderType', 'title', 'subtitle', 'status', 'amount',
-            'paymentMethod', 'pickupLocation', 'dropLocation', 'otp',
-            'partnerName', 'rating', 'createdAt', 'updatedAt'
-          ]) &&
-          isValidOrder(incoming(), userId);
-
-        allow update: if isSignedIn() &&
-          isValidId(orderId) &&
-          isValidOrder(incoming(), userId) &&
-          incoming().userId == existing().userId &&
-          incoming().orderType == existing().orderType &&
-          incoming().createdAt == existing().createdAt &&
-          (
-            isAdmin() ||
-            (
-              isOwner(userId) &&
-              !isTerminalOrderStatus(existing().status) &&
-              incoming().diff(existing()).affectedKeys().hasOnly(['status', 'partnerName', 'rating', 'updatedAt'])
-            ) ||
-            (
-              isOwner(userId) &&
-              existing().status == 'COMPLETED' &&
-              incoming().status == 'COMPLETED' &&
-              incoming().diff(existing()).affectedKeys().hasOnly(['rating', 'updatedAt'])
-            )
-          );
-
-        allow delete: if isAdmin();
-      }
-
-      // Wallet Transactions subcollection (append-only ledger)
-      match /wallet_transactions/{txId} {
-        allow get: if isSignedIn() && isValidId(txId) && (isOwner(userId) || isAdmin());
-        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
-
-        allow create: if isSignedIn() &&
-          isValidId(txId) &&
-          isOwner(userId) &&
-          incoming().keys().hasAll(['userId', 'title', 'txType', 'amount', 'method', 'createdAt']) &&
-          incoming().keys().hasOnly(['userId', 'title', 'txType', 'amount', 'method', 'createdAt']) &&
-          isValidWalletTx(incoming(), userId);
-
-        allow update, delete: if isAdmin();
-      }
-
-      // Notifications subcollection
-      match /notifications/{notifId} {
-        allow get: if isSignedIn() && isValidId(notifId) && (isOwner(userId) || isAdmin());
-        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
-
-        allow create: if isSignedIn() &&
-          isValidId(notifId) &&
-          (isOwner(userId) || isAdmin()) &&
-          incoming().keys().hasAll(['userId', 'title', 'body', 'category', 'readFlag', 'createdAt', 'updatedAt']) &&
-          incoming().keys().hasOnly(['userId', 'title', 'body', 'category', 'readFlag', 'createdAt', 'updatedAt']) &&
-          isValidNotification(incoming(), userId);
-
-        allow update: if isSignedIn() &&
-          isValidId(notifId) &&
-          isValidNotification(incoming(), userId) &&
-          incoming().userId == existing().userId &&
-          incoming().createdAt == existing().createdAt &&
-          (
-            isAdmin() ||
-            (isOwner(userId) && incoming().diff(existing()).affectedKeys().hasOnly(['readFlag', 'updatedAt']))
-          );
-
-        allow delete: if isSignedIn() && isValidId(notifId) && (isOwner(userId) || isAdmin());
-      }
-
-      // Restaurant Owner Menu Items subcollection
-      match /menu_items/{itemId} {
-        allow get: if isSignedIn() && isValidId(itemId) && (isOwner(userId) || isAdmin());
-        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
-
-        allow create: if isSignedIn() &&
-          isValidId(itemId) &&
-          isOwner(userId) &&
-          incoming().keys().hasAll([
-            'userId', 'restaurantId', 'category', 'name', 'description',
-            'price', 'vegFlag', 'availableFlag', 'bestsellerFlag', 'rating',
-            'createdAt', 'updatedAt'
-          ]) &&
-          incoming().keys().hasOnly([
-            'userId', 'restaurantId', 'category', 'name', 'description',
-            'price', 'vegFlag', 'availableFlag', 'bestsellerFlag', 'rating',
-            'imageUrl', 'createdAt', 'updatedAt'
-          ]) &&
-          isValidMenuItem(incoming(), userId);
-
-        allow update: if isSignedIn() &&
-          isValidId(itemId) &&
-          isValidMenuItem(incoming(), userId) &&
-          incoming().userId == existing().userId &&
-          incoming().createdAt == existing().createdAt &&
-          (
-            isAdmin() ||
-            (
-              isOwner(userId) &&
-              incoming().diff(existing()).affectedKeys().hasOnly([
-                'restaurantId', 'category', 'name', 'description',
-                'price', 'vegFlag', 'availableFlag', 'bestsellerFlag', 'rating', 'imageUrl', 'updatedAt'
-              ])
-            )
-          );
-
-        allow delete: if isSignedIn() && isValidId(itemId) && (isOwner(userId) || isAdmin());
-      }
-
-      // Grocery Owner Products subcollection
-      match /grocery_products/{productId} {
-        allow get: if isSignedIn() && isValidId(productId) && (isOwner(userId) || isAdmin());
-        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
-
-        allow create: if isSignedIn() &&
-          isValidId(productId) &&
-          isOwner(userId) &&
-          incoming().keys().hasAll([
-            'userId', 'name', 'category', 'unit', 'price', 'mrp',
-            'stockCount', 'badge', 'createdAt', 'updatedAt'
-          ]) &&
-          incoming().keys().hasOnly([
-            'userId', 'name', 'category', 'unit', 'price', 'mrp',
-            'stockCount', 'badge', 'imageUrl', 'createdAt', 'updatedAt'
-          ]) &&
-          isValidGroceryProduct(incoming(), userId);
-
-        allow update: if isSignedIn() &&
-          isValidId(productId) &&
-          isValidGroceryProduct(incoming(), userId) &&
-          incoming().userId == existing().userId &&
-          incoming().createdAt == existing().createdAt &&
-          (
-            isAdmin() ||
-            (
-              isOwner(userId) &&
-              incoming().diff(existing()).affectedKeys().hasOnly([
-                'name', 'category', 'unit', 'price', 'mrp', 'stockCount', 'badge', 'imageUrl', 'updatedAt'
-              ])
-            )
-          );
-
-        allow delete: if isSignedIn() && isValidId(productId) && (isOwner(userId) || isAdmin());
-      }
-
-      // Saved Addresses subcollection
       match /addresses/{addressId} {
-        allow get: if isSignedIn() && isValidId(addressId) && (isOwner(userId) || isAdmin());
-        allow list: if isSignedIn() && (isOwner(userId) || isAdmin());
+        allow get, list: if isSignedIn() && (isOwner(userId) || isStaff());
+        allow create, update: if isSignedIn() && isValidId(addressId) && isOwner(userId) && isValidAddress(incoming(), userId);
+        allow delete: if isSignedIn() && (isOwner(userId) || isMainAdmin());
+      }
 
-        allow create: if isSignedIn() &&
-          isValidId(addressId) &&
-          isOwner(userId) &&
-          incoming().keys().hasAll(['userId', 'label', 'fullAddress', 'landmark', 'createdAt', 'updatedAt']) &&
-          incoming().keys().hasOnly(['userId', 'label', 'fullAddress', 'landmark', 'latitude', 'longitude', 'createdAt', 'updatedAt']) &&
-          isValidAddress(incoming(), userId);
-
-        allow update: if isSignedIn() &&
-          isValidId(addressId) &&
-          isValidAddress(incoming(), userId) &&
-          incoming().userId == existing().userId &&
-          incoming().createdAt == existing().createdAt &&
-          (
-            isAdmin() ||
-            (
-              isOwner(userId) &&
-              incoming().diff(existing()).affectedKeys().hasOnly(['label', 'fullAddress', 'landmark', 'latitude', 'longitude', 'updatedAt'])
-            )
-          );
-
-        allow delete: if isSignedIn() && isValidId(addressId) && (isOwner(userId) || isAdmin());
+      match /wallet_transactions/{txId} {
+        allow get, list: if isSignedIn() && (isOwner(userId) || isStaff());
+        allow create: if isSignedIn() && isValidId(txId) && (isOwner(userId) || canManageUsers()) && isValidWalletTx(incoming(), userId);
+        allow update, delete: if isMainAdmin();
       }
     }
   }

@@ -1,318 +1,260 @@
+const { describe, it, before, after, beforeEach } = require("node:test");
+const fs = require("node:fs");
 const {
   initializeTestEnvironment,
-  assertFails,
   assertSucceeds,
+  assertFails,
 } = require("@firebase/rules-unit-testing");
-const { test, before, after, beforeEach } = require("node:test");
-const fs = require("node:fs");
+
+const PROJECT_ID = "takeit-rules-test";
+const DB_ID = "ai-studio-android-takeit-078b58a0-a9d9-4953-b395-099ee3d666f2";
+const MAIN_ADMIN_EMAIL = "buildolive4@gmail.com";
+const CO_ADMIN_EMAIL = "manager@takeit.app";
 
 let testEnv;
-const PROJECT_ID = process.env.GCP_PROJECT || "demo-no-project";
-const ALICE_UID = "alice_uid_101";
-const BOB_UID = "bob_uid_202";
-const ADMIN_UID = "admin_uid_999";
 
-const [emulatorHost, emulatorPortStr] = (process.env.FIRESTORE_EMULATOR_HOST || "127.0.0.1:8085").split(":");
-const emulatorPort = parseInt(emulatorPortStr, 10);
-
-function pastTime(msAgo = 2000) {
-  return new Date(Date.now() - msAgo);
+function nowTs() {
+  return new Date(Date.now() - 1000);
 }
 
 before(async () => {
-  const rules = fs.readFileSync("./firestore.rules", "utf8");
   testEnv = await initializeTestEnvironment({
     projectId: PROJECT_ID,
     firestore: {
-      rules,
-      host: emulatorHost,
-      port: emulatorPort,
+      rules: fs.readFileSync("firestore.rules", "utf8"),
+      host: "127.0.0.1",
+      port: 8085,
     },
   });
+});
+
+beforeEach(async () => {
+  await testEnv.clearFirestore();
 });
 
 after(async () => {
   if (testEnv) await testEnv.cleanup();
 });
 
-beforeEach(async () => {
-  if (testEnv) await testEnv.clearFirestore();
-});
+function dbFor(uid, email = null, emailVerified = true) {
+  if (!uid) return testEnv.unauthenticatedContext().firestore(DB_ID);
+  const claims = email ? { email, email_verified: emailVerified } : {};
+  return testEnv.authenticatedContext(uid, claims).firestore(DB_ID);
+}
 
-test("Unauthenticated users cannot read or write any user profile or subcollection", async () => {
-  const unauthDb = testEnv.unauthenticatedContext().firestore();
-  await assertFails(unauthDb.collection("users").doc(ALICE_UID).get());
-  await assertFails(unauthDb.collection("users").doc(ALICE_UID).collection("orders").get());
-  await assertFails(
-    unauthDb.collection("users").doc(ALICE_UID).set({
-      userId: ALICE_UID,
-      userName: "Ghost",
-      walletBalance: 0,
-      rewardPoints: 0,
-      activePanelName: "CUSTOMER",
-      createdAt: pastTime(),
-      updatedAt: pastTime(),
-    })
-  );
-});
-
-test("Owner can create and update their own UserProfile; shadow fields & cross-user reads fail", async () => {
-  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
-  const now = pastTime(5000);
-
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).set({
-      userId: ALICE_UID,
-      userName: "Rohit Sharma",
-      userPhone: "+91 98765 43210",
-      userEmail: "rohit@takeit.app",
-      activeAddressLabel: "Sector 62, Noida",
-      activeAddressLine: "Sector 62, Noida • Electronic City",
-      walletBalance: 2450.0,
-      rewardPoints: 1280,
-      activePanelName: "CUSTOMER",
-      driverOnline: true,
-      deliveryPartnerOnline: true,
-      language: "English (India)",
-      notificationsEnabled: true,
-      createdAt: now,
-      updatedAt: now,
-    })
-  );
-
-  // Partial update allowed
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).update({
-      walletBalance: 2950.0,
-      updatedAt: pastTime(1000),
-    })
-  );
-
-  // Shadow update (ghost field `isAdmin`) must fail
-  await assertFails(
-    aliceDb.collection("users").doc(ALICE_UID).update({
-      isAdmin: true,
-      updatedAt: pastTime(500),
-    })
-  );
-
-  // Future timestamp rejected
-  await assertFails(
-    aliceDb.collection("users").doc(ALICE_UID).update({
-      userName: "Future User",
-      updatedAt: new Date(Date.now() + 60000),
-    })
-  );
-
-  // Cross-user read and write must fail
-  await assertFails(bobDb.collection("users").doc(ALICE_UID).get());
-  await assertFails(
-    bobDb.collection("users").doc(ALICE_UID).update({
-      walletBalance: 0,
-      updatedAt: pastTime(500),
-    })
-  );
-});
-
-test("Order lifecycle: create, status update, terminal lock on COMPLETED, and post-complete rating", async () => {
-  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
-  const created = pastTime(8000);
-
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).collection("orders").doc("ORD_1001").set({
-      userId: ALICE_UID,
-      orderType: "FOOD",
-      title: "Pizza World • 2 items",
-      subtitle: "Margherita + Garlic Bread",
-      status: "PREPARING",
-      amount: 241.0,
-      paymentMethod: "Wallet",
-      pickupLocation: "Pizza World, Noida",
-      dropLocation: "Sector 62, Noida",
-      otp: "4821",
-      partnerName: "Rahul Kumar",
-      rating: 0,
-      createdAt: created,
-      updatedAt: created,
-    })
-  );
-
-  // List own orders succeeds
-  await assertSucceeds(aliceDb.collection("users").doc(ALICE_UID).collection("orders").get());
-
-  // Cross-user list fails
-  await assertFails(bobDb.collection("users").doc(ALICE_UID).collection("orders").get());
-
-  // Transition to COMPLETED succeeds
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).collection("orders").doc("ORD_1001").update({
-      status: "COMPLETED",
-      updatedAt: pastTime(3000),
-    })
-  );
-
-  // Rating after COMPLETED succeeds
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).collection("orders").doc("ORD_1001").update({
-      rating: 5,
-      updatedAt: pastTime(2000),
-    })
-  );
-
-  // Re-opening a COMPLETED order back to PENDING must fail (terminal state lock)
-  await assertFails(
-    aliceDb.collection("users").doc(ALICE_UID).collection("orders").doc("ORD_1001").update({
-      status: "PENDING",
-      updatedAt: pastTime(1000),
-    })
-  );
-
-  // Including `@DocumentId` `id` field in create payload must fail
-  await assertFails(
-    aliceDb.collection("users").doc(ALICE_UID).collection("orders").doc("ORD_1002").set({
-      id: "ORD_1002",
-      userId: ALICE_UID,
-      orderType: "RIDE",
-      title: "Bike Taxi",
-      subtitle: "Fast",
-      status: "ON_THE_WAY",
-      amount: 49.0,
-      paymentMethod: "Cash",
-      pickupLocation: "A",
-      dropLocation: "B",
-      otp: "1234",
-      partnerName: "Rohit",
-      rating: 0,
-      createdAt: created,
-      updatedAt: created,
-    })
-  );
-});
-
-test("Wallet transactions are append-only; Menu, Grocery, Notifications, and Addresses enforce owner bounds", async () => {
-  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
-  const created = pastTime(5000);
-
-  // Wallet tx create succeeds, update/delete fail
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).collection("wallet_transactions").doc("TX_1").set({
-      userId: ALICE_UID,
-      title: "Wallet Top-up",
-      txType: "CREDIT",
-      amount: 500.0,
-      method: "UPI",
-      createdAt: created,
-    })
-  );
-  await assertFails(
-    aliceDb.collection("users").doc(ALICE_UID).collection("wallet_transactions").doc("TX_1").update({
-      amount: 99999.0,
-    })
-  );
-
-  // Menu item create & toggle availability
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).collection("menu_items").doc("m_1").set({
-      userId: ALICE_UID,
-      restaurantId: "r1",
-      category: "Pizza",
-      name: "Margherita Pizza",
-      description: "Classic mozzarella & basil",
-      price: 149,
-      vegFlag: true,
-      availableFlag: true,
-      bestsellerFlag: true,
-      rating: 4.6,
-      createdAt: created,
-      updatedAt: created,
-    })
-  );
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).collection("menu_items").doc("m_1").update({
-      availableFlag: false,
-      updatedAt: pastTime(1000),
-    })
-  );
-
-  // Grocery stock create & update
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).collection("grocery_products").doc("g_1").set({
-      userId: ALICE_UID,
-      name: "Fresh Apple",
-      category: "Fruits",
-      unit: "1 kg",
-      price: 69,
-      mrp: 90,
-      stockCount: 40,
-      badge: "Farm Fresh",
-      createdAt: created,
-      updatedAt: created,
-    })
-  );
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).collection("grocery_products").doc("g_1").update({
-      stockCount: 38,
-      updatedAt: pastTime(1000),
-    })
-  );
-
-  // Notification readFlag update
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).collection("notifications").doc("n_1").set({
-      userId: ALICE_UID,
-      title: "Order Confirmed",
-      body: "Your order is on the way",
-      category: "ORDER",
-      readFlag: false,
-      createdAt: created,
-      updatedAt: created,
-    })
-  );
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).collection("notifications").doc("n_1").update({
-      readFlag: true,
-      updatedAt: pastTime(1000),
-    })
-  );
-
-  // Saved GPS address create
-  await assertSucceeds(
-    aliceDb.collection("users").doc(ALICE_UID).collection("addresses").doc("addr_home").set({
-      userId: ALICE_UID,
-      label: "Home GPS",
-      fullAddress: "Sector 62, Noida, UP",
-      landmark: "Near Metro Gate 2",
-      latitude: 28.6279,
-      longitude: 77.3649,
-      createdAt: created,
-      updatedAt: created,
-    })
-  );
-});
-
-test("Email spoofing test: unverified admin email is rejected; verified admin email succeeds", async () => {
-  const created = pastTime(5000);
-  await testEnv.withSecurityRulesDisabled(async (ctx) => {
-    await ctx.firestore().collection("users").doc(ALICE_UID).set({
-      userId: ALICE_UID,
-      userName: "Alice",
-      walletBalance: 100,
-      rewardPoints: 10,
-      activePanelName: "CUSTOMER",
-      createdAt: created,
-      updatedAt: created,
-    });
+describe("Take It Food Delivery & Full-Control Admin Rules", () => {
+  it("denies all unauthenticated access", async () => {
+    const anon = dbFor(null);
+    await assertFails(anon.collection("takeit_restaurants").get());
+    await assertFails(anon.collection("takeit_config").doc("live").get());
+    await assertFails(anon.collection("takeit_co_admins").doc(CO_ADMIN_EMAIL).get());
   });
 
-  const spoofedAdminDb = testEnv
-    .authenticatedContext("spoof_uid", { email: "buildolive4@gmail.com", email_verified: false })
-    .firestore();
-  await assertFails(spoofedAdminDb.collection("users").doc(ALICE_UID).get());
+  it("allows ONLY Main Admin (buildolive4@gmail.com) to create/list Co-Admins", async () => {
+    const mainAdmin = dbFor("admin-1", MAIN_ADMIN_EMAIL, true);
+    const customer = dbFor("cust-1", "rohit@gmail.com", true);
+    const coAdmin = dbFor("staff-1", CO_ADMIN_EMAIL, true);
 
-  const realAdminDb = testEnv
-    .authenticatedContext(ADMIN_UID, { email: "buildolive4@gmail.com", email_verified: true })
-    .firestore();
-  await assertSucceeds(realAdminDb.collection("users").doc(ALICE_UID).get());
+    const coAdminPayload = {
+      email: CO_ADMIN_EMAIL,
+      name: "Amit Manager",
+      roleTitle: "Orders & Menu Lead",
+      passcode: "TAKEIT@2026",
+      activeFlag: true,
+      canManageOrders: true,
+      canManageRestaurants: true,
+      canManageCoupons: false,
+      canManageUsers: false,
+      canManageSettings: false,
+      createdBy: MAIN_ADMIN_EMAIL,
+      createdAt: nowTs(),
+      updatedAt: nowTs(),
+    };
+
+    await assertFails(customer.collection("takeit_co_admins").doc(CO_ADMIN_EMAIL).set(coAdminPayload));
+    await assertSucceeds(mainAdmin.collection("takeit_co_admins").doc(CO_ADMIN_EMAIL).set(coAdminPayload));
+    await assertSucceeds(mainAdmin.collection("takeit_co_admins").get());
+    await assertSucceeds(coAdmin.collection("takeit_co_admins").doc(CO_ADMIN_EMAIL).get());
+    await assertFails(coAdmin.collection("takeit_co_admins").get());
+    await assertFails(customer.collection("takeit_co_admins").doc(CO_ADMIN_EMAIL).get());
+  });
+
+  it("enforces granular Co-Admin permissions vs Customer restrictions on restaurants & coupons", async () => {
+    const mainAdmin = dbFor("admin-1", MAIN_ADMIN_EMAIL, true);
+    const coAdmin = dbFor("staff-1", CO_ADMIN_EMAIL, true);
+    const customer = dbFor("cust-1", "rohit@gmail.com", true);
+
+    await assertSucceeds(
+      mainAdmin.collection("takeit_co_admins").doc(CO_ADMIN_EMAIL).set({
+        email: CO_ADMIN_EMAIL,
+        name: "Menu Staff",
+        roleTitle: "Catalog Ops",
+        passcode: "PASS99",
+        activeFlag: true,
+        canManageOrders: true,
+        canManageRestaurants: true,
+        canManageCoupons: false,
+        canManageUsers: false,
+        canManageSettings: false,
+        createdBy: MAIN_ADMIN_EMAIL,
+        createdAt: nowTs(),
+        updatedAt: nowTs(),
+      })
+    );
+
+    const restData = {
+      name: "Pizza World",
+      cuisine: "Italian, Fast Food",
+      category: "Pizza",
+      rating: 4.5,
+      ratingCount: "10K+",
+      deliveryTime: "30 min",
+      priceForTwo: 199,
+      offerTag: "50% OFF",
+      offerCode: "FOOD50",
+      address: "Sector 62, Greater Noida",
+      imageUrl: "",
+      pureVegFlag: true,
+      freeDeliveryFlag: true,
+      verifiedFlag: true,
+      openFlag: true,
+      featuredFlag: true,
+      createdAt: nowTs(),
+      updatedAt: nowTs(),
+    };
+
+    // Customer cannot create restaurant, Co-Admin with permission CAN
+    await assertFails(customer.collection("takeit_restaurants").doc("rest_1").set(restData));
+    await assertSucceeds(coAdmin.collection("takeit_restaurants").doc("rest_1").set(restData));
+    await assertSucceeds(customer.collection("takeit_restaurants").get());
+
+    // Co-Admin without canManageCoupons CANNOT create coupon, Main Admin CAN
+    const couponData = {
+      code: "FOOD50",
+      title: "Flat 50% OFF",
+      description: "Up to Rs 120 off on orders above Rs 149",
+      discountType: "PERCENT",
+      discountValue: 50,
+      maxDiscount: 120,
+      minOrderAmount: 149,
+      activeFlag: true,
+      createdAt: nowTs(),
+      updatedAt: nowTs(),
+    };
+    await assertFails(coAdmin.collection("takeit_coupons").doc("cpn_1").set(couponData));
+    await assertSucceeds(mainAdmin.collection("takeit_coupons").doc("cpn_1").set(couponData));
+    await assertSucceeds(customer.collection("takeit_coupons").get());
+  });
+
+  it("enforces order creation by customer and live status updates by Admin/Co-Admin", async () => {
+    const mainAdmin = dbFor("admin-1", MAIN_ADMIN_EMAIL, true);
+    const custA = dbFor("cust-a", "a@gmail.com", true);
+    const custB = dbFor("cust-b", "b@gmail.com", true);
+
+    const orderData = {
+      orderNumber: "TK-1001",
+      userId: "cust-a",
+      customerName: "Rohit Sharma",
+      customerEmail: "a@gmail.com",
+      customerPhone: "+91 9876543210",
+      restaurantId: "rest_1",
+      restaurantName: "Pizza World",
+      itemsSummary: "1x Margherita Pizza, 1x Garlic Bread",
+      itemTotal: 248,
+      deliveryFee: 20,
+      platformFee: 5,
+      gstAmount: 18,
+      discountAmount: 50,
+      couponCode: "FOOD50",
+      totalAmount: 241,
+      paymentMethod: "RAZORPAY",
+      paymentStatus: "PAID",
+      paymentRef: "pay_123",
+      deliveryAddress: "Sector 62, Greater Noida",
+      status: "PLACED",
+      riderName: "Assigning...",
+      riderPhone: "",
+      riderVehicle: "",
+      etaMinutes: 25,
+      otp: "4829",
+      rating: 0,
+      reviewText: "",
+      createdAt: nowTs(),
+      updatedAt: nowTs(),
+    };
+
+    await assertSucceeds(custA.collection("takeit_orders").doc("ord_1").set(orderData));
+    await assertFails(custB.collection("takeit_orders").doc("ord_1").get());
+    await assertSucceeds(custA.collection("takeit_orders").where("userId", "==", "cust-a").get());
+
+    // Customer cannot self-approve to DELIVERED, Admin CAN
+    await assertFails(
+      custA.collection("takeit_orders").doc("ord_1").update({
+        status: "DELIVERED",
+        updatedAt: nowTs(),
+      })
+    );
+    await assertSucceeds(
+      mainAdmin.collection("takeit_orders").doc("ord_1").update({
+        status: "OUT_FOR_DELIVERY",
+        riderName: "Rahul Kumar",
+        riderVehicle: "DL01AB1234",
+        etaMinutes: 18,
+        updatedAt: nowTs(),
+      })
+    );
+    await assertSucceeds(
+      mainAdmin.collection("takeit_orders").doc("ord_1").update({
+        status: "DELIVERED",
+        etaMinutes: 0,
+        updatedAt: nowTs(),
+      })
+    );
+    // Customer can rate after DELIVERED
+    await assertSucceeds(
+      custA.collection("takeit_orders").doc("ord_1").update({
+        rating: 5,
+        reviewText: "Hot and delicious!",
+        updatedAt: nowTs(),
+      })
+    );
+  });
+
+  it("isolates customer profiles and lets Admin manage users", async () => {
+    const mainAdmin = dbFor("admin-1", MAIN_ADMIN_EMAIL, true);
+    const custA = dbFor("cust-a", "a@gmail.com", true);
+    const custB = dbFor("cust-b", "b@gmail.com", true);
+
+    await assertSucceeds(
+      custA.collection("takeit_users").doc("cust-a").set({
+        userId: "cust-a",
+        name: "Rohit Sharma",
+        email: "a@gmail.com",
+        phone: "+91 9876543210",
+        avatarUrl: "",
+        activeAddressLabel: "Home",
+        activeAddressLine: "Sector 62, Greater Noida",
+        walletBalance: 250,
+        goldMemberFlag: true,
+        suspendedFlag: false,
+        favoriteRestaurantIds: [],
+        createdAt: nowTs(),
+        updatedAt: nowTs(),
+      })
+    );
+
+    await assertFails(custB.collection("takeit_users").doc("cust-a").get());
+    await assertFails(
+      custA.collection("takeit_users").doc("cust-a").update({
+        suspendedFlag: true,
+        updatedAt: nowTs(),
+      })
+    );
+    await assertSucceeds(
+      mainAdmin.collection("takeit_users").doc("cust-a").update({
+        walletBalance: 500,
+        updatedAt: nowTs(),
+      })
+    );
+  });
 });

@@ -1,4 +1,4 @@
-name: Build & Download All 7 Take It APKs
+name: Build & Download Take It (Customer + Admin APKs)
 
 on:
   push:
@@ -9,8 +9,8 @@ permissions:
   contents: write
 
 jobs:
-  build-7-apks:
-    name: Build 7 Take It APKs + Auto Deploy Client Firebase Rules
+  build-takeit-apks:
+    name: Build Take It Customer & Admin APKs + Auto Sync Firebase
     runs-on: ubuntu-latest
 
     steps:
@@ -436,120 +436,55 @@ jobs:
             echo "PEXELS_API_KEY secret not set; using offline fallback placeholder."
           fi
 
-      - name: Build All 7 Separate Installable APKs
+      - name: Build Both Standalone APKs (Take It Customer & Take It Admin)
         run: |
           mkdir -p release-apk
           APP_ID_ARG=""
           if [ -n "$CLIENT_APP_ID" ]; then
             APP_ID_ARG="-PtakeItAppId=$CLIENT_APP_ID"
-            echo "Building all 7 APKs with Client Firebase Package Name: $CLIENT_APP_ID"
+            echo "Building both Take It APKs with Client Firebase Package Name: $CLIENT_APP_ID"
           fi
 
-          echo "=== [1/7] Building TakeIt-SuperApp.apk (Full Super App + Admin + Partners) ==="
-          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=SUPERAPP -PtakeItAppLabel="Take It" --no-daemon --stacktrace
-          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-SuperApp.apk
+          echo "=== [1/2] Building TakeIt-Customer.apk (Take It Food Delivery Customer App) ==="
+          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=CUSTOMER -PtakeItAppLabel="Take It" --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Customer.apk
 
-          echo "=== [2/7] Building TakeIt-Ride.apk (Dedicated Ride Booking) ==="
-          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=RIDE -PtakeItAppLabel="Take It Ride" --no-daemon --stacktrace
-          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Ride.apk
-
-          echo "=== [3/7] Building TakeIt-Food.apk (Dedicated Food Delivery) ==="
-          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=FOOD -PtakeItAppLabel="Take It Food" --no-daemon --stacktrace
-          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Food.apk
-
-          echo "=== [4/7] Building TakeIt-Grocery.apk (Dedicated Instant Grocery) ==="
-          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=GROCERY -PtakeItAppLabel="Take It Grocery" --no-daemon --stacktrace
-          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Grocery.apk
-
-          echo "=== [5/7] Building TakeIt-Parcel.apk (Dedicated Parcel Delivery) ==="
-          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=PARCEL -PtakeItAppLabel="Take It Parcel" --no-daemon --stacktrace
-          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Parcel.apk
-
-          echo "=== [6/7] Building TakeIt-Transport.apk (Dedicated Goods Transport) ==="
-          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=TRANSPORT -PtakeItAppLabel="Take It Transport" --no-daemon --stacktrace
-          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Transport.apk
-
-          echo "=== [7/7] Building TakeIt-Shopping.apk (Dedicated Local Shopping) ==="
-          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=SHOPPING -PtakeItAppLabel="Take It Shopping" --no-daemon --stacktrace
-          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Shopping.apk
+          echo "=== [2/2] Building TakeIt-Admin.apk (Take It Executive Admin Command Center) ==="
+          gradle :app:assembleDebug $APP_ID_ARG -PtakeItAppMode=ADMIN -PtakeItAppLabel="Take It Admin" --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Admin.apk
 
           ls -lh release-apk/
 
-      - name: Upload 1/7 TakeIt-SuperApp.apk
+      - name: Upload 1/2 TakeIt-Customer.apk
         uses: actions/upload-artifact@v4
         with:
-          name: 1-TakeIt-SuperApp-APK
-          path: release-apk/TakeIt-SuperApp.apk
+          name: 1-TakeIt-Customer-APK
+          path: release-apk/TakeIt-Customer.apk
           retention-days: 30
 
-      - name: Upload 2/7 TakeIt-Ride.apk
+      - name: Upload 2/2 TakeIt-Admin.apk
         uses: actions/upload-artifact@v4
         with:
-          name: 2-TakeIt-Ride-APK
-          path: release-apk/TakeIt-Ride.apk
+          name: 2-TakeIt-Admin-APK
+          path: release-apk/TakeIt-Admin.apk
           retention-days: 30
 
-      - name: Upload 3/7 TakeIt-Food.apk
-        uses: actions/upload-artifact@v4
-        with:
-          name: 3-TakeIt-Food-APK
-          path: release-apk/TakeIt-Food.apk
-          retention-days: 30
-
-      - name: Upload 4/7 TakeIt-Grocery.apk
-        uses: actions/upload-artifact@v4
-        with:
-          name: 4-TakeIt-Grocery-APK
-          path: release-apk/TakeIt-Grocery.apk
-          retention-days: 30
-
-      - name: Upload 5/7 TakeIt-Parcel.apk
-        uses: actions/upload-artifact@v4
-        with:
-          name: 5-TakeIt-Parcel-APK
-          path: release-apk/TakeIt-Parcel.apk
-          retention-days: 30
-
-      - name: Upload 6/7 TakeIt-Transport.apk
-        uses: actions/upload-artifact@v4
-        with:
-          name: 6-TakeIt-Transport-APK
-          path: release-apk/TakeIt-Transport.apk
-          retention-days: 30
-
-      - name: Upload 7/7 TakeIt-Shopping.apk
-        uses: actions/upload-artifact@v4
-        with:
-          name: 7-TakeIt-Shopping-APK
-          path: release-apk/TakeIt-Shopping.apk
-          retention-days: 30
-
-      - name: Publish All 7 Downloadable APKs to Latest Release
+      - name: Publish Both Take It APKs to Latest Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk
-          name: Take It Suite — All 7 Standalone APKs
+          name: Take It — Customer & Executive Admin APKs
           body: |
-            ### Download & Install All 7 Take It APKs
-            1. **TakeIt-SuperApp.apk** — Complete Super App (Customer + Admin + Restaurant + Grocery + Driver + Delivery Panels)
-            2. **TakeIt-Ride.apk** — Dedicated Ride Booking App (Bike, Auto, Cab)
-            3. **TakeIt-Food.apk** — Dedicated Food Delivery App
-            4. **TakeIt-Grocery.apk** — Dedicated Instant Grocery App
-            5. **TakeIt-Parcel.apk** — Dedicated Parcel Delivery App
-            6. **TakeIt-Transport.apk** — Dedicated Goods Transport App
-            7. **TakeIt-Shopping.apk** — Dedicated Local Shopping App
+            ### Download & Install Take It (2 Distinct Synced Apps)
+            1. **TakeIt-Customer.apk** — Full Zomato-grade **Take It** Food Delivery App (Live Restaurants, Dishes, Cart, Razorpay/Wallet/COD, Live Map Tracking, Reviews, Support)
+            2. **TakeIt-Admin.apk** — Distinct Obsidian/Gold **Take It Executive Admin Command Center** (`buildolive4@gmail.com` Main Admin + Co-Admin Password & Permission System, Live Order Dispatch, ImgBB Photo Uploads, Coupons, Users, Razorpay Ledger, Global Controls)
 
-            - Connected automatically to Client Firebase + auto-deployed Firestore Security Rules
+            - Connected automatically to Client Firebase with auto-registered APK SHA-1/SHA-256 & auto-deployed Firestore Security Rules
             - Chrome Razorpay Checkout connected to `https://jaiambey.shop/takeit-pay`
-            - Isolated Take It-only Razorpay Ledger inside Admin Panel
+            - Isolated Take It-only Razorpay Ledger inside Admin Command Center
             - Built automatically on commit `${{ github.sha }}`
           files: |
-            release-apk/TakeIt-SuperApp.apk
-            release-apk/TakeIt-Ride.apk
-            release-apk/TakeIt-Food.apk
-            release-apk/TakeIt-Grocery.apk
-            release-apk/TakeIt-Parcel.apk
-            release-apk/TakeIt-Transport.apk
-            release-apk/TakeIt-Shopping.apk
+            release-apk/TakeIt-Customer.apk
+            release-apk/TakeIt-Admin.apk
           make_latest: true
         continue-on-error: true

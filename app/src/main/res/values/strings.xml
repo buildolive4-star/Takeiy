@@ -1,11 +1,10 @@
 <resources>
     <string name="app_name">Take It</string>
-    <string name="tagline">Everything You Need in One App!</string>
-    <string name="sub_tagline">Ride • Eat • Shop • Deliver</string>
-    <string name="search_placeholder">Search rides, food, groceries, parcels...</string>
+    <string name="tagline">Delicious Food, Delivered Happiness</string>
+    <string name="sub_tagline">Fresh Meals • Live Tracking • Fast Delivery</string>
+    <string name="search_placeholder">Search for restaurants, cuisines, dishes...</string>
     <string name="delivering_to">Delivering to</string>
     <string name="change_location">Change</string>
-    <string name="explore_services">Explore Services</string>
-    <string name="switch_your_mode">SWITCH YOUR MODE</string>
-    <string name="prototype_notice">Simulated Prototype Mode</string>
+    <string name="explore_services">Explore Cuisines</string>
+    <string name="switch_your_mode">ADMIN COMMAND CENTER</string>
 </resources>

@@ -10,40 +10,46 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.credentials.CredentialManager
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.firebase.TakeItAuthScreen
 import com.example.firebase.signOutFromTakeIt
-import com.example.model.AppPanel
-import com.example.model.AppRoute
-import com.example.model.TakeItBuildConfig
 import com.example.network.PaymentDeepLinkResult
 import com.example.network.TakeItPaymentBus
-import com.example.ui.components.*
-import com.example.ui.screens.admin.AdminPanelScreen
-import com.example.ui.screens.customer.*
-import com.example.ui.screens.partners.*
-import com.example.ui.screens.shared.*
-import com.example.ui.theme.DeepNavy
-import com.example.ui.theme.PremiumYellow
-import com.example.ui.theme.ZiporaTheme
-import com.example.viewmodel.SuperAppViewModel
+import com.example.takeit.model.*
+import com.example.takeit.theme.*
+import com.example.takeit.ui.admin.AdminCommandCenterRoot
+import com.example.takeit.ui.auth.TakeItFoodAuthScreen
+import com.example.takeit.ui.auth.TakeItFoodSplashScreen
+import com.example.takeit.ui.customer.*
+import com.example.takeit.viewmodel.TakeItUiState
+import com.example.takeit.viewmodel.TakeItViewModel
 import com.google.firebase.Firebase
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,11 +92,12 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun TakeItAppEntryPoint() {
+    val variant = remember { TakeItAppVariant.fromBuildConfig() }
     var showSplash by remember { mutableStateOf(true) }
     var currentUser by remember { mutableStateOf(Firebase.auth.currentUser) }
 
     LaunchedEffect(Unit) {
-        delay(1500)
+        delay(1400)
         showSplash = false
     }
 
@@ -102,18 +109,20 @@ fun TakeItAppEntryPoint() {
         onDispose { Firebase.auth.removeAuthStateListener(listener) }
     }
 
-    ZiporaTheme(darkTheme = false) {
+    val isAdminApp = variant == TakeItAppVariant.ADMIN
+
+    val content: @Composable () -> Unit = {
         when {
-            showSplash -> AnimatedSplashScreen(onSkip = { showSplash = false })
-            currentUser == null -> TakeItAuthScreen(
+            showSplash -> TakeItFoodSplashScreen(variant = variant)
+            currentUser == null -> TakeItFoodAuthScreen(
+                variant = variant,
                 onAuthSuccess = { currentUser = Firebase.auth.currentUser }
             )
             else -> {
                 val user = currentUser!!
                 val uid = user.uid
-                // Strictly key authenticated subtree & ViewModel by UID so account switch disposes old listeners
                 key(uid) {
-                    AuthenticatedTakeItRoot(
+                    AuthenticatedTakeItShell(
                         uid = uid,
                         displayName = user.displayName.orEmpty(),
                         email = user.email.orEmpty(),
@@ -123,24 +132,29 @@ fun TakeItAppEntryPoint() {
             }
         }
     }
+
+    if (isAdminApp) {
+        TakeItAdminTheme(content = content)
+    } else {
+        TakeItCustomerTheme(content = content)
+    }
 }
 
 @Composable
-private fun AuthenticatedTakeItRoot(
+private fun AuthenticatedTakeItShell(
     uid: String,
     displayName: String,
     email: String,
-    viewModel: SuperAppViewModel
+    viewModel: TakeItViewModel
 ) {
     val context = LocalContext.current
     val credentialManager = remember(context) { CredentialManager.create(context) }
-    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(uid) {
-        viewModel.attachCloudSession(uid = uid, displayName = displayName, email = email)
+        viewModel.attachSession(uid = uid, displayName = displayName, email = email)
     }
 
     LaunchedEffect(uiState.snackbarMessage) {
@@ -150,288 +164,332 @@ private fun AuthenticatedTakeItRoot(
         }
     }
 
-    // System Back Button handling for Drawer and nested routes
-    BackHandler(enabled = drawerState.isOpen || uiState.backStack.size > 1) {
-        if (drawerState.isOpen) {
-            scope.launch { drawerState.close() }
-        } else {
-            viewModel.navigateBack()
-        }
+    val handleSignOut: () -> Unit = {
+        signOutFromTakeIt(
+            credentialManager = credentialManager,
+            scope = scope,
+            onBeforeAuthSignOut = { viewModel.detachSession() }
+        )
     }
 
-    ZiporaTheme(darkTheme = uiState.activePanel.isDarkTheme) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            ModalNavigationDrawer(
-                drawerState = drawerState,
-                gesturesEnabled = uiState.backStack.size <= 1,
-                drawerContent = {
-                    UniversalPanelDrawerContent(
-                        appState = uiState.appState,
-                        activePanel = uiState.activePanel,
-                        unreadNotifications = uiState.unreadNotificationCount,
-                        onSelectPanel = { panel -> viewModel.requestPanelSwitch(panel) },
-                        onNavigate = { route -> viewModel.navigateTo(route) },
-                        onCloseDrawer = { scope.launch { drawerState.close() } },
-                        onLogoutDemo = {
-                            signOutFromTakeIt(
-                                credentialManager = credentialManager,
-                                scope = scope,
-                                onBeforeAuthSignOut = { viewModel.detachCloudSession() }
-                            )
-                        }
+    if (uiState.isInAdminMode) {
+        BackHandler(enabled = uiState.appVariant == TakeItAppVariant.CUSTOMER) {
+            viewModel.exitAdminMode()
+        }
+        TakeItAdminTheme {
+            Box(modifier = Modifier.fillMaxSize()) {
+                AdminCommandCenterRoot(
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    onSignOut = handleSignOut
+                )
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(12.dp)
+                ) { data ->
+                    Snackbar(
+                        snackbarData = data,
+                        containerColor = AdminGold,
+                        contentColor = AdminBg
                     )
                 }
-            ) {
-                val openDrawer: () -> Unit = { scope.launch { drawerState.open() } }
+            }
+        }
+    } else {
+        TakeItCustomerTheme {
+            Box(modifier = Modifier.fillMaxSize()) {
+                if (uiState.config.maintenanceMode && !uiState.isMainAdmin && uiState.adminRole != AdminRole.CO_ADMIN) {
+                    CustomerMaintenanceScreen(
+                        config = uiState.config,
+                        onSignOut = handleSignOut
+                    )
+                } else {
+                    CustomerAppRoot(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        onSignOut = handleSignOut
+                    )
+                }
 
-                AnimatedContent(
-                    targetState = Pair(uiState.activePanel, uiState.currentRoute),
-                    transitionSpec = { fadeIn() togetherWith fadeOut() },
-                    label = "takeItRouter"
-                ) { (panel, route) ->
-                    when (route) {
-                        AppRoute.PanelHome -> {
-                            when (panel) {
-                                AppPanel.CUSTOMER -> CustomerHomeScreen(
-                                    uiState = uiState,
-                                    onOpenDrawer = openDrawer,
-                                    onNavigate = viewModel::navigateTo,
-                                    onSelectAddress = viewModel::selectAddress,
-                                    onSaveGpsLocation = viewModel::saveGpsLocation,
-                                    onAddSearch = viewModel::addSearchQuery,
-                                    onToggleFavourite = viewModel::toggleFavouriteRestaurant,
-                                    onShowMessage = viewModel::showMessage
-                                )
-                                AppPanel.DRIVER_CAPTAIN -> DriverCaptainPanelScreen(
-                                    uiState = uiState,
-                                    onOpenDrawer = openDrawer,
-                                    onToggleOnline = viewModel::toggleDriverOnline,
-                                    onToggleService = viewModel::toggleDriverService,
-                                    onNextRequest = viewModel::nextDriverRequest,
-                                    onNavigate = viewModel::navigateTo,
-                                    onShowMessage = viewModel::showMessage
-                                )
-                                AppPanel.FOOD_DELIVERY_PARTNER -> FoodDeliveryPartnerPanelScreen(
-                                    uiState = uiState,
-                                    onOpenDrawer = openDrawer,
-                                    onToggleOnline = viewModel::toggleDeliveryPartnerOnline,
-                                    onNextDelivery = viewModel::nextFoodDeliveryJob,
-                                    onShowMessage = viewModel::showMessage
-                                )
-                                AppPanel.RESTAURANT_OWNER -> RestaurantOwnerPanelScreen(
-                                    uiState = uiState,
-                                    onOpenDrawer = openDrawer,
-                                    onUpdateOrderStatus = viewModel::updateOrderStatus,
-                                    onAddOrUpdateDish = viewModel::addOrUpdateMenuItem,
-                                    onToggleDishAvailable = viewModel::toggleMenuItemAvailability,
-                                    onShowMessage = viewModel::showMessage
-                                )
-                                AppPanel.GROCERY_OWNER -> GroceryOwnerPanelScreen(
-                                    uiState = uiState,
-                                    onOpenDrawer = openDrawer,
-                                    onUpdateOrderStatus = viewModel::updateOrderStatus,
-                                    onAdjustStock = viewModel::adjustGroceryStock,
-                                    onAddProduct = viewModel::addOrUpdateGroceryProduct,
-                                    onShowMessage = viewModel::showMessage
-                                )
-                                AppPanel.PARCEL_PARTNER, AppPanel.TRANSPORT_PARTNER -> ParcelTransportPartnerPanelScreen(
-                                    panel = panel,
-                                    uiState = uiState,
-                                    onOpenDrawer = openDrawer,
-                                    onNextJob = viewModel::nextParcelJob,
-                                    onShowMessage = viewModel::showMessage
-                                )
-                                AppPanel.BUSINESS_OWNER -> BusinessOwnerPanelScreen(
-                                    uiState = uiState,
-                                    onOpenDrawer = openDrawer,
-                                    onNavigate = viewModel::navigateTo,
-                                    onShowMessage = viewModel::showMessage
-                                )
-                                AppPanel.ADMIN -> AdminPanelScreen(
-                                    uiState = uiState,
-                                    onOpenDrawer = openDrawer,
-                                    onLockAdmin = viewModel::revokeAdminAccess,
-                                    onToggleVerifyUser = viewModel::toggleUserVerification,
-                                    onToggleSuspendUser = viewModel::toggleUserSuspension,
-                                    onRefundOrder = viewModel::refundOrder,
-                                    onCompleteOrder = { id -> viewModel.updateOrderStatus(id, "COMPLETED") },
-                                    onUpdateConfig = viewModel::updateAdminConfig,
-                                    onSendBroadcast = viewModel::sendAdminBroadcast
-                                )
-                            }
+                SnackbarHost(
+                    hostState = snackbarHostState,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(bottom = 78.dp, start = 14.dp, end = 14.dp)
+                ) { data ->
+                    Snackbar(
+                        snackbarData = data,
+                        containerColor = TakeItInk,
+                        contentColor = Color.White
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CustomerAppRoot(
+    uiState: TakeItUiState,
+    viewModel: TakeItViewModel,
+    onSignOut: () -> Unit
+) {
+    BackHandler(enabled = uiState.customerBackStack.size > 1) {
+        viewModel.navigateCustomerBack()
+    }
+
+    val showBottomBar = uiState.currentCustomerScreen == CustomerScreen.MainTabs
+
+    Scaffold(
+        containerColor = TakeItBg,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = {
+            if (showBottomBar) {
+                NavigationBar(
+                    containerColor = Color.White,
+                    tonalElevation = 8.dp
+                ) {
+                    CustomerTab.entries.forEach { tab ->
+                        val selected = uiState.customerTab == tab
+                        val icon = when (tab) {
+                            CustomerTab.HOME -> Icons.Rounded.Home
+                            CustomerTab.ORDERS -> Icons.Rounded.ReceiptLong
+                            CustomerTab.OFFERS -> Icons.Rounded.LocalOffer
+                            CustomerTab.ACCOUNT -> Icons.Rounded.Person
                         }
-
-                        AppRoute.RideBooking -> RideBookingScreen(
-                            uiState = uiState,
-                            onBack = { if (uiState.backStack.size <= 1) openDrawer() else viewModel.navigateBack() },
-                            onRecordRide = { title, sub, amt, pay, pick, drop, otp, driver, onCreated ->
-                                viewModel.recordServiceOrder("RIDE", title, sub, amt, pay, pick, drop, otp, driver, "ON_THE_WAY", onCreated)
+                        NavigationBarItem(
+                            selected = selected,
+                            onClick = { viewModel.selectCustomerTab(tab) },
+                            icon = {
+                                Icon(icon, contentDescription = tab.label)
                             },
-                            onCompleteRide = { id -> viewModel.updateOrderStatus(id, "COMPLETED") },
-                            onRateRide = viewModel::rateOrder,
-                            onShowMessage = viewModel::showMessage
-                        )
-
-                        AppRoute.FoodDiscovery -> FoodDiscoveryScreen(
-                            uiState = uiState,
-                            onBack = { if (uiState.backStack.size <= 1) openDrawer() else viewModel.navigateBack() },
-                            onOpenRestaurant = { id -> viewModel.navigateTo(AppRoute.RestaurantDetail(id)) },
-                            onToggleFavourite = viewModel::toggleFavouriteRestaurant,
-                            onOpenCart = { viewModel.navigateTo(AppRoute.CartCheckout) }
-                        )
-
-                        is AppRoute.RestaurantDetail -> RestaurantDetailScreen(
-                            restaurantId = route.restaurantId,
-                            uiState = uiState,
-                            onBack = { viewModel.navigateBack() },
-                            onAddToCart = viewModel::addToCart,
-                            onUpdateCartQty = viewModel::updateCartQuantity,
-                            onToggleFavourite = viewModel::toggleFavouriteRestaurant,
-                            onOpenCart = { viewModel.navigateTo(AppRoute.CartCheckout) }
-                        )
-
-                        AppRoute.GroceryStore -> GroceryScreen(
-                            uiState = uiState,
-                            onBack = { if (uiState.backStack.size <= 1) openDrawer() else viewModel.navigateBack() },
-                            onAddToCart = viewModel::addToCart,
-                            onUpdateQty = viewModel::updateCartQuantity,
-                            onOpenCart = { viewModel.navigateTo(AppRoute.CartCheckout) }
-                        )
-
-                        AppRoute.ParcelDelivery -> ParcelDeliveryScreen(
-                            uiState = uiState,
-                            onBack = { if (uiState.backStack.size <= 1) openDrawer() else viewModel.navigateBack() },
-                            onBookParcel = { title, sub, amt, pay, pick, drop, otp, partner, onCreated ->
-                                viewModel.recordServiceOrder("PARCEL", title, sub, amt, pay, pick, drop, otp, partner, "ON_THE_WAY", onCreated)
+                            label = {
+                                Text(
+                                    tab.label,
+                                    fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium
+                                )
                             },
-                            onCompleteOrder = { id -> viewModel.updateOrderStatus(id, "COMPLETED") },
-                            onShowMessage = viewModel::showMessage
-                        )
-
-                        AppRoute.GoodsTransport -> GoodsTransportScreen(
-                            uiState = uiState,
-                            onBack = { if (uiState.backStack.size <= 1) openDrawer() else viewModel.navigateBack() },
-                            onBookTransport = { title, sub, amt, pay, pick, drop, otp, partner, onCreated ->
-                                viewModel.recordServiceOrder("TRANSPORT", title, sub, amt, pay, pick, drop, otp, partner, "ON_THE_WAY", onCreated)
-                            }
-                        )
-
-                        AppRoute.LocalShopping -> LocalShoppingScreen(
-                            uiState = uiState,
-                            onBack = { if (uiState.backStack.size <= 1) openDrawer() else viewModel.navigateBack() },
-                            onAddToCart = viewModel::addToCart,
-                            onOpenCart = { viewModel.navigateTo(AppRoute.CartCheckout) }
-                        )
-
-                        AppRoute.CartCheckout -> CartCheckoutScreen(
-                            uiState = uiState,
-                            onBack = { viewModel.navigateBack() },
-                            onUpdateQty = viewModel::updateCartQuantity,
-                            onApplyCoupon = viewModel::applyCoupon,
-                            onPlaceOrder = viewModel::placeCartOrder,
-                            onOrderPlacedSuccess = {
-                                viewModel.resetToHome()
-                                viewModel.navigateTo(AppRoute.OrderHistory("ALL"))
-                            },
-                            onShowMessage = viewModel::showMessage
-                        )
-
-                        AppRoute.Wallet -> WalletScreen(
-                            uiState = uiState,
-                            onBack = { viewModel.navigateBack() },
-                            onTopUp = viewModel::topUpWallet,
-                            onShowMessage = viewModel::showMessage
-                        )
-
-                        AppRoute.Notifications -> NotificationsScreen(
-                            uiState = uiState,
-                            onBack = { viewModel.navigateBack() },
-                            onMarkAllRead = viewModel::markAllNotificationsRead
-                        )
-
-                        AppRoute.Profile -> ProfileScreen(
-                            uiState = uiState,
-                            onBack = { viewModel.navigateBack() },
-                            onSaveProfile = viewModel::updateProfile,
-                            onSelectLanguage = viewModel::updateLanguage,
-                            onToggleNotifications = viewModel::toggleNotificationsEnabled,
-                            onAvatarUploaded = viewModel::updateProfileAvatarUrl,
-                            onShowMessage = viewModel::showMessage
-                        )
-
-                        is AppRoute.OrderHistory -> OrderHistoryScreen(
-                            initialFilter = route.filterType,
-                            uiState = uiState,
-                            onBack = { viewModel.navigateBack() },
-                            onRateOrder = viewModel::rateOrder,
-                            onRepeatOrder = { type ->
-                                val target = when (type.uppercase()) {
-                                    "RIDE" -> AppRoute.RideBooking
-                                    "FOOD" -> AppRoute.FoodDiscovery
-                                    "GROCERY" -> AppRoute.GroceryStore
-                                    "PARCEL" -> AppRoute.ParcelDelivery
-                                    "TRANSPORT" -> AppRoute.GoodsTransport
-                                    else -> AppRoute.LocalShopping
-                                }
-                                viewModel.navigateTo(target)
-                            }
-                        )
-
-                        AppRoute.CouponsOffers -> CouponsOffersScreen(
-                            onBack = { viewModel.navigateBack() },
-                            onApplyCoupon = { c ->
-                                viewModel.applyCoupon(c)
-                                viewModel.navigateBack()
-                            }
-                        )
-
-                        AppRoute.ReferEarn -> ReferEarnScreen(
-                            onBack = { viewModel.navigateBack() },
-                            onClaimSimulatedBonus = {
-                                viewModel.topUpWallet(250.0, "Referral Bonus", false)
-                            }
-                        )
-
-                        AppRoute.Support -> CustomerSupportScreen(
-                            onBack = { viewModel.navigateBack() },
-                            onSubmitTicket = {
-                                viewModel.showMessage("Support ticket raised & logged to cloud!")
-                            }
-                        )
-
-                        is AppRoute.InfoPage -> InfoPageScreen(
-                            title = route.title,
-                            body = route.body,
-                            onBack = { viewModel.navigateBack() }
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = TakeItRed,
+                                selectedTextColor = TakeItRed,
+                                indicatorColor = Color(0xFFFFE4E6),
+                                unselectedIconColor = TakeItMuted,
+                                unselectedTextColor = TakeItMuted
+                            ),
+                            modifier = Modifier.testTag("customer_nav_${tab.name.lowercase()}")
                         )
                     }
                 }
             }
+        }
+    ) { innerPadding ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(bottom = innerPadding.calculateBottomPadding())
+        ) {
+            AnimatedContent(
+                targetState = uiState.currentCustomerScreen,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "takeItCustomerNav"
+            ) { screen ->
+                when (screen) {
+                    CustomerScreen.MainTabs -> {
+                        when (uiState.customerTab) {
+                            CustomerTab.HOME -> CustomerHomeTab(
+                                uiState = uiState,
+                                onSearchChange = viewModel::updateSearchQuery,
+                                onOpenRestaurants = { cat ->
+                                    viewModel.navigateCustomer(CustomerScreen.RestaurantsList(cat))
+                                },
+                                onOpenRestaurantDetail = { id ->
+                                    viewModel.navigateCustomer(CustomerScreen.RestaurantDetail(id))
+                                },
+                                onToggleFavorite = viewModel::toggleFavoriteRestaurant,
+                                onOpenAddresses = { viewModel.navigateCustomer(CustomerScreen.Addresses) },
+                                onOpenCart = { viewModel.navigateCustomer(CustomerScreen.Cart) },
+                                onOpenTrackOrder = { orderId ->
+                                    viewModel.navigateCustomer(CustomerScreen.TrackOrder(orderId))
+                                },
+                                onOpenOffersTab = { viewModel.selectCustomerTab(CustomerTab.OFFERS) }
+                            )
+                            CustomerTab.ORDERS -> CustomerOrdersTab(
+                                uiState = uiState,
+                                onOpenTrack = { orderId ->
+                                    viewModel.navigateCustomer(CustomerScreen.TrackOrder(orderId))
+                                },
+                                onOpenDelivered = { orderId ->
+                                    viewModel.navigateCustomer(CustomerScreen.OrderDelivered(orderId))
+                                }
+                            )
+                            CustomerTab.OFFERS -> CustomerOffersTab(
+                                uiState = uiState,
+                                onApplyCouponAndOpenCart = { coupon ->
+                                    viewModel.applyCoupon(coupon)
+                                    if (uiState.cart.isNotEmpty()) {
+                                        viewModel.navigateCustomer(CustomerScreen.Cart)
+                                    } else {
+                                        viewModel.navigateCustomer(CustomerScreen.RestaurantsList("All"))
+                                    }
+                                }
+                            )
+                            CustomerTab.ACCOUNT -> CustomerAccountTab(
+                                uiState = uiState,
+                                onUpdateProfile = viewModel::updateCustomerPhoneAndName,
+                                onOpenAddresses = { viewModel.navigateCustomer(CustomerScreen.Addresses) },
+                                onOpenWallet = { viewModel.navigateCustomer(CustomerScreen.Wallet) },
+                                onOpenSupport = { viewModel.navigateCustomer(CustomerScreen.Support) },
+                                onOpenAbout = { viewModel.navigateCustomer(CustomerScreen.About) },
+                                onOpenOrdersTab = { viewModel.selectCustomerTab(CustomerTab.ORDERS) },
+                                onEnterAdminCommandCenter = { viewModel.enterAdminMode() },
+                                onSignOut = onSignOut
+                            )
+                        }
+                    }
 
-            // Global Snackbar
-            SnackbarHost(
-                hostState = snackbarHostState,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
-                    .padding(12.dp)
-            ) { data ->
-                Snackbar(
-                    snackbarData = data,
-                    containerColor = DeepNavy,
-                    contentColor = PremiumYellow
-                )
+                    is CustomerScreen.RestaurantsList -> RestaurantsListScreen(
+                        initialCategory = screen.initialCategory,
+                        uiState = uiState,
+                        onBack = viewModel::navigateCustomerBack,
+                        onOpenRestaurantDetail = { id ->
+                            viewModel.navigateCustomer(CustomerScreen.RestaurantDetail(id))
+                        },
+                        onToggleFavorite = viewModel::toggleFavoriteRestaurant
+                    )
+
+                    is CustomerScreen.RestaurantDetail -> RestaurantDetailScreen(
+                        restaurantId = screen.restaurantId,
+                        uiState = uiState,
+                        onBack = viewModel::navigateCustomerBack,
+                        onAddToCart = viewModel::addToCart,
+                        onUpdateCartQty = viewModel::updateCartQuantity,
+                        onToggleFavorite = viewModel::toggleFavoriteRestaurant,
+                        onOpenCart = { viewModel.navigateCustomer(CustomerScreen.Cart) }
+                    )
+
+                    CustomerScreen.Cart -> CustomerCartScreen(
+                        uiState = uiState,
+                        onBack = viewModel::navigateCustomerBack,
+                        onUpdateQty = viewModel::updateCartQuantity,
+                        onClearCart = viewModel::clearCart,
+                        onApplyCoupon = viewModel::applyCoupon,
+                        onRemoveCoupon = viewModel::removeCoupon,
+                        onOpenAddresses = { viewModel.navigateCustomer(CustomerScreen.Addresses) },
+                        onPlaceOrder = viewModel::placeFoodOrder,
+                        onOrderCreated = { newOrderId ->
+                            viewModel.resetCustomerHome()
+                            viewModel.navigateCustomer(CustomerScreen.TrackOrder(newOrderId))
+                        },
+                        onShowMessage = viewModel::showMessage
+                    )
+
+                    is CustomerScreen.TrackOrder -> TrackOrderScreen(
+                        orderId = screen.orderId,
+                        uiState = uiState,
+                        onBack = viewModel::navigateCustomerBack,
+                        onCancelOrder = viewModel::cancelMyOrder,
+                        onOrderDelivered = { deliveredId ->
+                            viewModel.navigateCustomerBack()
+                            viewModel.navigateCustomer(CustomerScreen.OrderDelivered(deliveredId))
+                        }
+                    )
+
+                    is CustomerScreen.OrderDelivered -> OrderDeliveredCelebrationScreen(
+                        orderId = screen.orderId,
+                        uiState = uiState,
+                        onSubmitReview = viewModel::submitOrderReview,
+                        onGoHome = viewModel::resetCustomerHome
+                    )
+
+                    CustomerScreen.Addresses -> CustomerAddressesScreen(
+                        uiState = uiState,
+                        onBack = viewModel::navigateCustomerBack,
+                        onSaveAddress = viewModel::saveAddress,
+                        onSelectAddress = viewModel::selectActiveAddress,
+                        onDeleteAddress = viewModel::deleteAddress
+                    )
+
+                    CustomerScreen.Wallet -> CustomerWalletScreen(
+                        uiState = uiState,
+                        onBack = viewModel::navigateCustomerBack,
+                        onTopUpConfirmed = viewModel::recordWalletTopUp,
+                        onShowMessage = viewModel::showMessage
+                    )
+
+                    CustomerScreen.Support -> CustomerSupportScreen(
+                        uiState = uiState,
+                        onBack = viewModel::navigateCustomerBack,
+                        onSubmitTicket = viewModel::createSupportTicket
+                    )
+
+                    CustomerScreen.About -> CustomerAboutScreen(
+                        uiState = uiState,
+                        onBack = viewModel::navigateCustomerBack
+                    )
+                }
             }
+        }
+    }
+}
 
-            // Confetti Overlay
-            ConfettiCelebrationOverlay(visible = uiState.showConfetti)
-
-            // Admin Authorization Gate
-            if (uiState.showAdminGate) {
-                AdminAuthorizationDialog(
-                    onDismiss = viewModel::dismissAdminGate,
-                    onVerify = viewModel::verifyAdminPasscode
+@Composable
+private fun CustomerMaintenanceScreen(
+    config: TakeItAppConfig,
+    onSignOut: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(TakeItBg)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, TakeItBorder),
+            shadowElevation = 6.dp,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.logo_takeit_food),
+                    contentDescription = "Take It Logo",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .size(88.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, TakeItRed, CircleShape)
                 )
+                Icon(Icons.Rounded.Engineering, null, tint = TakeItOrange, modifier = Modifier.size(40.dp))
+                Text(
+                    "Take It is Under Maintenance",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.ExtraBold,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "Our kitchens & delivery systems are getting an upgrade. We'll be back online shortly!\nSupport: ${config.supportPhone}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TakeItMuted,
+                    textAlign = TextAlign.Center
+                )
+                OutlinedButton(
+                    onClick = onSignOut,
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Sign Out", color = TakeItRed, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

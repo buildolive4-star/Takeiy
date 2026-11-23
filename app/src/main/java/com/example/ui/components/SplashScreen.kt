@@ -6,10 +6,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -19,164 +18,170 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.ui.theme.*
-import kotlin.math.cos
-import kotlin.math.sin
 
 @Composable
 fun AnimatedSplashScreen(onSkip: () -> Unit) {
-    var revealed by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { revealed = true }
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { started = true }
 
     val logoScale by animateFloatAsState(
-        targetValue = if (revealed) 1f else 0.45f,
+        targetValue = if (started) 1f else 0.72f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
         label = "logoScale"
     )
-    val logoRotationY by animateFloatAsState(
-        targetValue = if (revealed) 0f else -38f,
-        animationSpec = tween(900, easing = FastOutSlowInEasing),
-        label = "logoTilt"
-    )
     val contentAlpha by animateFloatAsState(
-        targetValue = if (revealed) 1f else 0f,
-        animationSpec = tween(750, delayMillis = 250),
-        label = "alpha"
+        targetValue = if (started) 1f else 0f,
+        animationSpec = tween(650),
+        label = "contentAlpha"
     )
-    val infinite = rememberInfiniteTransition(label = "orbit")
-    val orbitAngle by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(tween(9000, easing = LinearEasing)),
-        label = "orbitAngle"
-    )
-    val pulse by infinite.animateFloat(
-        initialValue = 0.94f,
-        targetValue = 1.08f,
-        animationSpec = infiniteRepeatable(tween(1300, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pulse"
-    )
-
-    val orbitIcons = listOf(
-        Icons.Rounded.TwoWheeler to PremiumYellow,
-        Icons.Rounded.LunchDining to OrangeAccent,
-        Icons.Rounded.ShoppingBasket to SuccessGreen,
-        Icons.Rounded.LocalShipping to SkyBlue,
-        Icons.Rounded.Inventory2 to VioletAccent
+    val loadingProgress by animateFloatAsState(
+        targetValue = if (started) 0.94f else 0.12f,
+        animationSpec = tween(durationMillis = 1900, easing = FastOutSlowInEasing),
+        label = "loadingBar"
     )
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(DeepNavyLight, DeepNavy, DarkBackground),
-                    radius = 1200f
-                )
-            )
-            .clickable { onSkip() },
-        contentAlignment = Alignment.Center
+            .background(Color(0xFF0A4DA2))
+            .clickable { onSkip() }
     ) {
-        // Orbiting 3D-style service orbs
+        // Full-bleed 3D Pixar-style Take It Hyperlocal Street Scene
+        Image(
+            painter = painterResource(id = R.drawable.img_takeit_splash_1795427329280),
+            contentDescription = "Take It 3D Super App Splash Scene",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop
+        )
+
+        // Top Sky Scrim for crisp logo readability
         Box(
-            modifier = Modifier.size(270.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            // Subtle orbital ring
-            Box(
-                modifier = Modifier
-                    .size(230.dp)
-                    .scale(pulse)
-                    .border(1.5.dp, SkyBlue.copy(alpha = 0.22f), CircleShape)
-            )
-
-            orbitIcons.forEachIndexed { idx, (icon, color) ->
-                val angleRad = Math.toRadians((orbitAngle + idx * 72f).toDouble())
-                val offsetX = (cos(angleRad) * 112.0).dp
-                val offsetY = (sin(angleRad) * 112.0).dp
-                Box(
-                    modifier = Modifier
-                        .offset(x = offsetX, y = offsetY)
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(DarkCardSurface.copy(alpha = 0.9f))
-                        .border(1.2.dp, color.copy(alpha = 0.7f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
-                }
-            }
-
-            // Center 3D Logo Emblem
-            Box(
-                modifier = Modifier
-                    .size(124.dp)
-                    .scale(logoScale)
-                    .graphicsLayer {
-                        rotationY = logoRotationY
-                        cameraDistance = 12f * density
-                    }
-                    .clip(RoundedCornerShape(34.dp))
-                    .background(DeepNavy)
-                    .border(
-                        width = 2.5.dp,
-                        brush = Brush.linearGradient(listOf(SkyBlue, PremiumYellow)),
-                        shape = RoundedCornerShape(34.dp)
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.img_launcher_zipora_1795421416651),
-                    contentDescription = "Zipora 3D Brand Emblem",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(280.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xD90A4DA2),
+                            Color(0x991D6FD6),
+                            Color.Transparent
+                        )
+                    )
                 )
-            }
-        }
+        )
 
-        Column(
+        // Bottom Deep Navy Scrim for Golden Loading Bar
+        Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .navigationBarsPadding()
-                .padding(bottom = 58.dp)
+                .fillMaxWidth()
+                .height(190.dp)
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Transparent,
+                            Color(0xCC071B3E),
+                            Color(0xF5071B3E)
+                        )
+                    )
+                )
+        )
+
+        // Top Brand Emblem + "Take It" Wordmark + Subtitle
+        Column(
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .statusBarsPadding()
+                .padding(top = 42.dp)
+                .scale(logoScale)
                 .alpha(contentAlpha),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "ZIPORA",
-                style = MaterialTheme.typography.displayLarge.copy(letterSpacing = 6.sp),
-                color = SoftWhite
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "Ride • Eat • Shop • Deliver • Move",
-                style = MaterialTheme.typography.titleSmall,
-                color = SkyBlue
-            )
-            Spacer(modifier = Modifier.height(14.dp))
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(50))
-                    .background(SoftWhite.copy(alpha = 0.1f))
-                    .border(1.dp, SkyBlue.copy(alpha = 0.35f), RoundedCornerShape(50))
-                    .padding(horizontal = 16.dp, vertical = 6.dp)
+                    .size(72.dp)
+                    .shadow(16.dp, RoundedCornerShape(22.dp), ambientColor = PremiumYellow, spotColor = PremiumYellow)
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Brush.linearGradient(listOf(Color(0xFF0B2559), Color(0xFF1D4ED8))))
+                    .border(2.2.dp, Brush.linearGradient(listOf(PremiumYellow, SoftWhite)), RoundedCornerShape(22.dp)),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "HYPERLOCAL SUPER ECOSYSTEM",
-                    style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.5.sp),
-                    color = PremiumYellow,
-                    fontWeight = FontWeight.Bold
+                Icon(
+                    imageVector = Icons.Rounded.Bolt,
+                    contentDescription = "Take It Logo",
+                    tint = PremiumYellow,
+                    modifier = Modifier.size(44.dp)
                 )
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = buildAnnotatedString {
+                    withStyle(SpanStyle(color = SoftWhite, fontWeight = FontWeight.ExtraBold)) {
+                        append("Take ")
+                    }
+                    withStyle(SpanStyle(color = PremiumYellow, fontWeight = FontWeight.ExtraBold)) {
+                        append("It")
+                    }
+                },
+                style = MaterialTheme.typography.displayLarge.copy(fontSize = 42.sp, letterSpacing = (-0.5).sp)
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "One App. Endless Possibilities.",
+                style = MaterialTheme.typography.titleMedium,
+                color = SoftWhite.copy(alpha = 0.96f),
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        // Bottom Golden Pill Loading Progress Bar
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 36.dp, vertical = 34.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(SoftWhite.copy(alpha = 0.25f))
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(loadingProgress)
+                        .fillMaxHeight()
+                        .clip(RoundedCornerShape(50))
+                        .background(Brush.horizontalGradient(listOf(PremiumYellow, Color(0xFFF59E0B), PremiumYellow)))
+                )
+            }
+            Text(
+                text = "Loading...",
+                style = MaterialTheme.typography.titleSmall,
+                color = SoftWhite.copy(alpha = 0.94f),
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }

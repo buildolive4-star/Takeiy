@@ -1,5 +1,6 @@
 package com.example.ui.screens.customer
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -7,17 +8,23 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -28,6 +35,11 @@ import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.viewmodel.SuperAppUiState
 
+private val LogisticsRoyalStart = Color(0xFF1D4ED8)
+private val LogisticsRoyalEnd = Color(0xFF2563EB)
+private val LogisticsSkyBg = Color(0xFFEFF6FF)
+private val LogisticsYellowCta = Color(0xFFFFD43B)
+
 @Composable
 fun ParcelDeliveryScreen(
     uiState: SuperAppUiState,
@@ -36,204 +48,15 @@ fun ParcelDeliveryScreen(
     onCompleteOrder: (String) -> Unit,
     onShowMessage: (String) -> Unit
 ) {
-    var pickup by remember { mutableStateOf("Indiranagar 100ft Rd") }
-    var drop by remember { mutableStateOf("Koramangala WeWork Galaxy") }
-    var senderName by remember { mutableStateOf(uiState.appState.userName) }
-    var senderPhone by remember { mutableStateOf(uiState.appState.userPhone) }
-    var receiverName by remember { mutableStateOf("Vikram Nair") }
-    var receiverPhone by remember { mutableStateOf("+91 98200 44112") }
-    var parcelType by remember { mutableStateOf("Documents") }
-    var sizeOption by remember { mutableStateOf("Small (Up to 2 kg)") }
-    var dimensions by remember { mutableStateOf("30 × 20 × 12 cm") }
-    var instructions by remember { mutableStateOf("Hand over at reception desk") }
-    var isScheduled by remember { mutableStateOf(false) }
-    var bookedOrderId by remember { mutableStateOf<String?>(null) }
-    var deliveredProof by remember { mutableStateOf(false) }
-
-    val pickupOtp = "3418"
-    val deliveryOtp = "7925"
-    val fare = when {
-        sizeOption.startsWith("Small") -> 89
-        sizeOption.startsWith("Medium") -> 139
-        else -> 199
-    } + if (isScheduled) 0 else 20
-
-    Scaffold(
-        containerColor = LightSkyBackground,
-        topBar = {
-            ZiporaSubTopBar(
-                title = "Express Parcel Delivery",
-                subtitle = "Door-to-door OTP secured courier",
-                onBack = onBack
-            )
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-            contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 32.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // 3D Porter Mover Hero Strip
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(Brush.linearGradient(listOf(DeepNavy, SkyBlueDark)))
-                        .padding(14.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Character3DPortrait(
-                        drawableRes = R.drawable.img_char_porter_mover_1795426024294,
-                        contentDescription = "3D Parcel Courier Character",
-                        borderColor = PremiumYellow,
-                        size = 76.dp
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text("OTP-SECURED COURIER", style = MaterialTheme.typography.labelSmall, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
-                        Text("Send Anything Across City", style = MaterialTheme.typography.titleMedium, color = SoftWhite, fontWeight = FontWeight.ExtraBold)
-                        Text("Live GPS tracking • Dual Pickup & Drop OTP Shield", style = MaterialTheme.typography.bodySmall, color = RideCardStart)
-                    }
-                }
-            }
-
-            if (bookedOrderId != null) {
-                item {
-                    SimulatedMapCanvas(
-                        modifier = Modifier.fillMaxWidth().height(210.dp),
-                        pickupLabel = pickup,
-                        dropLabel = drop,
-                        distanceKm = 6.4,
-                        etaMinutes = 19,
-                        driverProgress = -1f
-                    )
-                }
-                item {
-                    Surface(shape = RoundedCornerShape(22.dp), color = DeepNavy) {
-                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Character3DPortrait(
-                                        drawableRes = R.drawable.img_char_porter_mover_1795426024294,
-                                        contentDescription = "Partner Manoj Singh",
-                                        borderColor = SkyBlue,
-                                        size = 48.dp,
-                                        bobbing = false
-                                    )
-                                    Spacer(Modifier.width(10.dp))
-                                    Column {
-                                        Text("Parcel $bookedOrderId", style = MaterialTheme.typography.titleMedium, color = SoftWhite)
-                                        Text("Manoj Singh • $dimensions", style = MaterialTheme.typography.labelSmall, color = SkyBlue)
-                                    }
-                                }
-                                StatusPill(if (deliveredProof) "DELIVERED" else "ON_THE_WAY")
-                            }
-                            Text("$parcelType ($sizeOption) • To $receiverName ($receiverPhone)", style = MaterialTheme.typography.bodySmall, color = RideCardStart)
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(DarkCardElevated).padding(10.dp)) {
-                                    Column {
-                                        Text("Pickup OTP", style = MaterialTheme.typography.labelSmall, color = SkyBlue)
-                                        Text(pickupOtp, style = MaterialTheme.typography.titleLarge, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
-                                    }
-                                }
-                                Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(DarkCardElevated).padding(10.dp)) {
-                                    Column {
-                                        Text("Delivery OTP", style = MaterialTheme.typography.labelSmall, color = SkyBlue)
-                                        Text(deliveryOtp, style = MaterialTheme.typography.titleLarge, color = SuccessGreen, fontWeight = FontWeight.ExtraBold)
-                                    }
-                                }
-                            }
-                            if (!deliveredProof) {
-                                Button(
-                                    onClick = {
-                                        deliveredProof = true
-                                        bookedOrderId?.let { onCompleteOrder(it) }
-                                        onShowMessage("Proof of Delivery verified with OTP $deliveryOtp!")
-                                    },
-                                    modifier = Modifier.fillMaxWidth().height(48.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen, contentColor = SoftWhite)
-                                ) {
-                                    Text("Simulate Delivery & Proof of Delivery", fontWeight = FontWeight.Bold)
-                                }
-                            } else {
-                                Surface(shape = RoundedCornerShape(14.dp), color = SuccessGreen.copy(alpha = 0.2f)) {
-                                    Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Rounded.Verified, null, tint = SuccessGreen)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("Proof of Delivery captured • Signed by $receiverName", style = MaterialTheme.typography.labelMedium, color = SoftWhite)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } else {
-                item {
-                    Surface(shape = RoundedCornerShape(20.dp), color = SoftWhite) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilterChip(selected = !isScheduled, onClick = { isScheduled = false }, label = { Text("⚡ Instant Express") })
-                                FilterChip(selected = isScheduled, onClick = { isScheduled = true }, label = { Text("📅 Scheduled Slot") })
-                            }
-                            OutlinedTextField(value = pickup, onValueChange = { pickup = it }, label = { Text("Pickup Address") }, modifier = Modifier.fillMaxWidth())
-                            OutlinedTextField(value = drop, onValueChange = { drop = it }, label = { Text("Delivery Address") }, modifier = Modifier.fillMaxWidth())
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(value = senderName, onValueChange = { senderName = it }, label = { Text("Sender Name") }, modifier = Modifier.weight(1f))
-                                OutlinedTextField(value = senderPhone, onValueChange = { senderPhone = it }, label = { Text("Sender Mobile") }, modifier = Modifier.weight(1f))
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedTextField(value = receiverName, onValueChange = { receiverName = it }, label = { Text("Receiver Name") }, modifier = Modifier.weight(1f))
-                                OutlinedTextField(value = receiverPhone, onValueChange = { receiverPhone = it }, label = { Text("Receiver Mobile") }, modifier = Modifier.weight(1f))
-                            }
-                        }
-                    }
-                }
-
-                item {
-                    Surface(shape = RoundedCornerShape(20.dp), color = SoftWhite) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Package Type, Size & Dimensions", style = MaterialTheme.typography.titleMedium, color = DeepNavy)
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(listOf("Documents", "Electronics", "Keys & Wallet", "Gift Box", "Clothes", "Medicines")) { t ->
-                                    FilterChip(selected = parcelType == t, onClick = { parcelType = t }, label = { Text(t) })
-                                }
-                            }
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(listOf("Small (Up to 2 kg)", "Medium (2-5 kg)", "Large (5-12 kg)")) { s ->
-                                    FilterChip(selected = sizeOption == s, onClick = { sizeOption = s }, label = { Text(s) })
-                                }
-                            }
-                            OutlinedTextField(value = dimensions, onValueChange = { dimensions = it }, label = { Text("Package Dimensions (L × W × H)") }, modifier = Modifier.fillMaxWidth())
-                            OutlinedTextField(value = instructions, onValueChange = { instructions = it }, label = { Text("Delivery Instructions") }, modifier = Modifier.fillMaxWidth())
-                        }
-                    }
-                }
-
-                item {
-                    Button(
-                        onClick = {
-                            onBookParcel(
-                                "Parcel • $parcelType",
-                                "$sizeOption ($dimensions) • To $receiverName",
-                                fare.toDouble(),
-                                "UPI",
-                                pickup,
-                                drop,
-                                deliveryOtp,
-                                "Manoj Singh"
-                            ) { id -> bookedOrderId = id }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(56.dp).testTag("book_parcel_button"),
-                        colors = ButtonDefaults.buttonColors(containerColor = DeepNavy, contentColor = PremiumYellow),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text("Confirm Parcel Booking • ₹$fare", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                    }
-                }
-            }
-        }
-    }
+    ParcelTransportUnifiedScreen(
+        initialTab = 0,
+        uiState = uiState,
+        onBack = onBack,
+        onBookParcel = onBookParcel,
+        onBookTransport = onBookParcel,
+        onCompleteOrder = onCompleteOrder,
+        onShowMessage = onShowMessage
+    )
 }
 
 @Composable
@@ -242,243 +65,563 @@ fun GoodsTransportScreen(
     onBack: () -> Unit,
     onBookTransport: (title: String, subtitle: String, amount: Double, payment: String, pickup: String, drop: String, otp: String, partner: String, onCreated: (String) -> Unit) -> Unit
 ) {
-    var pickup by remember { mutableStateOf("HSR Layout Sector 1") }
-    var intermediateStop by remember { mutableStateOf("") }
+    ParcelTransportUnifiedScreen(
+        initialTab = 1,
+        uiState = uiState,
+        onBack = onBack,
+        onBookParcel = onBookTransport,
+        onBookTransport = onBookTransport,
+        onCompleteOrder = {},
+        onShowMessage = {}
+    )
+}
+
+@Composable
+private fun ParcelTransportUnifiedScreen(
+    initialTab: Int,
+    uiState: SuperAppUiState,
+    onBack: () -> Unit,
+    onBookParcel: (title: String, subtitle: String, amount: Double, payment: String, pickup: String, drop: String, otp: String, partner: String, onCreated: (String) -> Unit) -> Unit,
+    onBookTransport: (title: String, subtitle: String, amount: Double, payment: String, pickup: String, drop: String, otp: String, partner: String, onCreated: (String) -> Unit) -> Unit,
+    onCompleteOrder: (String) -> Unit,
+    onShowMessage: (String) -> Unit
+) {
+    var activeTab by remember { mutableIntStateOf(initialTab) } // 0 = Parcel, 1 = Transport
+
+    // Shared Pickup/Drop state
+    var pickup by remember { mutableStateOf("Sector 62, Noida") }
+    var drop by remember { mutableStateOf("DLF Cyber Hub, Gurugram") }
     var enableMultiStop by remember { mutableStateOf(false) }
-    var drop by remember { mutableStateOf("Whitefield Prestige Tech Park") }
-    var goodsCategory by remember { mutableStateOf("Furniture & Appliances") }
+    var intermediateStop by remember { mutableStateOf("") }
+
+    // Parcel tab state
+    var receiverName by remember { mutableStateOf("Vikram Nair") }
+    var receiverPhone by remember { mutableStateOf("+91 98200 44112") }
+    var parcelType by remember { mutableStateOf("Documents") }
+    var sizeOption by remember { mutableStateOf("Small (Up to 2 kg)") }
+    var showPackageDropdown by remember { mutableStateOf(false) }
+    var showExtraDetails by remember { mutableStateOf(false) }
+    var bookedOrderId by remember { mutableStateOf<String?>(null) }
+    var bookedWasTransport by remember { mutableStateOf(false) }
+    var deliveredProof by remember { mutableStateOf(false) }
+
+    // Transport tab state
     var selectedVehicle by remember { mutableStateOf(DemoCatalog.transportVehicles[2]) } // Tata Ace
     var loadingAssist by remember { mutableStateOf(true) }
     var unloadingAssist by remember { mutableStateOf(true) }
-    var isScheduled by remember { mutableStateOf(false) }
     var extraHelpers by remember { mutableIntStateOf(1) }
-    var bookedId by remember { mutableStateOf<String?>(null) }
     var transportStepIndex by remember { mutableIntStateOf(2) }
 
     val transportSteps = remember {
         listOf(
             "Pickup Confirmed & Truck Dispatched",
             "Loading Cargo & Strapping",
-            "In Transit via Outer Ring Rd",
+            "In Transit via Expressway",
             "Arriving at Drop Bay",
             "Delivered • OTP & Proof Verified"
         )
     }
 
-    val distanceKm = if (enableMultiStop && intermediateStop.isNotBlank()) 16.8 else 13.5
+    val pickupOtp = "3418"
+    val deliveryOtp = "7925"
+    val parcelFare = when {
+        sizeOption.startsWith("Small") -> 99
+        sizeOption.startsWith("Medium") -> 149
+        else -> 219
+    }
+    val distanceKm = if (enableMultiStop && intermediateStop.isNotBlank()) 16.8 else 12.4
     val helperCost = (if (loadingAssist) 150 else 0) + (if (unloadingAssist) 150 else 0) + (extraHelpers * 220)
-    val totalFare = selectedVehicle.baseFare + (distanceKm * selectedVehicle.perKmRate).toInt() + helperCost
+    val transportFare = selectedVehicle.baseFare + (distanceKm * selectedVehicle.perKmRate).toInt() + helperCost
 
-    Scaffold(
-        containerColor = LightSkyBackground,
-        topBar = {
-            ZiporaSubTopBar(
-                title = "Goods Transport & Mini Trucks",
-                subtitle = "Industrial intra-city logistics & movers",
-                onBack = onBack,
-                isDark = true
-            )
-        }
-    ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(innerPadding),
-            contentPadding = PaddingValues(16.dp, 12.dp, 16.dp, 32.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(LogisticsSkyBg)
+    ) {
+        // 1. ROYAL BLUE CURVED TOP HEADER + SEGMENTED TOGGLE (Screen 7 Exact Look)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.horizontalGradient(listOf(LogisticsRoyalStart, LogisticsRoyalEnd))
+                )
         ) {
-            // Industrial Blue + Yellow + Dark Navy Hero with 3D Mover Character
-            item {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+            ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(Brush.linearGradient(listOf(DarkBackground, IndustrialBlue)))
-                        .border(1.3.dp, PremiumYellow.copy(alpha = 0.6f), RoundedCornerShape(22.dp))
-                        .padding(14.dp),
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Box(Modifier.clip(RoundedCornerShape(6.dp)).background(PremiumYellow).padding(horizontal = 8.dp, vertical = 2.dp)) {
-                            Text("ZIPORA LOGISTICS FLEET", style = MaterialTheme.typography.labelSmall, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
-                        }
-                        Text("Mini Trucks & Heavy Movers", style = MaterialTheme.typography.titleLarge, color = SoftWhite, fontWeight = FontWeight.ExtraBold)
-                        Text("6 capacity tiers • Multi-stop • Loading & unloading crew", style = MaterialTheme.typography.bodySmall, color = RideCardStart)
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.size(48.dp).testTag("back_button")
+                    ) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back", tint = SoftWhite)
                     }
-                    Spacer(Modifier.width(10.dp))
-                    Character3DPortrait(
-                        drawableRes = R.drawable.img_char_porter_mover_1795426024294,
-                        contentDescription = "3D Goods Transport Mover",
-                        borderColor = PremiumYellow,
-                        size = 82.dp
+                    Text(
+                        text = "Parcel & Transport",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = SoftWhite,
+                        fontWeight = FontWeight.ExtraBold,
+                        modifier = Modifier.weight(1f)
                     )
+                    Spacer(Modifier.size(48.dp))
+                }
+
+                // Segmented White Pill: Parcel | Transport
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = SoftWhite,
+                    shadowElevation = 5.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .padding(top = 4.dp, bottom = 14.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(4.dp)
+                    ) {
+                        listOf("Parcel", "Transport").forEachIndexed { idx, label ->
+                            val selected = activeTab == idx
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(if (selected) Color(0xFFEFF6FF) else Color.Transparent)
+                                    .clickable {
+                                        activeTab = idx
+                                        bookedOrderId = null
+                                    }
+                                    .padding(vertical = 10.dp)
+                                    .testTag("logistics_tab_${label.lowercase()}"),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = label,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        color = if (selected) LogisticsRoyalEnd else MutedText,
+                                        fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.SemiBold
+                                    )
+                                    if (selected) {
+                                        Spacer(Modifier.height(3.dp))
+                                        Box(
+                                            Modifier
+                                                .width(34.dp)
+                                                .height(3.dp)
+                                                .clip(RoundedCornerShape(50))
+                                                .background(LogisticsRoyalEnd)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. SCROLLABLE BODY
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // 3D Yellow Mini Cargo Truck + Parcel Boxes Banner (Screen 7 Exact Visual)
+            item {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(172.dp)
+                        .shadow(4.dp, RoundedCornerShape(22.dp))
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(Color(0xFFDBEAFE))
+                ) {
+                    Image(
+                        painter = painterResource(R.drawable.img_takeit_parcel_truck_1795427329625),
+                        contentDescription = "3D Yellow Cargo Truck and Parcel Boxes",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(10.dp)
+                            .clip(RoundedCornerShape(50))
+                            .background(DeepNavy.copy(alpha = 0.85f))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = if (activeTab == 0) "⚡ OTP-Secured Express Parcel" else "🚚 Mini Trucks & Movers",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = LogisticsYellowCta,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
                 }
             }
 
-            if (bookedId != null) {
+            if (bookedOrderId != null) {
+                // LIVE TRACKING VIEW
                 item {
                     SimulatedMapCanvas(
-                        modifier = Modifier.fillMaxWidth().height(215.dp),
+                        modifier = Modifier.fillMaxWidth().height(210.dp).clip(RoundedCornerShape(20.dp)),
                         pickupLabel = pickup,
                         dropLabel = drop,
                         distanceKm = distanceKm,
-                        etaMinutes = 26,
-                        driverProgress = -1f,
-                        isDarkStyle = true
+                        etaMinutes = if (bookedWasTransport) 24 else 16,
+                        driverProgress = -1f
                     )
                 }
                 item {
                     Surface(shape = RoundedCornerShape(22.dp), color = DeepNavy) {
-                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Character3DPortrait(
-                                    drawableRes = R.drawable.img_char_porter_mover_1795426024294,
-                                    contentDescription = "Driver Ramesh Yadav",
-                                    borderColor = PremiumYellow,
-                                    size = 56.dp,
-                                    bobbing = false
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    StatusPill(if (transportStepIndex == 4) "DELIVERED" else "IN_TRANSIT")
-                                    Spacer(Modifier.height(4.dp))
-                                    Text("${selectedVehicle.name} • $bookedId", style = MaterialTheme.typography.titleLarge, color = SoftWhite)
-                                    Text("Ramesh Yadav • KA-05-TR-8821 • $extraHelpers Helper(s)", style = MaterialTheme.typography.bodySmall, color = SkyBlue)
-                                }
-                            }
-
+                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text("LIVE 5-STEP LOGISTICS TRACKER", style = MaterialTheme.typography.labelSmall, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
-                                TextButton(onClick = { transportStepIndex = (transportStepIndex + 1) % transportSteps.size }) {
-                                    Text("Advance Step →", style = MaterialTheme.typography.labelSmall, color = SkyBlue)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Character3DPortrait(
+                                        drawableRes = R.drawable.img_char_porter_mover_1795426024294,
+                                        contentDescription = "Partner",
+                                        borderColor = LogisticsYellowCta,
+                                        size = 50.dp,
+                                        bobbing = false
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Column {
+                                        Text(
+                                            if (bookedWasTransport) "${selectedVehicle.name} • $bookedOrderId" else "Parcel $bookedOrderId",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = SoftWhite,
+                                            fontWeight = FontWeight.ExtraBold
+                                        )
+                                        Text(
+                                            if (bookedWasTransport) "Ramesh Yadav • UP-16-TR-8821" else "Manoj Singh • $parcelType",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = SkyBlue
+                                        )
+                                    }
                                 }
+                                StatusPill(if (deliveredProof || transportStepIndex == 4) "DELIVERED" else "ON_THE_WAY")
                             }
-                            MultiStepStatusTimeline(
-                                steps = transportSteps,
-                                currentStepIndex = transportStepIndex,
-                                accentColor = PremiumYellow,
-                                isDark = true
-                            )
 
-                            Text("Total Estimate: ₹$totalFare (OTP: 6641 • Simulated)", style = MaterialTheme.typography.titleMedium, color = PremiumYellow, fontWeight = FontWeight.Bold)
+                            if (!bookedWasTransport) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(DarkCardElevated).padding(10.dp)) {
+                                        Column {
+                                            Text("Pickup OTP", style = MaterialTheme.typography.labelSmall, color = SkyBlue)
+                                            Text(pickupOtp, style = MaterialTheme.typography.titleLarge, color = LogisticsYellowCta, fontWeight = FontWeight.ExtraBold)
+                                        }
+                                    }
+                                    Box(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(DarkCardElevated).padding(10.dp)) {
+                                        Column {
+                                            Text("Delivery OTP", style = MaterialTheme.typography.labelSmall, color = SkyBlue)
+                                            Text(deliveryOtp, style = MaterialTheme.typography.titleLarge, color = SuccessGreen, fontWeight = FontWeight.ExtraBold)
+                                        }
+                                    }
+                                }
+                                if (!deliveredProof) {
+                                    Button(
+                                        onClick = {
+                                            deliveredProof = true
+                                            bookedOrderId?.let { onCompleteOrder(it) }
+                                            onShowMessage("Proof of Delivery verified with OTP $deliveryOtp!")
+                                        },
+                                        modifier = Modifier.fillMaxWidth().height(48.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen, contentColor = SoftWhite),
+                                        shape = RoundedCornerShape(50)
+                                    ) {
+                                        Text("Confirm Delivery & Proof", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            } else {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("LIVE 5-STEP LOGISTICS TRACKER", style = MaterialTheme.typography.labelSmall, color = LogisticsYellowCta, fontWeight = FontWeight.ExtraBold)
+                                    TextButton(onClick = { transportStepIndex = (transportStepIndex + 1) % transportSteps.size }) {
+                                        Text("Advance →", style = MaterialTheme.typography.labelSmall, color = SkyBlue)
+                                    }
+                                }
+                                MultiStepStatusTimeline(
+                                    steps = transportSteps,
+                                    currentStepIndex = transportStepIndex,
+                                    accentColor = LogisticsYellowCta,
+                                    isDark = true
+                                )
+                            }
+
                             Button(
-                                onClick = { bookedId = null },
-                                colors = ButtonDefaults.buttonColors(containerColor = PremiumYellow, contentColor = DeepNavy),
-                                modifier = Modifier.fillMaxWidth().height(48.dp)
+                                onClick = { bookedOrderId = null; deliveredProof = false },
+                                colors = ButtonDefaults.buttonColors(containerColor = LogisticsYellowCta, contentColor = DeepNavy),
+                                modifier = Modifier.fillMaxWidth().height(48.dp).navigationBarsPadding(),
+                                shape = RoundedCornerShape(50)
                             ) {
-                                Text("Book Another Commercial Vehicle", fontWeight = FontWeight.ExtraBold)
+                                Text("Book Another Delivery", fontWeight = FontWeight.ExtraBold)
                             }
                         }
                     }
                 }
             } else {
+                // FLOATING WHITE PICKUP / DROP CARD (Exact Screen 7 Mockup Geometry)
                 item {
-                    Surface(shape = RoundedCornerShape(20.dp), color = SoftWhite) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilterChip(selected = !isScheduled, onClick = { isScheduled = false }, label = { Text("⚡ Dispatch Now") })
-                                FilterChip(selected = isScheduled, onClick = { isScheduled = true }, label = { Text("📅 Schedule Booking") })
-                                FilterChip(selected = enableMultiStop, onClick = { enableMultiStop = !enableMultiStop }, label = { Text("+ Multi-Stop") })
-                            }
-                            OutlinedTextField(value = pickup, onValueChange = { pickup = it }, label = { Text("Pickup Location") }, modifier = Modifier.fillMaxWidth())
-                            if (enableMultiStop) {
-                                OutlinedTextField(
-                                    value = intermediateStop,
-                                    onValueChange = { intermediateStop = it },
-                                    label = { Text("Intermediate Stop (Optional)") },
-                                    placeholder = { Text("e.g. Marathahalli Warehouse Gate 2") },
-                                    modifier = Modifier.fillMaxWidth()
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = SoftWhite,
+                        shadowElevation = 3.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.padding(end = 12.dp)
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFF16A34A))
+                                        .border(2.5.dp, Color(0xFFBBF7D0), CircleShape)
+                                )
+                                Box(Modifier.width(1.5.dp).height(46.dp).background(Color(0xFFCBD5E1)))
+                                Box(
+                                    Modifier
+                                        .size(12.dp)
+                                        .clip(CircleShape)
+                                        .background(Color(0xFFEF4444))
+                                        .border(2.5.dp, Color(0xFFFECACA), CircleShape)
                                 )
                             }
-                            OutlinedTextField(value = drop, onValueChange = { drop = it }, label = { Text("Drop Location") }, modifier = Modifier.fillMaxWidth())
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(listOf("Furniture & Appliances", "Retail Wholesale", "Office Shift", "Hardware & Timber", "E-Commerce Bulk")) { cat ->
-                                    FilterChip(selected = goodsCategory == cat, onClick = { goodsCategory = cat }, label = { Text(cat) })
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Column {
+                                    Text("Pickup Location", style = MaterialTheme.typography.labelSmall, color = MutedText, fontWeight = FontWeight.Bold)
+                                    OutlinedTextField(
+                                        value = pickup,
+                                        onValueChange = { pickup = it },
+                                        placeholder = { Text("Enter pickup address") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                                if (activeTab == 1 && enableMultiStop) {
+                                    OutlinedTextField(
+                                        value = intermediateStop,
+                                        onValueChange = { intermediateStop = it },
+                                        label = { Text("Intermediate Stop") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                                Column {
+                                    Text("Drop Location", style = MaterialTheme.typography.labelSmall, color = MutedText, fontWeight = FontWeight.Bold)
+                                    OutlinedTextField(
+                                        value = drop,
+                                        onValueChange = { drop = it },
+                                        placeholder = { Text("Enter drop address") },
+                                        singleLine = true,
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
                                 }
                             }
                         }
                     }
                 }
 
-                item {
-                    Text("Select Commercial Vehicle (6 Tiers)", style = MaterialTheme.typography.titleLarge, color = DeepNavy)
-                }
-
-                items(DemoCatalog.transportVehicles) { v ->
-                    val selected = v.id == selectedVehicle.id
-                    val est = v.baseFare + (distanceKm * v.perKmRate).toInt()
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(18.dp))
-                            .background(if (selected) Color(0xFFDBEAFE) else SoftWhite)
-                            .border(if (selected) 2.2.dp else 1.dp, if (selected) IndustrialBlue else LightBorder, RoundedCornerShape(18.dp))
-                            .clickable { selectedVehicle = v }
-                            .padding(14.dp)
-                            .testTag("transport_vehicle_${v.id}"),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconOrb3D(Icons.Rounded.LocalShipping, PremiumYellow, IndustrialBlue, DeepNavy, size = 46.dp)
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(v.name, style = MaterialTheme.typography.titleSmall, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
-                            Text("Max ${v.maxWeightKg} kg • ${v.dimensions} • ${v.etaMin} min", style = MaterialTheme.typography.bodySmall, color = SlateText)
-                            Text(v.idealFor, style = MaterialTheme.typography.labelSmall, color = IndustrialBlue, fontWeight = FontWeight.SemiBold)
+                if (activeTab == 0) {
+                    // PARCEL TAB: PACKAGE TYPE SELECTOR CARD (Screen 7 Exact Card)
+                    item {
+                        Surface(
+                            shape = RoundedCornerShape(18.dp),
+                            color = SoftWhite,
+                            shadowElevation = 2.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showPackageDropdown = !showPackageDropdown }
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text("Package Type", style = MaterialTheme.typography.labelSmall, color = MutedText)
+                                        Text(parcelType, style = MaterialTheme.typography.titleMedium, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
+                                    }
+                                    Icon(
+                                        if (showPackageDropdown) Icons.Rounded.KeyboardArrowUp else Icons.Rounded.KeyboardArrowDown,
+                                        contentDescription = "Select package type",
+                                        tint = DeepNavy
+                                    )
+                                }
+                                if (showPackageDropdown) {
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        items(listOf("Documents", "Electronics", "Keys & Wallet", "Gift Box", "Clothes", "Medicines")) { t ->
+                                            FilterChip(
+                                                selected = parcelType == t,
+                                                onClick = { parcelType = t; showPackageDropdown = false },
+                                                label = { Text(t) }
+                                            )
+                                        }
+                                    }
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        items(listOf("Small (Up to 2 kg)", "Medium (2-5 kg)", "Large (5-12 kg)")) { s ->
+                                            FilterChip(selected = sizeOption == s, onClick = { sizeOption = s }, label = { Text(s) })
+                                        }
+                                    }
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { showExtraDetails = !showExtraDetails },
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("Receiver: $receiverName ($sizeOption)", style = MaterialTheme.typography.labelSmall, color = LogisticsRoyalEnd, fontWeight = FontWeight.Bold)
+                                    Text(if (showExtraDetails) "Hide" else "Edit", style = MaterialTheme.typography.labelSmall, color = LogisticsRoyalEnd, fontWeight = FontWeight.ExtraBold)
+                                }
+                                if (showExtraDetails) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        OutlinedTextField(value = receiverName, onValueChange = { receiverName = it }, label = { Text("Receiver Name") }, modifier = Modifier.weight(1f), singleLine = true)
+                                        OutlinedTextField(value = receiverPhone, onValueChange = { receiverPhone = it }, label = { Text("Mobile") }, modifier = Modifier.weight(1f), singleLine = true)
+                                    }
+                                }
+                            }
                         }
-                        Text("₹$est", style = MaterialTheme.typography.titleLarge, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
                     }
-                }
 
-                item {
-                    Surface(shape = RoundedCornerShape(18.dp), color = SoftWhite) {
-                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Column {
-                                    Text("Loading Assistance", style = MaterialTheme.typography.titleSmall, color = DeepNavy)
-                                    Text("Floor-to-vehicle loading (+₹150)", style = MaterialTheme.typography.bodySmall, color = MutedText)
-                                }
-                                Switch(checked = loadingAssist, onCheckedChange = { loadingAssist = it })
+                    // GOLDEN YELLOW "Calculate Fare →" / BOOK CTA (Screen 7 Exact Look)
+                    item {
+                        Button(
+                            onClick = {
+                                bookedWasTransport = false
+                                onBookParcel(
+                                    "Parcel • $parcelType",
+                                    "$sizeOption • To $receiverName",
+                                    parcelFare.toDouble(),
+                                    "UPI",
+                                    pickup,
+                                    drop,
+                                    deliveryOtp,
+                                    "Manoj Singh"
+                                ) { id -> bookedOrderId = id }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp)
+                                .navigationBarsPadding()
+                                .testTag("book_parcel_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = LogisticsYellowCta, contentColor = DeepNavy),
+                            shape = RoundedCornerShape(50)
+                        ) {
+                            Text("Calculate Fare & Book • ₹$parcelFare", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                            Spacer(Modifier.width(6.dp))
+                            Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                } else {
+                    // TRANSPORT TAB: VEHICLE TIERS + LOADING ASSISTANCE + GOLDEN CTA
+                    item {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Select Vehicle Tier", style = MaterialTheme.typography.titleMedium, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
+                            FilterChip(
+                                selected = enableMultiStop,
+                                onClick = { enableMultiStop = !enableMultiStop },
+                                label = { Text("+ Multi-Stop", style = MaterialTheme.typography.labelSmall) }
+                            )
+                        }
+                    }
+
+                    items(DemoCatalog.transportVehicles) { v ->
+                        val selected = v.id == selectedVehicle.id
+                        val est = v.baseFare + (distanceKm * v.perKmRate).toInt()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(18.dp))
+                                .background(if (selected) Color(0xFFDBEAFE) else SoftWhite)
+                                .border(if (selected) 2.dp else 1.dp, if (selected) LogisticsRoyalEnd else Color(0xFFE2E8F0), RoundedCornerShape(18.dp))
+                                .clickable { selectedVehicle = v }
+                                .padding(13.dp)
+                                .testTag("transport_vehicle_${v.id}"),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(46.dp)
+                                    .clip(RoundedCornerShape(13.dp))
+                                    .background(LogisticsYellowCta),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Rounded.LocalShipping, v.name, tint = DeepNavy, modifier = Modifier.size(26.dp))
                             }
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Column {
-                                    Text("Unloading Assistance", style = MaterialTheme.typography.titleSmall, color = DeepNavy)
-                                    Text("Safe drop-off unloading (+₹150)", style = MaterialTheme.typography.bodySmall, color = MutedText)
-                                }
-                                Switch(checked = unloadingAssist, onCheckedChange = { unloadingAssist = it })
+                            Spacer(Modifier.width(12.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(v.name, style = MaterialTheme.typography.titleSmall, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
+                                Text("Max ${v.maxWeightKg} kg • ${v.dimensions} • ${v.etaMin} min", style = MaterialTheme.typography.bodySmall, color = MutedText)
                             }
-                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Column {
-                                    Text("Additional Helpers", style = MaterialTheme.typography.titleSmall, color = DeepNavy)
-                                    Text("₹220 per helper for heavy lifting", style = MaterialTheme.typography.bodySmall, color = MutedText)
+                            Text("₹$est", style = MaterialTheme.typography.titleLarge, color = LogisticsRoyalEnd, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+
+                    item {
+                        Surface(shape = RoundedCornerShape(18.dp), color = SoftWhite) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Loading Assistance (+₹150)", style = MaterialTheme.typography.titleSmall, color = DeepNavy)
+                                    Switch(checked = loadingAssist, onCheckedChange = { loadingAssist = it })
                                 }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconButton(onClick = { if (extraHelpers > 0) extraHelpers-- }) { Icon(Icons.Rounded.RemoveCircleOutline, "Less", tint = DeepNavy) }
-                                    Text("$extraHelpers", style = MaterialTheme.typography.titleMedium, color = DeepNavy)
-                                    IconButton(onClick = { if (extraHelpers < 4) extraHelpers++ }) { Icon(Icons.Rounded.AddCircleOutline, "More", tint = DeepNavy) }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Unloading Assistance (+₹150)", style = MaterialTheme.typography.titleSmall, color = DeepNavy)
+                                    Switch(checked = unloadingAssist, onCheckedChange = { unloadingAssist = it })
+                                }
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Extra Helpers (₹220 each)", style = MaterialTheme.typography.titleSmall, color = DeepNavy)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        IconButton(onClick = { if (extraHelpers > 0) extraHelpers-- }) { Icon(Icons.Rounded.RemoveCircleOutline, "Less", tint = DeepNavy) }
+                                        Text("$extraHelpers", style = MaterialTheme.typography.titleMedium, color = DeepNavy)
+                                        IconButton(onClick = { if (extraHelpers < 4) extraHelpers++ }) { Icon(Icons.Rounded.AddCircleOutline, "More", tint = DeepNavy) }
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                item {
-                    Button(
-                        onClick = {
-                            val stopNote = if (enableMultiStop && intermediateStop.isNotBlank()) " • Via $intermediateStop" else ""
-                            onBookTransport(
-                                "${selectedVehicle.name} • $goodsCategory",
-                                "${"%.1f".format(distanceKm)} km$stopNote • $extraHelpers helper(s)",
-                                totalFare.toDouble(),
-                                "UPI",
-                                pickup,
-                                drop,
-                                "6641",
-                                "Ramesh Yadav"
-                            ) { id -> bookedId = id }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(56.dp).testTag("book_transport_button"),
-                        colors = ButtonDefaults.buttonColors(containerColor = IndustrialBlue, contentColor = PremiumYellow),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Text("Book ${selectedVehicle.name} • ₹$totalFare", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                    item {
+                        Button(
+                            onClick = {
+                                bookedWasTransport = true
+                                val stopNote = if (enableMultiStop && intermediateStop.isNotBlank()) " • Via $intermediateStop" else ""
+                                onBookTransport(
+                                    "${selectedVehicle.name} • Cargo Move",
+                                    "${"%.1f".format(distanceKm)} km$stopNote • $extraHelpers helper(s)",
+                                    transportFare.toDouble(),
+                                    "UPI",
+                                    pickup,
+                                    drop,
+                                    "6641",
+                                    "Ramesh Yadav"
+                                ) { id -> bookedOrderId = id }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(54.dp)
+                                .navigationBarsPadding()
+                                .testTag("book_transport_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = LogisticsYellowCta, contentColor = DeepNavy),
+                            shape = RoundedCornerShape(50)
+                        ) {
+                            Text("Book ${selectedVehicle.name} • ₹$transportFare", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                            Spacer(Modifier.width(6.dp))
+                            Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, modifier = Modifier.size(18.dp))
+                        }
                     }
                 }
             }

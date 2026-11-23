@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ArrowForward
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,8 +22,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,10 +37,10 @@ import com.example.ui.theme.*
 import com.example.viewmodel.SuperAppUiState
 import kotlinx.coroutines.delay
 
-private val RapidoYellow = PremiumYellow
-private val RapidoYellowDeep = PremiumYellowDark
-private val RapidoCharcoal = DeepNavy
-private val RapidoSurface = LightSkyBackground
+private val RideNavyHeader = Color(0xFF0B1F4B)
+private val RideRoyalBlue = Color(0xFF2563EB)
+private val RideSelectedBg = Color(0xFFEFF6FF)
+private val RideYellowAccent = Color(0xFFFFD43B)
 
 private enum class RidePhase {
     SELECT_ROUTE_VEHICLE,
@@ -45,6 +48,13 @@ private enum class RidePhase {
     CAPTAIN_ASSIGNED,
     COMPLETED_SUMMARY
 }
+
+private data class RideModeTab(
+    val id: String,
+    val label: String,
+    val icon: ImageVector,
+    val defaultVehicleId: String
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,20 +66,32 @@ fun RideBookingScreen(
     onRateRide: (String, Int) -> Unit,
     onShowMessage: (String) -> Unit
 ) {
+    val modeTabs = remember {
+        listOf(
+            RideModeTab("bike", "Bike", Icons.Rounded.TwoWheeler, "bike"),
+            RideModeTab("auto", "Auto", Icons.Rounded.ElectricRickshaw, "auto"),
+            RideModeTab("cab", "Cab", Icons.Rounded.DirectionsCar, "mini"),
+            RideModeTab("share", "Share", Icons.Rounded.Groups, "sedan")
+        )
+    }
+
     var phase by remember { mutableStateOf(RidePhase.SELECT_ROUTE_VEHICLE) }
-    var pickup by remember { mutableStateOf("${uiState.appState.activeAddressLabel} • Indiranagar 100ft Rd") }
-    var destination by remember { mutableStateOf("Koramangala 4th Block") }
+    var selectedModeTab by remember { mutableStateOf("bike") }
+    var pickup by remember { mutableStateOf("Current Location") }
+    var destination by remember { mutableStateOf("DLF Mall, Noida") }
     var selectedVehicle by remember { mutableStateOf(DemoCatalog.rideVehicles.first()) }
-    var selectedPayment by remember { mutableStateOf("UPI") }
+    val paymentMethods = remember { listOf("UPI •••• 1234", "Take It Wallet", "Cash", "Card") }
+    var selectedPayment by remember { mutableStateOf(paymentMethods.first()) }
     var scheduleSlot by remember { mutableStateOf("Now") }
-    var promoApplied by remember { mutableStateOf(true) }
+    var promoApplied by remember { mutableStateOf(false) }
     var showDestinationModal by remember { mutableStateOf(false) }
+    var showAllVehicles by remember { mutableStateOf(false) }
     var mapPinFineTune by remember { mutableStateOf("Main Gate Pin Adjusted") }
     var otpInput by remember { mutableStateOf("") }
     val ridePin = remember { "4821" }
     var activeOrderId by remember { mutableStateOf("") }
-    var driverProgress by remember { mutableFloatStateOf(0.14f) }
-    var rideStepIndex by remember { mutableIntStateOf(1) } // 0..5 for 6-step ride timeline
+    var driverProgress by remember { mutableFloatStateOf(0.16f) }
+    var rideStepIndex by remember { mutableIntStateOf(1) }
     var userRating by remember { mutableIntStateOf(5) }
     var feedbackNote by remember { mutableStateOf("") }
     var selectedCompliments by remember { mutableStateOf(setOf("Safe Driving", "Clean Helmet")) }
@@ -86,31 +108,44 @@ fun RideBookingScreen(
         )
     }
 
-    val quickDestinations = listOf(
-        "Koramangala 4th Block" to 5.4,
-        "MG Road Metro" to 4.1,
-        "Bagmane Tech Park" to 6.8,
-        "HSR Layout Sector 2" to 8.2,
-        "Kempegowda Airport T2" to 32.5
-    )
-    val distanceKm = quickDestinations.find { it.first == destination }?.second ?: 6.2
-    val etaMin = (distanceKm * 2.2).toInt().coerceAtLeast(7)
+    val quickDestinations = remember {
+        listOf(
+            "DLF Mall, Noida" to 3.2,
+            "Sector 18 Metro" to 4.1,
+            "Electronic City Noida" to 5.4,
+            "Botanical Garden" to 6.8,
+            "IGI Airport T3" to 31.5
+        )
+    }
+    val distanceKm = quickDestinations.find { it.first == destination }?.second ?: 3.2
+    val etaMin = (distanceKm * 3.7).toInt().coerceAtLeast(10)
     val baseComponent = selectedVehicle.baseFare
     val distanceComponent = (distanceKm * selectedVehicle.perKmRate).toInt()
-    val waitingCharge = 0
-    val rawFare = baseComponent + distanceComponent + waitingCharge
-    val taxComponent = (rawFare * 0.05).toInt().coerceAtLeast(3)
-    val discount = if (promoApplied && rawFare > 45) 15 else 0
-    val estimatedFare = (rawFare + taxComponent - discount).coerceAtLeast(25)
+    val rawFare = baseComponent + distanceComponent
+    val taxComponent = (rawFare * 0.05).toInt().coerceAtLeast(2)
+    val discount = if (promoApplied && rawFare > 40) 15 else 0
+    val estimatedFare = (rawFare + taxComponent - discount).coerceAtLeast(29)
+
+    val displayedVehicles = remember(showAllVehicles, selectedModeTab) {
+        if (showAllVehicles) {
+            DemoCatalog.rideVehicles
+        } else {
+            listOf(
+                DemoCatalog.rideVehicles[0], // Bike
+                DemoCatalog.rideVehicles[1], // Auto
+                DemoCatalog.rideVehicles[3]  // Mini Cab
+            )
+        }
+    }
 
     LaunchedEffect(phase) {
         when (phase) {
             RidePhase.MATCHING_DRIVER -> {
                 rideStepIndex = 0
-                delay(2100)
+                delay(1800)
                 onRecordRide(
                     "${selectedVehicle.name} • $destination",
-                    "${"%.1f".format(distanceKm)} km • $etaMin mins • $scheduleSlot • Captain Arjun",
+                    "${"%.1f".format(distanceKm)} km • $etaMin min • $scheduleSlot • Captain Arjun",
                     estimatedFare.toDouble(),
                     selectedPayment,
                     pickup,
@@ -122,7 +157,7 @@ fun RideBookingScreen(
                 phase = RidePhase.CAPTAIN_ASSIGNED
             }
             RidePhase.CAPTAIN_ASSIGNED -> {
-                driverProgress = 0.14f
+                driverProgress = 0.16f
                 while (driverProgress < 0.92f && phase == RidePhase.CAPTAIN_ASSIGNED) {
                     delay(420)
                     driverProgress = (driverProgress + 0.04f).coerceAtMost(0.92f)
@@ -137,338 +172,409 @@ fun RideBookingScreen(
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(RapidoSurface)) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 32.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(SoftWhite)
+    ) {
+        // 1. DEEP NAVY TOP BAR + FLOATING ROUNDED MODE TABS (Matches Screen 4 Mockup)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.verticalGradient(listOf(RideNavyHeader, Color(0xFF102A63)))
+                )
         ) {
-            // 1. FULL-BLEED MAP HEADER WITH FLOATING BACK, ROUTE BADGE & SOS
-            item {
-                Box(modifier = Modifier.fillMaxWidth().height(295.dp)) {
-                    SimulatedMapCanvas(
-                        modifier = Modifier.fillMaxSize(),
-                        pickupLabel = pickup.substringBefore(" •"),
-                        dropLabel = destination,
-                        distanceKm = distanceKm,
-                        etaMinutes = etaMin,
-                        driverProgress = if (phase == RidePhase.CAPTAIN_ASSIGNED) driverProgress else -1f,
-                        showMovingDriver = phase != RidePhase.MATCHING_DRIVER,
-                        showMatchingRadar = phase == RidePhase.MATCHING_DRIVER
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.size(48.dp).testTag("back_button")
+                    ) {
+                        Icon(
+                            Icons.AutoMirrored.Rounded.ArrowBack,
+                            contentDescription = "Back",
+                            tint = SoftWhite
+                        )
+                    }
+                    Text(
+                        text = "Book a Ride",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = SoftWhite,
+                        fontWeight = FontWeight.ExtraBold
                     )
+                    IconButton(
+                        onClick = { showSosDialog = true },
+                        modifier = Modifier.size(48.dp).testTag("ride_sos_button")
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SoftWhite.copy(alpha = 0.14f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                Icons.Rounded.Shield,
+                                contentDescription = "Safety SOS",
+                                tint = SoftWhite,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                }
 
+                // Rounded White Pill Mode Switcher (Bike | Auto | Cab | Share)
+                Surface(
+                    shape = RoundedCornerShape(22.dp),
+                    color = SoftWhite,
+                    shadowElevation = 6.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp)
+                        .padding(top = 4.dp, bottom = 12.dp)
+                ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                            .padding(5.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        IconButton(
-                            onClick = onBack,
-                            modifier = Modifier
-                                .size(46.dp)
-                                .shadow(6.dp, CircleShape)
-                                .clip(CircleShape)
-                                .background(SoftWhite)
-                                .testTag("back_button")
-                        ) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back", tint = RapidoCharcoal)
-                        }
-
-                        Row(
-                            modifier = Modifier
-                                .shadow(6.dp, RoundedCornerShape(50))
-                                .clip(RoundedCornerShape(50))
-                                .background(RapidoCharcoal)
-                                .border(1.dp, SkyBlue.copy(alpha = 0.6f), RoundedCornerShape(50))
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(Modifier.size(8.dp).clip(CircleShape).background(RapidoYellow))
-                            Spacer(Modifier.width(7.dp))
-                            Text(
-                                "ZIPORA RIDE • ${selectedVehicle.etaMin}m ETA",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = SoftWhite,
-                                fontWeight = FontWeight.ExtraBold
-                            )
-                        }
-
-                        if (phase == RidePhase.CAPTAIN_ASSIGNED) {
-                            Button(
-                                onClick = { showSosDialog = true },
-                                colors = ButtonDefaults.buttonColors(containerColor = CoralDanger, contentColor = SoftWhite),
-                                shape = RoundedCornerShape(50),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                modifier = Modifier.height(40.dp).testTag("ride_sos_button")
+                        modeTabs.forEach { tab ->
+                            val isSelected = selectedModeTab == tab.id
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (isSelected) RideRoyalBlue else Color.Transparent)
+                                    .clickable {
+                                        selectedModeTab = tab.id
+                                        DemoCatalog.rideVehicles.find { it.id == tab.defaultVehicleId }?.let {
+                                            selectedVehicle = it
+                                        }
+                                        if (tab.id == "share") showAllVehicles = true
+                                    }
+                                    .padding(vertical = 8.dp)
+                                    .testTag("ride_mode_${tab.id}")
                             ) {
-                                Icon(Icons.Rounded.Shield, null, Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("SOS", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelSmall)
+                                Icon(
+                                    imageVector = tab.icon,
+                                    contentDescription = tab.label,
+                                    tint = if (isSelected) SoftWhite else DeepNavy,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Spacer(Modifier.height(2.dp))
+                                Text(
+                                    text = tab.label,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isSelected) SoftWhite else DeepNavy,
+                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.SemiBold
+                                )
                             }
-                        } else {
-                            Spacer(Modifier.size(46.dp))
                         }
                     }
                 }
             }
+        }
 
-            // 2. ELEVATED BOTTOM SHEET SURFACE
+        // 2. SCROLLABLE MAP + BOTTOM SHEET CONTENT
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp)
+        ) {
+            // Light Street Map with Route & "3.2 km / 12 min" Callout
+            item {
+                SimulatedMapCanvas(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(235.dp),
+                    pickupLabel = pickup,
+                    dropLabel = destination,
+                    distanceKm = distanceKm,
+                    etaMinutes = etaMin,
+                    driverProgress = if (phase == RidePhase.CAPTAIN_ASSIGNED) driverProgress else -1f,
+                    showMovingDriver = phase != RidePhase.MATCHING_DRIVER,
+                    showMatchingRadar = phase == RidePhase.MATCHING_DRIVER
+                )
+            }
+
+            // Crisp White Rounded Sheet overlapping map
             item {
                 Surface(
-                    shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                    shape = RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp),
                     color = SoftWhite,
-                    shadowElevation = 14.dp,
-                    modifier = Modifier.fillMaxWidth().offset(y = (-18).dp)
+                    shadowElevation = 10.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .offset(y = (-14).dp)
                 ) {
                     Column(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.CenterHorizontally)
-                                .width(44.dp)
-                                .height(4.5.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(SkyBlue.copy(alpha = 0.55f))
-                        )
-
-                        AnimatedContent(targetState = phase, label = "rapidoRidePhase") { current ->
+                        AnimatedContent(targetState = phase, label = "takeItRidePhase") { current ->
                             when (current) {
                                 RidePhase.SELECT_ROUTE_VEHICLE -> {
-                                    Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
-                                        // 3D Captain Greeting Strip
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clip(RoundedCornerShape(18.dp))
-                                                .background(Brush.horizontalGradient(listOf(DeepNavy, Color(0xFF0C4A6E))))
-                                                .padding(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Character3DPortrait(
-                                                drawableRes = R.drawable.img_char_ride_captain_1795426023899,
-                                                contentDescription = "3D Ride Captain",
-                                                borderColor = PremiumYellow,
-                                                size = 56.dp
-                                            )
-                                            Spacer(Modifier.width(12.dp))
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text("Zipora Captain Ready!", style = MaterialTheme.typography.titleSmall, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
-                                                Text("6 tiers • Zero surge • Helmet & GPS Shield", style = MaterialTheme.typography.bodySmall, color = SoftWhite.copy(alpha = 0.9f))
-                                            }
-                                            Box(
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(10.dp))
-                                                    .background(SkyBlue.copy(alpha = 0.22f))
-                                                    .clickable { showDestinationModal = true }
-                                                    .padding(horizontal = 10.dp, vertical = 6.dp)
-                                            ) {
-                                                Text("Map Pin", style = MaterialTheme.typography.labelSmall, color = SkyBlue, fontWeight = FontWeight.Bold)
-                                            }
-                                        }
-
-                                        // Connected Pickup -> Drop Card with Swap & Full Search Button
+                                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                        // Clean Pickup & Destination Card with Swap Icon (Screen 4 exact look)
                                         Surface(
                                             shape = RoundedCornerShape(18.dp),
-                                            color = RapidoSurface,
-                                            modifier = Modifier.border(1.dp, LightBorder, RoundedCornerShape(18.dp))
+                                            color = SoftWhite,
+                                            shadowElevation = 2.dp,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(18.dp))
                                         ) {
                                             Row(
-                                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 14.dp, vertical = 10.dp),
                                                 verticalAlignment = Alignment.CenterVertically
                                             ) {
                                                 Column(
                                                     horizontalAlignment = Alignment.CenterHorizontally,
-                                                    modifier = Modifier.padding(end = 10.dp)
+                                                    modifier = Modifier.padding(end = 12.dp)
                                                 ) {
-                                                    Box(Modifier.size(11.dp).clip(CircleShape).background(SuccessGreen))
-                                                    Box(Modifier.width(2.dp).height(34.dp).background(SkyBlue))
-                                                    Box(Modifier.size(11.dp).clip(CircleShape).background(CoralDanger))
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(12.dp)
+                                                            .clip(CircleShape)
+                                                            .background(Color(0xFF16A34A))
+                                                            .border(2.5.dp, Color(0xFFBBF7D0), CircleShape)
+                                                    )
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .width(1.5.dp)
+                                                            .height(26.dp)
+                                                            .background(Color(0xFFCBD5E1))
+                                                    )
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .size(12.dp)
+                                                            .clip(CircleShape)
+                                                            .background(Color(0xFFEF4444))
+                                                            .border(2.5.dp, Color(0xFFFECACA), CircleShape)
+                                                    )
                                                 }
-                                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                    OutlinedTextField(
-                                                        value = pickup,
-                                                        onValueChange = { pickup = it },
-                                                        placeholder = { Text("Pickup location") },
-                                                        singleLine = true,
-                                                        textStyle = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                                        colors = OutlinedTextFieldDefaults.colors(
-                                                            focusedContainerColor = SoftWhite,
-                                                            unfocusedContainerColor = SoftWhite,
-                                                            focusedBorderColor = SkyBlueDark,
-                                                            unfocusedBorderColor = LightBorder
-                                                        ),
-                                                        shape = RoundedCornerShape(12.dp),
-                                                        modifier = Modifier.fillMaxWidth().testTag("ride_pickup_input")
-                                                    )
-                                                    OutlinedTextField(
-                                                        value = destination,
-                                                        onValueChange = { destination = it },
-                                                        placeholder = { Text("Drop destination") },
-                                                        trailingIcon = {
-                                                            IconButton(onClick = { showDestinationModal = true }) {
-                                                                Icon(Icons.Rounded.Search, "Search destination", tint = SkyBlueDark)
-                                                            }
-                                                        },
-                                                        singleLine = true,
-                                                        textStyle = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
-                                                        colors = OutlinedTextFieldDefaults.colors(
-                                                            focusedContainerColor = SoftWhite,
-                                                            unfocusedContainerColor = SoftWhite,
-                                                            focusedBorderColor = SkyBlueDark,
-                                                            unfocusedBorderColor = LightBorder
-                                                        ),
-                                                        shape = RoundedCornerShape(12.dp),
-                                                        modifier = Modifier.fillMaxWidth().testTag("ride_destination_input")
-                                                    )
+                                                Column(
+                                                    modifier = Modifier.weight(1f),
+                                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clickable { showDestinationModal = true }
+                                                            .padding(vertical = 4.dp)
+                                                            .testTag("ride_pickup_input"),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text(
+                                                            text = pickup,
+                                                            style = MaterialTheme.typography.titleSmall,
+                                                            color = DeepNavy,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis
+                                                        )
+                                                    }
+                                                    HorizontalDivider(color = Color(0xFFF1F5F9))
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clickable { showDestinationModal = true }
+                                                            .padding(vertical = 4.dp)
+                                                            .testTag("ride_destination_input"),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Text(
+                                                            text = destination,
+                                                            style = MaterialTheme.typography.titleSmall,
+                                                            color = DeepNavy,
+                                                            fontWeight = FontWeight.Bold,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            modifier = Modifier.weight(1f)
+                                                        )
+                                                        Text(
+                                                            text = "Change",
+                                                            style = MaterialTheme.typography.labelSmall,
+                                                            color = RideRoyalBlue,
+                                                            fontWeight = FontWeight.Bold
+                                                        )
+                                                    }
                                                 }
                                                 IconButton(
                                                     onClick = {
                                                         val tmp = pickup
                                                         pickup = destination
                                                         destination = tmp
-                                                    }
+                                                    },
+                                                    modifier = Modifier.size(44.dp)
                                                 ) {
-                                                    Icon(Icons.Rounded.SwapVert, "Swap pickup and drop", tint = RapidoCharcoal)
+                                                    Icon(
+                                                        Icons.Rounded.SwapVert,
+                                                        contentDescription = "Swap pickup and drop",
+                                                        tint = RideRoyalBlue
+                                                    )
                                                 }
                                             }
                                         }
 
-                                        // Schedule Ride Slots + Saved Places Shortcut
+                                        // Quick Destination & Schedule Pills
                                         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            items(listOf("Now", "Today 6:00 PM", "Tomorrow 9:00 AM")) { slot ->
+                                            items(listOf("Now", "6:00 PM", "9:00 AM")) { slot ->
                                                 val sel = scheduleSlot == slot
                                                 Row(
                                                     modifier = Modifier
                                                         .clip(RoundedCornerShape(50))
-                                                        .background(if (sel) SkyBlue else RapidoSurface)
-                                                        .border(1.dp, if (sel) SkyBlueDark else LightBorder, RoundedCornerShape(50))
+                                                        .background(if (sel) RideSelectedBg else Color(0xFFF8FAFC))
+                                                        .border(1.dp, if (sel) RideRoyalBlue else Color(0xFFE2E8F0), RoundedCornerShape(50))
                                                         .clickable { scheduleSlot = slot }
-                                                        .padding(horizontal = 12.dp, vertical = 7.dp),
+                                                        .padding(horizontal = 10.dp, vertical = 6.dp),
                                                     verticalAlignment = Alignment.CenterVertically
                                                 ) {
-                                                    Icon(Icons.Rounded.Schedule, null, tint = DeepNavy, modifier = Modifier.size(14.dp))
+                                                    Icon(Icons.Rounded.Schedule, null, tint = if (sel) RideRoyalBlue else SlateText, modifier = Modifier.size(13.dp))
                                                     Spacer(Modifier.width(4.dp))
-                                                    Text(slot, style = MaterialTheme.typography.labelSmall, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
+                                                    Text(slot, style = MaterialTheme.typography.labelSmall, color = if (sel) RideRoyalBlue else DeepNavy, fontWeight = FontWeight.Bold)
                                                 }
                                             }
-                                            items(quickDestinations) { (place, km) ->
+                                            items(quickDestinations.take(4)) { (place, km) ->
                                                 val sel = destination == place
                                                 Box(
                                                     modifier = Modifier
                                                         .clip(RoundedCornerShape(50))
-                                                        .background(if (sel) RapidoCharcoal else RapidoSurface)
-                                                        .border(1.dp, if (sel) RapidoCharcoal else LightBorder, RoundedCornerShape(50))
+                                                        .background(if (sel) RideNavyHeader else Color(0xFFF8FAFC))
+                                                        .border(1.dp, if (sel) RideNavyHeader else Color(0xFFE2E8F0), RoundedCornerShape(50))
                                                         .clickable { destination = place }
-                                                        .padding(horizontal = 12.dp, vertical = 7.dp)
+                                                        .padding(horizontal = 10.dp, vertical = 6.dp)
                                                 ) {
                                                     Text(
                                                         "$place • ${km}km",
                                                         style = MaterialTheme.typography.labelSmall,
-                                                        color = if (sel) RapidoYellow else RapidoCharcoal,
-                                                        fontWeight = FontWeight.Bold
+                                                        color = if (sel) RideYellowAccent else DeepNavy,
+                                                        fontWeight = FontWeight.SemiBold
                                                     )
                                                 }
                                             }
                                         }
 
-                                        // 6-Tier Vehicle Selector Cards (Bike, Auto, Auto XL, Mini, Sedan, SUV)
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Select Ride (6 Tiers)", style = MaterialTheme.typography.titleLarge, color = RapidoCharcoal, fontWeight = FontWeight.ExtraBold)
-                                            Text("${"%.1f".format(distanceKm)} km • $etaMin min", style = MaterialTheme.typography.labelMedium, color = SkyBlueDark, fontWeight = FontWeight.Bold)
-                                        }
-
+                                        // Vehicle Options (Blue-bordered selected card with checkmark, Screen 4 look)
                                         Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                                            DemoCatalog.rideVehicles.forEach { v ->
+                                            displayedVehicles.forEach { v ->
                                                 val isSel = selectedVehicle.id == v.id
                                                 val vRaw = v.baseFare + (distanceKm * v.perKmRate).toInt()
-                                                val vTax = (vRaw * 0.05).toInt().coerceAtLeast(3)
-                                                val vFinal = (vRaw + vTax - (if (promoApplied && vRaw > 45) 15 else 0)).coerceAtLeast(25)
-                                                RapidoVehicleCard(
+                                                val vTax = (vRaw * 0.05).toInt().coerceAtLeast(2)
+                                                val vFinal = (vRaw + vTax - (if (promoApplied && vRaw > 40) 15 else 0)).coerceAtLeast(29)
+                                                TakeItRideVehicleCard(
                                                     vehicle = v,
+                                                    etaMinutes = (etaMin + v.etaMin).coerceAtLeast(10),
                                                     fare = vFinal,
-                                                    originalFare = if (promoApplied && vRaw > 45) vRaw + vTax else null,
+                                                    originalFare = if (promoApplied && vRaw > 40) vRaw + vTax else null,
                                                     selected = isSel,
-                                                    onClick = { selectedVehicle = v }
+                                                    onClick = {
+                                                        selectedVehicle = v
+                                                        selectedModeTab = when (v.id) {
+                                                            "bike" -> "bike"
+                                                            "auto", "auto_xl" -> "auto"
+                                                            else -> "cab"
+                                                        }
+                                                    }
                                                 )
                                             }
                                         }
 
-                                        // Payment & Promo Strip
+                                        // Expand/Collapse all 6 ride tiers
+                                        Text(
+                                            text = if (showAllVehicles) "Show Compact Tiers ▲" else "Show All 6 Ride Tiers (Auto XL, Sedan, SUV) ▼",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = RideRoyalBlue,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier
+                                                .align(Alignment.CenterHorizontally)
+                                                .clickable { showAllVehicles = !showAllVehicles }
+                                                .padding(vertical = 2.dp)
+                                        )
+
+                                        // Payment Selector + Apply Coupon Row (Screen 4 exact footer)
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
                                                 .clip(RoundedCornerShape(14.dp))
-                                                .background(Color(0xFFFFFBEB))
-                                                .border(1.dp, RapidoYellowDeep.copy(alpha = 0.5f), RoundedCornerShape(14.dp))
-                                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                                                .background(Color(0xFFF8FAFC))
+                                                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(14.dp))
+                                                .padding(horizontal = 14.dp, vertical = 11.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Rounded.LocalOffer, null, tint = Color(0xFFB45309), modifier = Modifier.size(18.dp))
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.clickable {
+                                                    val idx = (paymentMethods.indexOf(selectedPayment) + 1) % paymentMethods.size
+                                                    selectedPayment = paymentMethods[idx]
+                                                }
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (selectedPayment.contains("Wallet")) Icons.Rounded.AccountBalanceWallet else Icons.Rounded.QrCode2,
+                                                    contentDescription = "Payment method",
+                                                    tint = DeepNavy,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
                                                 Spacer(Modifier.width(8.dp))
                                                 Text(
-                                                    if (promoApplied) "RIDE15 Applied • Saving ₹15" else "Tap to apply ₹15 OFF",
-                                                    style = MaterialTheme.typography.labelMedium,
-                                                    color = RapidoCharcoal,
-                                                    fontWeight = FontWeight.Bold
+                                                    text = selectedPayment,
+                                                    style = MaterialTheme.typography.titleSmall,
+                                                    color = DeepNavy,
+                                                    fontWeight = FontWeight.ExtraBold
                                                 )
+                                                Icon(Icons.Rounded.KeyboardArrowDown, null, tint = MutedText, modifier = Modifier.size(18.dp))
                                             }
                                             Text(
-                                                if (promoApplied) "Remove" else "Apply",
-                                                style = MaterialTheme.typography.labelMedium,
-                                                color = Color(0xFFB45309),
+                                                text = if (promoApplied) "RIDE15 Applied ✓" else "Apply Coupon",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = if (promoApplied) SuccessGreen else RideRoyalBlue,
                                                 fontWeight = FontWeight.ExtraBold,
-                                                modifier = Modifier.clickable { promoApplied = !promoApplied }
+                                                modifier = Modifier.clickable {
+                                                    promoApplied = !promoApplied
+                                                    onShowMessage(if (promoApplied) "Coupon RIDE15 applied • ₹15 OFF!" else "Coupon removed")
+                                                }
                                             )
                                         }
 
-                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            items(listOf("Cash", "UPI", "Zipora Wallet", "Card")) { method ->
-                                                val sel = selectedPayment == method
-                                                Row(
-                                                    modifier = Modifier
-                                                        .clip(RoundedCornerShape(12.dp))
-                                                        .background(if (sel) RapidoCharcoal else RapidoSurface)
-                                                        .clickable { selectedPayment = method }
-                                                        .padding(horizontal = 14.dp, vertical = 9.dp),
-                                                    verticalAlignment = Alignment.CenterVertically
-                                                ) {
-                                                    Icon(
-                                                        when (method) {
-                                                            "Cash" -> Icons.Rounded.Payments
-                                                            "Zipora Wallet" -> Icons.Rounded.AccountBalanceWallet
-                                                            else -> Icons.Rounded.QrCode2
-                                                        },
-                                                        null,
-                                                        tint = if (sel) RapidoYellow else RapidoCharcoal,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                    Spacer(Modifier.width(6.dp))
-                                                    Text(method, style = MaterialTheme.typography.labelMedium, color = if (sel) SoftWhite else RapidoCharcoal, fontWeight = FontWeight.Bold)
-                                                }
-                                            }
-                                        }
-
+                                        // Full-Width Royal Blue Confirm Ride Button
                                         Button(
                                             onClick = { phase = RidePhase.MATCHING_DRIVER },
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .height(58.dp)
+                                                .height(54.dp)
                                                 .navigationBarsPadding()
                                                 .testTag("confirm_ride_button"),
-                                            shape = RoundedCornerShape(18.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = RapidoYellow, contentColor = RapidoCharcoal)
+                                            shape = RoundedCornerShape(50),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = RideRoyalBlue,
+                                                contentColor = SoftWhite
+                                            )
                                         ) {
                                             Text(
-                                                "Book ${selectedVehicle.name} ($scheduleSlot)  •  ₹$estimatedFare",
+                                                text = "Confirm Ride  •  ₹$estimatedFare",
                                                 style = MaterialTheme.typography.titleMedium,
                                                 fontWeight = FontWeight.ExtraBold
                                             )
+                                            Spacer(Modifier.width(6.dp))
+                                            Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, modifier = Modifier.size(20.dp))
                                         }
                                     }
                                 }
@@ -481,17 +587,26 @@ fun RideBookingScreen(
                                     ) {
                                         Character3DPortrait(
                                             drawableRes = R.drawable.img_char_ride_captain_1795426023899,
-                                            contentDescription = "Matching 3D Captain",
-                                            borderColor = SkyBlue,
-                                            size = 96.dp
+                                            contentDescription = "Matching Take It Captain",
+                                            borderColor = RideRoyalBlue,
+                                            size = 92.dp
                                         )
-                                        Text("Matching Your Zipora Captain...", style = MaterialTheme.typography.headlineMedium, color = RapidoCharcoal, fontWeight = FontWeight.ExtraBold)
+                                        Text(
+                                            "Matching Your Take It Captain...",
+                                            style = MaterialTheme.typography.headlineSmall,
+                                            color = DeepNavy,
+                                            fontWeight = FontWeight.ExtraBold
+                                        )
                                         LinearProgressIndicator(
                                             modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(50)),
-                                            color = SkyBlueDark,
-                                            trackColor = RideCardStart
+                                            color = RideRoyalBlue,
+                                            trackColor = RideSelectedBg
                                         )
-                                        Text("8 verified ${selectedVehicle.name} Captains within 600m • $mapPinFineTune", style = MaterialTheme.typography.bodySmall, color = MutedText)
+                                        Text(
+                                            "8 verified ${selectedVehicle.name} Captains within 500m • $mapPinFineTune",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MutedText
+                                        )
                                         OutlinedButton(
                                             onClick = { phase = RidePhase.SELECT_ROUTE_VEHICLE },
                                             shape = RoundedCornerShape(14.dp),
@@ -502,14 +617,13 @@ fun RideBookingScreen(
 
                                 RidePhase.CAPTAIN_ASSIGNED -> {
                                     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                        // Iconic 4-Box PIN Strip + Arriving Status
                                         Row(
                                             modifier = Modifier.fillMaxWidth(),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column {
-                                                Text(rideTimelineSteps[rideStepIndex.coerceIn(0, 5)], style = MaterialTheme.typography.titleMedium, color = RapidoCharcoal, fontWeight = FontWeight.ExtraBold)
+                                                Text(rideTimelineSteps[rideStepIndex.coerceIn(0, 5)], style = MaterialTheme.typography.titleMedium, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
                                                 Text("Share 4-digit PIN to start your ride", style = MaterialTheme.typography.bodySmall, color = MutedText)
                                             }
                                             Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
@@ -518,29 +632,28 @@ fun RideBookingScreen(
                                                         modifier = Modifier
                                                             .size(34.dp)
                                                             .clip(RoundedCornerShape(9.dp))
-                                                            .background(RapidoYellow)
-                                                            .border(1.2.dp, RapidoCharcoal, RoundedCornerShape(9.dp)),
+                                                            .background(RideYellowAccent)
+                                                            .border(1.2.dp, DeepNavy, RoundedCornerShape(9.dp)),
                                                         contentAlignment = Alignment.Center
                                                     ) {
-                                                        Text(digit.toString(), style = MaterialTheme.typography.titleMedium, color = RapidoCharcoal, fontWeight = FontWeight.ExtraBold)
+                                                        Text(digit.toString(), style = MaterialTheme.typography.titleMedium, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
                                                     }
                                                 }
                                             }
                                         }
 
-                                        // 3D Captain Portrait + Vehicle Number Plate Card
                                         Surface(
                                             shape = RoundedCornerShape(20.dp),
-                                            color = RapidoCharcoal,
+                                            color = RideNavyHeader,
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                                     Character3DPortrait(
                                                         drawableRes = R.drawable.img_char_ride_captain_1795426023899,
-                                                        contentDescription = "Captain Arjun Kumar 3D Avatar",
-                                                        borderColor = PremiumYellow,
-                                                        size = 62.dp
+                                                        contentDescription = "Captain Arjun Kumar",
+                                                        borderColor = RideYellowAccent,
+                                                        size = 60.dp
                                                     )
                                                     Spacer(Modifier.width(12.dp))
                                                     Column(modifier = Modifier.weight(1f)) {
@@ -551,15 +664,15 @@ fun RideBookingScreen(
                                                                 Text("4.9 ★", style = MaterialTheme.typography.labelSmall, color = SoftWhite, fontWeight = FontWeight.Bold)
                                                             }
                                                         }
-                                                        Text("${selectedVehicle.name} • Hero Xtreme 160R • Helmet Included", style = MaterialTheme.typography.bodySmall, color = Color(0xFFB8D4EB))
+                                                        Text("${selectedVehicle.name} • Hero Xtreme 160R • Helmet Included", style = MaterialTheme.typography.bodySmall, color = Color(0xFFBFDBFE))
                                                     }
                                                     Box(
                                                         modifier = Modifier
                                                             .clip(RoundedCornerShape(8.dp))
-                                                            .background(RapidoYellow)
+                                                            .background(RideYellowAccent)
                                                             .padding(horizontal = 8.dp, vertical = 5.dp)
                                                     ) {
-                                                        Text("KA 01\nEQ 4920", style = MaterialTheme.typography.labelSmall.copy(lineHeight = 11.sp), color = RapidoCharcoal, fontWeight = FontWeight.ExtraBold)
+                                                        Text("UP 16\nEQ 4920", style = MaterialTheme.typography.labelSmall.copy(lineHeight = 11.sp), color = DeepNavy, fontWeight = FontWeight.ExtraBold)
                                                     }
                                                 }
 
@@ -575,9 +688,9 @@ fun RideBookingScreen(
                                                         Text("Call", style = MaterialTheme.typography.labelMedium)
                                                     }
                                                     Button(
-                                                        onClick = { onShowMessage("Sent to Captain: 'I am waiting at the main gate!'") },
+                                                        onClick = { onShowMessage("Sent to Captain: 'I am waiting at the gate!'") },
                                                         modifier = Modifier.weight(1f),
-                                                        colors = ButtonDefaults.buttonColors(containerColor = SoftWhite.copy(alpha = 0.14f), contentColor = RapidoYellow),
+                                                        colors = ButtonDefaults.buttonColors(containerColor = SoftWhite.copy(alpha = 0.14f), contentColor = RideYellowAccent),
                                                         shape = RoundedCornerShape(12.dp)
                                                     ) {
                                                         Icon(Icons.Rounded.Chat, null, Modifier.size(16.dp))
@@ -598,15 +711,14 @@ fun RideBookingScreen(
                                             }
                                         }
 
-                                        // 6-Step Live Ride Status Timeline
                                         Surface(
                                             shape = RoundedCornerShape(18.dp),
-                                            color = LightSkyBackground,
-                                            modifier = Modifier.border(1.dp, LightBorder, RoundedCornerShape(18.dp))
+                                            color = RideSelectedBg,
+                                            modifier = Modifier.border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(18.dp))
                                         ) {
                                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                                    Text("LIVE RIDE TIMELINE (6 STEPS)", style = MaterialTheme.typography.labelMedium, color = SkyBlueDark, fontWeight = FontWeight.ExtraBold)
+                                                    Text("LIVE RIDE TIMELINE (6 STEPS)", style = MaterialTheme.typography.labelMedium, color = RideRoyalBlue, fontWeight = FontWeight.ExtraBold)
                                                     TextButton(
                                                         onClick = { if (rideStepIndex < 4) rideStepIndex++ },
                                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
@@ -617,12 +729,11 @@ fun RideBookingScreen(
                                                 MultiStepStatusTimeline(
                                                     steps = rideTimelineSteps,
                                                     currentStepIndex = rideStepIndex,
-                                                    accentColor = SkyBlueDark
+                                                    accentColor = RideRoyalBlue
                                                 )
                                             }
                                         }
 
-                                        // Verify PIN & Finish Ride
                                         OutlinedTextField(
                                             value = otpInput,
                                             onValueChange = { otpInput = it },
@@ -642,11 +753,11 @@ fun RideBookingScreen(
                                             },
                                             modifier = Modifier.fillMaxWidth().height(54.dp).navigationBarsPadding().testTag("complete_ride_button"),
                                             colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen, contentColor = SoftWhite),
-                                            shape = RoundedCornerShape(16.dp)
+                                            shape = RoundedCornerShape(50)
                                         ) {
                                             Icon(Icons.Rounded.CheckCircle, null)
                                             Spacer(Modifier.width(8.dp))
-                                            Text("Complete Ride • Pay ₹$estimatedFare ($selectedPayment)", fontWeight = FontWeight.ExtraBold)
+                                            Text("Complete Ride • Pay ₹$estimatedFare", fontWeight = FontWeight.ExtraBold)
                                         }
                                     }
                                 }
@@ -659,40 +770,38 @@ fun RideBookingScreen(
                                     ) {
                                         Character3DPortrait(
                                             drawableRes = R.drawable.img_char_ride_captain_1795426023899,
-                                            contentDescription = "Ride Completed Captain",
+                                            contentDescription = "Ride Completed",
                                             borderColor = SuccessGreen,
-                                            size = 86.dp
+                                            size = 84.dp
                                         )
-                                        Text("You've Arrived Safely!", style = MaterialTheme.typography.headlineMedium, color = RapidoCharcoal, fontWeight = FontWeight.ExtraBold)
+                                        Text("You've Arrived Safely!", style = MaterialTheme.typography.headlineMedium, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
                                         StatusPill("PAID • ₹$estimatedFare ($selectedPayment)")
 
-                                        // Detailed Fare Breakdown Receipt Card
                                         Surface(
                                             shape = RoundedCornerShape(18.dp),
-                                            color = LightSkyBackground,
-                                            modifier = Modifier.fillMaxWidth().border(1.dp, LightBorder, RoundedCornerShape(18.dp))
+                                            color = RideSelectedBg,
+                                            modifier = Modifier.fillMaxWidth().border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(18.dp))
                                         ) {
                                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                                Text("FARE BREAKDOWN RECEIPT", style = MaterialTheme.typography.labelMedium, color = SkyBlueDark, fontWeight = FontWeight.ExtraBold)
+                                                Text("FARE BREAKDOWN RECEIPT", style = MaterialTheme.typography.labelMedium, color = RideRoyalBlue, fontWeight = FontWeight.ExtraBold)
                                                 RideFareLine("Base Fare (${selectedVehicle.name})", "₹$baseComponent")
                                                 RideFareLine("Distance Charge (${"%.1f".format(distanceKm)} km)", "₹$distanceComponent")
-                                                RideFareLine("Waiting Charge", "₹$waitingCharge")
                                                 RideFareLine("GST & Platform Taxes (5%)", "₹$taxComponent")
                                                 if (discount > 0) RideFareLine("Promo Discount (RIDE15)", "-₹$discount", SuccessGreen)
-                                                HorizontalDivider(color = LightBorder)
+                                                HorizontalDivider(color = Color(0xFFBFDBFE))
                                                 RideFareLine("Total Paid ($selectedPayment)", "₹$estimatedFare", DeepNavy, bold = true)
                                             }
                                         }
 
-                                        Text("Rate Captain Arjun Kumar", style = MaterialTheme.typography.titleMedium, color = RapidoCharcoal, fontWeight = FontWeight.Bold)
+                                        Text("Rate Captain Arjun Kumar", style = MaterialTheme.typography.titleMedium, color = DeepNavy, fontWeight = FontWeight.Bold)
                                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                             for (s in 1..5) {
                                                 IconButton(onClick = { userRating = s }) {
                                                     Icon(
                                                         if (s <= userRating) Icons.Rounded.Star else Icons.Rounded.StarBorder,
                                                         "Rate $s",
-                                                        tint = RapidoYellowDeep,
-                                                        modifier = Modifier.size(36.dp)
+                                                        tint = PremiumYellowDark,
+                                                        modifier = Modifier.size(34.dp)
                                                     )
                                                 }
                                             }
@@ -719,9 +828,9 @@ fun RideBookingScreen(
                                         )
                                         Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                                             OutlinedButton(
-                                                onClick = { onShowMessage("Ride Receipt PDF downloaded (₹$estimatedFare • $selectedPayment)") },
-                                                modifier = Modifier.weight(1f).height(52.dp),
-                                                shape = RoundedCornerShape(16.dp)
+                                                onClick = { onShowMessage("Ride Receipt downloaded (₹$estimatedFare)") },
+                                                modifier = Modifier.weight(1f).height(50.dp),
+                                                shape = RoundedCornerShape(50)
                                             ) {
                                                 Icon(Icons.Rounded.ReceiptLong, null, Modifier.size(18.dp))
                                                 Spacer(Modifier.width(5.dp))
@@ -732,9 +841,9 @@ fun RideBookingScreen(
                                                     if (activeOrderId.isNotEmpty()) onRateRide(activeOrderId, userRating)
                                                     onBack()
                                                 },
-                                                modifier = Modifier.weight(1.4f).height(52.dp).testTag("submit_ride_rating_button"),
-                                                colors = ButtonDefaults.buttonColors(containerColor = RapidoYellow, contentColor = RapidoCharcoal),
-                                                shape = RoundedCornerShape(16.dp)
+                                                modifier = Modifier.weight(1.4f).height(50.dp).testTag("submit_ride_rating_button"),
+                                                colors = ButtonDefaults.buttonColors(containerColor = RideRoyalBlue, contentColor = SoftWhite),
+                                                shape = RoundedCornerShape(50)
                                             ) {
                                                 Text("Submit & Done", fontWeight = FontWeight.ExtraBold)
                                             }
@@ -749,7 +858,7 @@ fun RideBookingScreen(
         }
     }
 
-    // Destination Search & Map Pin Adjustment Sheet
+    // Destination Search & Map Pin Modal
     if (showDestinationModal) {
         var destQuery by remember { mutableStateOf("") }
         ModalBottomSheet(onDismissRequest = { showDestinationModal = false }, containerColor = SoftWhite) {
@@ -761,23 +870,22 @@ fun RideBookingScreen(
                 OutlinedTextField(
                     value = destQuery,
                     onValueChange = { destQuery = it },
-                    placeholder = { Text("Search metro, tech park, airport...") },
-                    leadingIcon = { Icon(Icons.Rounded.Search, null, tint = SkyBlueDark) },
+                    placeholder = { Text("Search mall, metro, tech park, airport...") },
+                    leadingIcon = { Icon(Icons.Rounded.Search, null, tint = RideRoyalBlue) },
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
                     modifier = Modifier.fillMaxWidth()
                 )
-                Text("Saved Locations", style = MaterialTheme.typography.labelLarge, color = MutedText)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
-                        selected = destination.contains("Home"),
-                        onClick = { destination = "Home • Indiranagar 100ft Rd"; showDestinationModal = false },
-                        label = { Text("🏠 Home") }
+                        selected = pickup == "Sector 62, Noida",
+                        onClick = { pickup = "Sector 62, Noida" },
+                        label = { Text("🏠 Sector 62") }
                     )
                     FilterChip(
-                        selected = destination.contains("Bagmane"),
-                        onClick = { destination = "Bagmane Tech Park"; showDestinationModal = false },
-                        label = { Text("💼 Work") }
+                        selected = destination == "DLF Mall, Noida",
+                        onClick = { destination = "DLF Mall, Noida"; showDestinationModal = false },
+                        label = { Text("🛍 DLF Mall") }
                     )
                     FilterChip(
                         selected = mapPinFineTune.contains("Gate"),
@@ -785,16 +893,15 @@ fun RideBookingScreen(
                             mapPinFineTune = if (mapPinFineTune == "Main Gate Pin Adjusted") "Metro Exit 2 Pin Adjusted" else "Main Gate Pin Adjusted"
                             onShowMessage("Map Pin updated: $mapPinFineTune")
                         },
-                        label = { Text("📍 Fine-Tune Pin") }
+                        label = { Text("📍 Pin") }
                     )
                 }
-                Text("Popular & Recent Destinations", style = MaterialTheme.typography.labelLarge, color = MutedText)
                 quickDestinations.filter { destQuery.isBlank() || it.first.contains(destQuery, true) }.forEach { (place, km) ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(12.dp))
-                            .background(LightSkyBackground)
+                            .background(Color(0xFFF8FAFC))
                             .clickable {
                                 destination = place
                                 showDestinationModal = false
@@ -804,7 +911,7 @@ fun RideBookingScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Rounded.LocationOn, null, tint = SkyBlueDark, modifier = Modifier.size(18.dp))
+                            Icon(Icons.Rounded.LocationOn, null, tint = RideRoyalBlue, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
                             Text(place, style = MaterialTheme.typography.titleSmall, color = DeepNavy)
                         }
@@ -818,12 +925,12 @@ fun RideBookingScreen(
     if (showSosDialog) {
         AlertDialog(
             onDismissRequest = { showSosDialog = false },
-            containerColor = RapidoCharcoal,
+            containerColor = RideNavyHeader,
             titleContentColor = CoralDanger,
             textContentColor = SoftWhite,
             title = { Text("24x7 Safety SOS Shield") },
             text = {
-                Text("Simulated Safety Alert:\n• Emergency Contact: ${uiState.appState.emergencyContactName} (${uiState.appState.emergencyContactPhone})\n• Live GPS & Captain plate KA 01 EQ 4920 shared with Zipora Safety Desk.")
+                Text("Simulated Safety Alert:\n• Emergency Contact: ${uiState.appState.emergencyContactName} (${uiState.appState.emergencyContactPhone})\n• Live GPS & Captain plate UP 16 EQ 4920 shared with Take It Safety Desk.")
             },
             confirmButton = {
                 Button(
@@ -835,7 +942,7 @@ fun RideBookingScreen(
                 ) { Text("Trigger Demo SOS") }
             },
             dismissButton = {
-                TextButton(onClick = { showSosDialog = false }) { Text("Close", color = RapidoYellow) }
+                TextButton(onClick = { showSosDialog = false }) { Text("Close", color = RideYellowAccent) }
             }
         )
     }
@@ -850,8 +957,9 @@ private fun RideFareLine(label: String, value: String, valueColor: Color = Slate
 }
 
 @Composable
-private fun RapidoVehicleCard(
+private fun TakeItRideVehicleCard(
     vehicle: VehicleOption,
+    etaMinutes: Int,
     fare: Int,
     originalFare: Int?,
     selected: Boolean,
@@ -863,14 +971,24 @@ private fun RapidoVehicleCard(
         "suv" -> Icons.Rounded.AirportShuttle
         else -> Icons.Rounded.DirectionsCar
     }
+    val shortTitle = when (vehicle.id) {
+        "bike" -> "Bike"
+        "auto" -> "Auto"
+        "mini" -> "Cab"
+        else -> vehicle.name
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(if (selected) Color(0xFFFFFBEB) else SoftWhite)
-            .border(if (selected) 2.2.dp else 1.dp, if (selected) RapidoYellowDeep else LightBorder, RoundedCornerShape(18.dp))
+            .background(if (selected) RideSelectedBg else SoftWhite)
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = if (selected) RideRoyalBlue else Color(0xFFE2E8F0),
+                shape = RoundedCornerShape(18.dp)
+            )
             .clickable(onClick = onClick)
-            .padding(horizontal = 13.dp, vertical = 12.dp)
+            .padding(horizontal = 14.dp, vertical = 12.dp)
             .testTag("vehicle_option_${vehicle.id}"),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -878,35 +996,75 @@ private fun RapidoVehicleCard(
             modifier = Modifier
                 .size(50.dp)
                 .clip(RoundedCornerShape(14.dp))
-                .background(if (selected) RapidoYellow else RideCardStart),
+                .background(
+                    Brush.linearGradient(
+                        listOf(Color(0xFFFEF08A), RideYellowAccent)
+                    )
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = vehicle.name, tint = RapidoCharcoal, modifier = Modifier.size(28.dp))
+            Icon(icon, contentDescription = vehicle.name, tint = DeepNavy, modifier = Modifier.size(30.dp))
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(vehicle.name, style = MaterialTheme.typography.titleMedium, color = RapidoCharcoal, fontWeight = FontWeight.ExtraBold)
-                Spacer(Modifier.width(6.dp))
-                Icon(Icons.Rounded.Person, null, tint = MutedText, modifier = Modifier.size(13.dp))
-                Text(vehicle.capacity.take(1), style = MaterialTheme.typography.labelSmall, color = MutedText)
-                if (vehicle.badge.isNotEmpty()) {
+                Text(
+                    text = shortTitle,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = DeepNavy,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                if (vehicle.badge.isNotEmpty() && selected) {
                     Spacer(Modifier.width(6.dp))
-                    Box(Modifier.clip(RoundedCornerShape(6.dp)).background(RapidoCharcoal).padding(horizontal = 6.dp, vertical = 2.dp)) {
-                        Text(vehicle.badge, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = RapidoYellow, fontWeight = FontWeight.ExtraBold)
+                    Box(
+                        Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(RideRoyalBlue.copy(alpha = 0.12f))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            vehicle.badge,
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
+                            color = RideRoyalBlue,
+                            fontWeight = FontWeight.ExtraBold
+                        )
                     }
                 }
             }
-            Text("${vehicle.etaMin} mins away • ${vehicle.tagline}", style = MaterialTheme.typography.bodySmall, color = MutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                text = "$etaMinutes min • ${vehicle.capacity}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MutedText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
-        Column(horizontalAlignment = Alignment.End) {
-            Text("₹$fare", style = MaterialTheme.typography.titleLarge, color = RapidoCharcoal, fontWeight = FontWeight.ExtraBold)
-            if (originalFare != null) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    "₹$originalFare",
-                    style = MaterialTheme.typography.labelSmall.copy(textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough),
-                    color = MutedText
+                    text = "₹$fare",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = if (selected) RideRoyalBlue else DeepNavy,
+                    fontWeight = FontWeight.ExtraBold
                 )
+                if (originalFare != null) {
+                    Text(
+                        text = "₹$originalFare",
+                        style = MaterialTheme.typography.labelSmall.copy(textDecoration = TextDecoration.LineThrough),
+                        color = MutedText
+                    )
+                }
+            }
+            if (selected) {
+                Box(
+                    modifier = Modifier
+                        .size(22.dp)
+                        .clip(CircleShape)
+                        .background(RideRoyalBlue),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Rounded.Check, contentDescription = "Selected", tint = SoftWhite, modifier = Modifier.size(14.dp))
+                }
             }
         }
     }

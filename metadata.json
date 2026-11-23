@@ -1,6 +1,6 @@
 {
-  "name": "Zipora",
-  "description": "All-in-one hyperlocal super app combining bike taxi & cab rides, food delivery, instant grocery, parcel delivery, and goods transport with multi-role partner and admin panels.",
+  "name": "Take It",
+  "description": "Take It — All-in-one hyperlocal super app combining bike taxi & cab rides, food delivery, instant grocery, parcel delivery, and goods transport with 9 switchable partner and admin panels.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

@@ -14,11 +14,11 @@ import kotlinx.coroutines.flow.Flow
 @Entity(tableName = "app_state")
 data class AppStateEntity(
     @PrimaryKey val id: Int = 1,
-    val userName: String = "Aarav Sharma",
+    val userName: String = "Rohit Sharma",
     val userPhone: String = "+91 98765 43210",
-    val userEmail: String = "aarav.sharma@zipora.app",
-    val activeAddressLabel: String = "Home",
-    val activeAddressLine: String = "402, Skyview Residency, Indiranagar, Bengaluru",
+    val userEmail: String = "rohit.sharma@takeit.app",
+    val activeAddressLabel: String = "Sector 62, Noida",
+    val activeAddressLine: String = "Sector 62, Noida • Electronic City",
     val walletBalance: Double = 2450.0,
     val rewardPoints: Int = 1280,
     val activePanelName: String = "CUSTOMER",

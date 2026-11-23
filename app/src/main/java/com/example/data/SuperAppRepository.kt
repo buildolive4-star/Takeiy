@@ -90,7 +90,7 @@ class SuperAppRepository(private val db: ZiporaDatabase) {
         pushNotification(
             category = "Order Update",
             title = "Order $orderId is now ${status.replace('_', ' ')}",
-            message = "Live status synced across your Zipora ecosystem."
+            message = "Live status synced across your Take It ecosystem."
         )
     }
 
@@ -98,7 +98,7 @@ class SuperAppRepository(private val db: ZiporaDatabase) {
         db.orderDao().updateRating(orderId, rating)
     }
 
-    suspend fun addWalletMoney(amount: Double, method: String, txType: String = "CREDIT", title: String = "Added to Zipora Wallet") {
+    suspend fun addWalletMoney(amount: Double, method: String, txType: String = "CREDIT", title: String = "Added to Take It Wallet") {
         updateAppState { s -> s.copy(walletBalance = s.walletBalance + amount) }
         db.walletTxDao().insertTx(
             WalletTxEntity(
@@ -213,7 +213,7 @@ object DemoCatalog {
 
     val incomingDriverRequests = listOf(
         IncomingJobRequest("REQ-901", "Bike Taxi", "Rohan Verma", "Indiranagar Metro Gate 2", "Koramangala 4th Block", 0.6, 5.4, 68, 59, "UPI", "4821"),
-        IncomingJobRequest("REQ-902", "Auto Rickshaw", "Ananya Iyer", "100ft Rd, HAL 2nd Stage", "MG Road Trinity Circle", 1.1, 4.2, 96, 84, "Zipora Wallet", "7390"),
+        IncomingJobRequest("REQ-902", "Auto Rickshaw", "Ananya Iyer", "100ft Rd, HAL 2nd Stage", "MG Road Trinity Circle", 1.1, 4.2, 96, 84, "Take It Wallet", "7390"),
         IncomingJobRequest("REQ-903", "Mini Cab", "Vikram Malhotra", "Domlur Flyover", "Manyata Tech Park Gate 5", 1.5, 11.8, 254, 218, "Cash", "1945")
     )
 
@@ -223,7 +223,7 @@ object DemoCatalog {
     )
 
     val incomingParcelAndTransport = listOf(
-        IncomingJobRequest("PR-701", "Parcel Delivery", "Sneha Rao", "WeWork Embassy GolfLinks", "Whitefield ITPL Main Rd", 0.9, 9.2, 149, 125, "Zipora Wallet", "8842"),
+        IncomingJobRequest("PR-701", "Parcel Delivery", "Sneha Rao", "WeWork Embassy GolfLinks", "Whitefield ITPL Main Rd", 0.9, 9.2, 149, 125, "Take It Wallet", "8842"),
         IncomingJobRequest("TR-802", "Tata Ace Cargo", "Suresh Hardware Depot", "KR Market Wholesale Hub", "Electronic City Phase 1", 2.3, 16.5, 742, 640, "Business Invoice", "5519")
     )
 
@@ -262,25 +262,25 @@ object DemoCatalog {
     )
 
     fun seedOrders(now: Long): List<OrderEntity> = listOf(
-        OrderEntity("ZP-8841", "FOOD", "Artisan Crust Pizzeria", "1x Truffle Burrata Margherita, 1x Garlic Knots", "PREPARING", 618.0, "Zipora Wallet", "Artisan Crust, Indiranagar", "402, Skyview Residency", "4921", "Kiran Gowda", now - 900_000L, 0),
-        OrderEntity("ZP-8839", "RIDE", "Bike Taxi • Indiranagar to MG Road", "4.8 km • 14 mins • Captain Arjun K.", "COMPLETED", 64.0, "UPI", "100ft Rd Indiranagar", "MG Road Metro", "3104", "Arjun Kumar", now - 7_200_000L, 5),
-        OrderEntity("ZP-8832", "GROCERY", "Zipora Blink Basket (5 items)", "Strawberries, A2 Milk, Sourdough & 2 more", "COMPLETED", 495.0, "Zipora Wallet", "Zipora Dark Store Indiranagar", "402, Skyview Residency", "8820", "Deepak R.", now - 43_200_000L, 5),
-        OrderEntity("ZP-8825", "PARCEL", "Express Document Parcel", "Legal Folder • 0.5 kg • Verified OTP", "COMPLETED", 98.0, "UPI", "Indiranagar Home", "Koramangala WeWork", "2051", "Manoj Singh", now - 86_400_000L, 4),
-        OrderEntity("ZP-8810", "TRANSPORT", "Tata Ace • Furniture Move", "14.2 km • 1 Loading Helper", "PENDING", 690.0, "Debit Card", "HSR Layout Sector 1", "Whitefield Prestige Shantiniketan", "7732", "Ramesh Yadav", now - 1_800_000L, 0)
+        OrderEntity("TK-8841", "FOOD", "Artisan Crust Pizzeria", "1x Farmhouse Pizza, 1x Garlic Knots", "PREPARING", 618.0, "Take It Wallet", "Artisan Crust, Sector 62", "Sector 62, Noida", "4921", "Rakesh Kumar", now - 900_000L, 0),
+        OrderEntity("TK-8839", "RIDE", "Bike Taxi • Sector 62 to DLF Mall", "3.2 km • 12 mins • Captain Arjun K.", "COMPLETED", 49.0, "UPI", "Sector 62, Noida", "DLF Mall, Noida", "3104", "Arjun Kumar", now - 7_200_000L, 5),
+        OrderEntity("TK-8832", "GROCERY", "Take It Express Basket (5 items)", "Strawberries, A2 Milk, Sourdough & 2 more", "COMPLETED", 495.0, "Take It Wallet", "Take It Dark Store Sector 62", "Sector 62, Noida", "8820", "Deepak R.", now - 43_200_000L, 5),
+        OrderEntity("TK-8825", "PARCEL", "Express Document Parcel", "Legal Folder • 0.5 kg • Verified OTP", "COMPLETED", 99.0, "UPI", "Sector 62, Noida", "DLF Cyber Hub", "2051", "Manoj Singh", now - 86_400_000L, 4),
+        OrderEntity("TK-8810", "TRANSPORT", "Tata Ace • Furniture Move", "12.4 km • 1 Loading Helper", "PENDING", 690.0, "Debit Card", "Sector 62, Noida", "Greater Noida West", "7732", "Ramesh Yadav", now - 1_800_000L, 0)
     )
 
     fun seedWalletTransactions(now: Long): List<WalletTxEntity> = listOf(
-        WalletTxEntity("TX-9901", "Zipora Super Cashback", "CASHBACK", 120.0, "Promo Credit", now - 3_600_000L),
-        WalletTxEntity("TX-9902", "Artisan Crust Pizzeria", "DEBIT", 618.0, "Zipora Wallet", now - 900_000L),
+        WalletTxEntity("TX-9901", "Take It Super Cashback", "CASHBACK", 120.0, "Promo Credit", now - 3_600_000L),
+        WalletTxEntity("TX-9902", "Artisan Crust Pizzeria", "DEBIT", 618.0, "Take It Wallet", now - 900_000L),
         WalletTxEntity("TX-9903", "Wallet Top-up via UPI", "CREDIT", 2000.0, "UPI • GPay", now - 21_600_000L),
         WalletTxEntity("TX-9904", "Cancelled Order Refund", "REFUND", 185.0, "Instant Refund", now - 64_800_000L),
-        WalletTxEntity("TX-9905", "Zipora Blink Basket", "DEBIT", 495.0, "Zipora Wallet", now - 43_200_000L)
+        WalletTxEntity("TX-9905", "Take It Express Basket", "DEBIT", 495.0, "Take It Wallet", now - 43_200_000L)
     )
 
     fun seedNotifications(now: Long): List<NotificationEntity> = listOf(
-        NotificationEntity("N-101", "Food Prepared", "Chef is firing your Truffle Burrata Pizza", "Artisan Crust Pizzeria is packing Order ZP-8841. Pickup in 4 mins.", now - 300_000L, false),
+        NotificationEntity("N-101", "Food Prepared", "Chef is firing your Farmhouse Pizza", "Artisan Crust Pizzeria is packing Order TK-8841. Pickup in 4 mins.", now - 300_000L, false),
         NotificationEntity("N-102", "Promotional Offers", "Flat ₹100 OFF on Instant Groceries!", "Use code BLINK100 on your next 9-minute basket above ₹499.", now - 1_800_000L, false),
-        NotificationEntity("N-103", "Payment Successful", "₹120 Cashback Credited", "Your super app loyalty reward is now active in Zipora Wallet.", now - 3_600_000L, true),
+        NotificationEntity("N-103", "Payment Successful", "₹120 Cashback Credited", "Your super app loyalty reward is now active in Take It Wallet.", now - 3_600_000L, true),
         NotificationEntity("N-104", "Ride Completed", "Thanks for riding with Captain Arjun!", "Your 4.8 km Bike Taxi trip saved 18 minutes in peak traffic.", now - 7_200_000L, true)
     )
 

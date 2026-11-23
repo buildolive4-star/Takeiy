@@ -1,7 +1,6 @@
 package com.example.ui.screens.customer
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -20,25 +19,31 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.DemoCatalog
 import com.example.model.AppRoute
+import com.example.model.SavedAddress
 import com.example.ui.components.*
 import com.example.ui.theme.*
 import com.example.viewmodel.SuperAppUiState
 import kotlinx.coroutines.launch
+
+private val TakeItNavy = Color(0xFF0B1F4B)
+private val TakeItNavyLight = Color(0xFF153473)
+private val TakeItRoyalBlue = Color(0xFF2563EB)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,7 +51,7 @@ fun CustomerHomeScreen(
     uiState: SuperAppUiState,
     onOpenDrawer: () -> Unit,
     onNavigate: (AppRoute) -> Unit,
-    onSelectAddress: (com.example.model.SavedAddress) -> Unit,
+    onSelectAddress: (SavedAddress) -> Unit,
     onAddSearch: (String) -> Unit,
     onToggleFavourite: (String) -> Unit,
     onShowMessage: (String) -> Unit
@@ -57,308 +62,236 @@ fun CustomerHomeScreen(
     var searchExpanded by remember { mutableStateOf(false) }
     var showLocationSheet by remember { mutableStateOf(false) }
 
-    val infinite = rememberInfiniteTransition(label = "homePulse")
-    val pinBounce by infinite.animateFloat(
-        initialValue = 0f,
-        targetValue = -4f,
-        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "pinBounce"
-    )
-    val ctaGlow by infinite.animateFloat(
-        initialValue = 0.97f,
-        targetValue = 1.03f,
-        animationSpec = infiniteRepeatable(tween(1100, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-        label = "ctaGlow"
-    )
-
     val activeOrders = remember(uiState.orders) {
         uiState.orders.filter { it.status in setOf("PENDING", "ACCEPTED", "PREPARING", "ON_THE_WAY") }
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(LightSkyBackground)
-    ) {
+    Scaffold(
+        containerColor = Color(0xFFF4F7FB),
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        bottomBar = {
+            TakeItBottomNavBar(
+                activeIndex = 0,
+                onSelect = { idx ->
+                    when (idx) {
+                        0 -> scope.launch { listState.animateScrollToItem(0) }
+                        1 -> onNavigate(AppRoute.OrderHistory("ALL"))
+                        2 -> onNavigate(AppRoute.Wallet)
+                        3 -> onNavigate(AppRoute.Support)
+                        4 -> onNavigate(AppRoute.Profile)
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 112.dp)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            // 1. ATMOSPHERIC MESH-GLOW TOP BAR + LOCATION + GLASS SEARCH
+            // 1. DEEP NAVY CURVED HEADER (HAMBURGER | TAKE IT LOGO | BELL & AVATAR + LOCATION + SEARCH)
             item {
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(bottomStart = 30.dp, bottomEnd = 30.dp))
+                        .clip(RoundedCornerShape(bottomStart = 28.dp, bottomEnd = 28.dp))
+                        .background(Brush.verticalGradient(listOf(TakeItNavy, TakeItNavyLight)))
+                        .statusBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    AtmosphericMeshHeaderBackground(modifier = Modifier.matchParentSize())
-
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    // Top Row
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // Top Row: Hamburger | Brand | Bell & Avatar
+                        IconButton(
+                            onClick = onOpenDrawer,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(RoundedCornerShape(13.dp))
+                                .background(SoftWhite.copy(alpha = 0.12f))
+                                .testTag("hamburger_menu_button")
+                        ) {
+                            Icon(Icons.Rounded.Menu, "Open Menu", tint = SoftWhite, modifier = Modifier.size(26.dp))
+                        }
+
+                        // Centered Take It Brand Logo
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.weight(1f),
+                            horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            IconButton(
-                                onClick = onOpenDrawer,
+                            Box(
                                 modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(RoundedCornerShape(15.dp))
-                                    .background(SoftWhite.copy(alpha = 0.13f))
-                                    .border(1.dp, PremiumYellow.copy(alpha = 0.45f), RoundedCornerShape(15.dp))
-                                    .testTag("hamburger_menu_button")
+                                    .size(30.dp)
+                                    .clip(RoundedCornerShape(9.dp))
+                                    .background(Brush.linearGradient(listOf(PremiumYellow, OrangeAccent))),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Icon(
-                                    Icons.Rounded.Menu,
-                                    contentDescription = "Open Universal Panel Switcher",
-                                    tint = PremiumYellow,
-                                    modifier = Modifier.size(26.dp)
-                                )
+                                Icon(Icons.Rounded.Bolt, null, tint = TakeItNavy, modifier = Modifier.size(20.dp))
                             }
+                            Spacer(Modifier.width(7.dp))
+                            Text(
+                                text = buildAnnotatedString {
+                                    withStyle(SpanStyle(color = SoftWhite, fontWeight = FontWeight.ExtraBold)) { append("Take ") }
+                                    withStyle(SpanStyle(color = PremiumYellow, fontWeight = FontWeight.ExtraBold)) { append("It") }
+                                },
+                                style = MaterialTheme.typography.titleLarge.copy(fontSize = 22.sp)
+                            )
+                        }
 
-                            Spacer(Modifier.width(10.dp))
-
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Image(
-                                    painter = painterResource(R.drawable.img_launcher_zipora_1795421416651),
-                                    contentDescription = "Zipora Logo",
+                        // Bell
+                        Box(
+                            modifier = Modifier
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .clickable { onNavigate(AppRoute.Notifications) }
+                                .testTag("notification_bell_button"),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Rounded.NotificationsNone, "Notifications", tint = SoftWhite, modifier = Modifier.size(26.dp))
+                            if (uiState.unreadNotificationCount > 0) {
+                                Box(
                                     modifier = Modifier
-                                        .size(36.dp)
-                                        .shadow(6.dp, RoundedCornerShape(11.dp), spotColor = SkyBlue)
-                                        .clip(RoundedCornerShape(11.dp))
-                                        .border(1.2.dp, SkyBlue, RoundedCornerShape(11.dp)),
-                                    contentScale = ContentScale.Crop
-                                )
-                                Spacer(Modifier.width(9.dp))
-                                Column {
-                                    Text(
-                                        text = "ZIPORA",
-                                        style = MaterialTheme.typography.titleLarge.copy(letterSpacing = 2.sp),
-                                        color = SoftWhite,
-                                        fontWeight = FontWeight.ExtraBold
-                                    )
-                                    Text(
-                                        text = "HYPERLOCAL SUPER APP",
-                                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp, fontSize = 9.sp),
-                                        color = SkyBlue
-                                    )
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(RoundedCornerShape(15.dp))
-                                    .background(SoftWhite.copy(alpha = 0.11f))
-                                    .border(1.dp, SoftWhite.copy(alpha = 0.16f), RoundedCornerShape(15.dp))
-                                    .clickable { onNavigate(AppRoute.Notifications) }
-                                    .testTag("notification_bell_button"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(Icons.Rounded.Notifications, contentDescription = "Notifications", tint = SoftWhite)
-                                if (uiState.unreadNotificationCount > 0) {
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(7.dp)
-                                            .size(16.dp)
-                                            .clip(CircleShape)
-                                            .background(CoralDanger),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = uiState.unreadNotificationCount.coerceAtMost(9).toString(),
-                                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                                            color = SoftWhite
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(Modifier.width(8.dp))
-
-                            Box(
-                                modifier = Modifier
-                                    .size(46.dp)
-                                    .clip(CircleShape)
-                                    .border(2.dp, PremiumYellow, CircleShape)
-                                    .background(Brush.linearGradient(listOf(SkyBlue, SkyBlueDark)))
-                                    .clickable { onNavigate(AppRoute.Profile) }
-                                    .testTag("profile_avatar_button"),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = uiState.appState.userName.take(1).uppercase(),
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = SoftWhite,
-                                    fontWeight = FontWeight.ExtraBold
+                                        .align(Alignment.TopEnd)
+                                        .padding(7.dp)
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(CoralDanger)
                                 )
                             }
                         }
 
-                        // LOCATION GLASS PILL
-                        Row(
+                        Spacer(Modifier.width(4.dp))
+
+                        // Circular User Avatar
+                        Image(
+                            painter = painterResource(R.drawable.img_char_ride_captain_1795426023899),
+                            contentDescription = "Profile",
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(18.dp))
-                                .background(SoftWhite.copy(alpha = 0.10f))
-                                .border(1.dp, SkyBlue.copy(alpha = 0.28f), RoundedCornerShape(18.dp))
-                                .clickable { showLocationSheet = true }
-                                .padding(horizontal = 12.dp, vertical = 10.dp)
-                                .testTag("location_selector_bar"),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .clip(CircleShape)
-                                    .background(PremiumYellow.copy(alpha = 0.2f)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Rounded.LocationOn,
-                                    contentDescription = "Delivery Location Pin",
-                                    tint = PremiumYellow,
-                                    modifier = Modifier.size(20.dp).offset(y = pinBounce.dp)
-                                )
-                            }
-                            Spacer(Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        text = "Delivering to • ${uiState.appState.activeAddressLabel}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = SkyBlue,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                    Icon(Icons.Rounded.KeyboardArrowDown, null, tint = SkyBlue, modifier = Modifier.size(16.dp))
-                                }
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .border(1.8.dp, PremiumYellow, CircleShape)
+                                .clickable { onNavigate(AppRoute.Profile) }
+                                .testTag("profile_avatar_button")
+                        )
+                    }
+
+                    // Delivering To Row with Solid Yellow "Change" Pill
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showLocationSheet = true }
+                            .testTag("location_selector_bar"),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Rounded.LocationOn, null, tint = PremiumYellow, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Delivering to", style = MaterialTheme.typography.labelSmall, color = Color(0xFFCBD5E1))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = uiState.appState.activeAddressLine,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = SoftWhite.copy(alpha = 0.92f),
+                                    text = uiState.appState.activeAddressLabel,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = SoftWhite,
+                                    fontWeight = FontWeight.ExtraBold,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis
                                 )
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(10.dp))
-                                    .background(PremiumYellow.copy(alpha = 0.16f))
-                                    .padding(horizontal = 10.dp, vertical = 5.dp)
-                            ) {
-                                Text("Change", style = MaterialTheme.typography.labelSmall, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
+                                Icon(Icons.Rounded.KeyboardArrowDown, null, tint = SoftWhite, modifier = Modifier.size(18.dp))
                             }
                         }
-
-                        // FLOATING ROUNDED SEARCH BAR
-                        Surface(
-                            shape = RoundedCornerShape(22.dp),
-                            color = SoftWhite,
-                            shadowElevation = 10.dp,
-                            modifier = Modifier.fillMaxWidth()
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(PremiumYellow)
+                                .clickable { showLocationSheet = true }
+                                .padding(horizontal = 16.dp, vertical = 7.dp)
                         ) {
-                            Column {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 14.dp, vertical = 3.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(Icons.Rounded.Search, contentDescription = "Search", tint = SkyBlueDark, modifier = Modifier.size(22.dp))
-                                    TextField(
-                                        value = searchQuery,
-                                        onValueChange = {
-                                            searchQuery = it
-                                            searchExpanded = true
-                                        },
-                                        placeholder = {
-                                            Text(
-                                                "Search rides, food, groceries, parcels...",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MutedText,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        },
-                                        singleLine = true,
-                                        colors = TextFieldDefaults.colors(
-                                            focusedContainerColor = Color.Transparent,
-                                            unfocusedContainerColor = Color.Transparent,
-                                            focusedIndicatorColor = Color.Transparent,
-                                            unfocusedIndicatorColor = Color.Transparent,
-                                            focusedTextColor = DeepNavy,
-                                            unfocusedTextColor = DeepNavy
-                                        ),
-                                        modifier = Modifier.weight(1f).testTag("home_search_input")
-                                    )
-                                    if (searchQuery.isNotEmpty()) {
-                                        IconButton(onClick = {
+                            Text("Change", style = MaterialTheme.typography.labelMedium, color = TakeItNavy, fontWeight = FontWeight.ExtraBold)
+                        }
+                    }
+
+                    // Crisp White Rounded Search Bar
+                    Surface(
+                        shape = RoundedCornerShape(16.dp),
+                        color = SoftWhite,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Rounded.Search, "Search", tint = Color(0xFF475569), modifier = Modifier.size(22.dp))
+                                TextField(
+                                    value = searchQuery,
+                                    onValueChange = {
+                                        searchQuery = it
+                                        searchExpanded = true
+                                    },
+                                    placeholder = {
+                                        Text(
+                                            "Search rides, food, groceries...",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MutedText,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    },
+                                    singleLine = true,
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color.Transparent,
+                                        unfocusedContainerColor = Color.Transparent,
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        focusedTextColor = TakeItNavy,
+                                        unfocusedTextColor = TakeItNavy
+                                    ),
+                                    modifier = Modifier.weight(1f).testTag("home_search_input")
+                                )
+                                IconButton(
+                                    onClick = {
+                                        if (searchQuery.isNotBlank()) {
                                             onAddSearch(searchQuery)
                                             routeSearchQuery(searchQuery, onNavigate)
                                             searchExpanded = false
-                                        }) {
-                                            Icon(Icons.Rounded.ArrowForward, contentDescription = "Go", tint = DeepNavy)
+                                        } else {
+                                            searchExpanded = !searchExpanded
+                                            onShowMessage("Voice Search ready: Say 'Book Ride', 'Pizza' or 'Grocery'")
                                         }
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .size(38.dp)
-                                            .clip(CircleShape)
-                                            .background(OrangeAccent.copy(alpha = 0.14f))
-                                            .clickable {
-                                                searchExpanded = !searchExpanded
-                                                onShowMessage("Simulated Voice Search: Say 'Book bike taxi' or 'Order pizza'")
-                                            }
-                                            .testTag("voice_search_button"),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Rounded.Mic, contentDescription = "Voice search", tint = OrangeAccent, modifier = Modifier.size(20.dp))
-                                    }
+                                    },
+                                    modifier = Modifier.testTag("voice_search_button")
+                                ) {
+                                    Icon(
+                                        if (searchQuery.isNotBlank()) Icons.Rounded.ArrowForward else Icons.Rounded.Mic,
+                                        contentDescription = "Voice search",
+                                        tint = TakeItNavy
+                                    )
                                 }
-
-                                AnimatedVisibility(visible = searchExpanded) {
-                                    Column(
-                                        modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 14.dp),
-                                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                                    ) {
-                                        HorizontalDivider(color = LightBorder)
-                                        Text("Recent Searches", style = MaterialTheme.typography.labelSmall, color = MutedText)
-                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            items(uiState.recentSearches) { term ->
-                                                AssistChip(
-                                                    onClick = {
-                                                        searchQuery = term
-                                                        searchExpanded = false
-                                                        routeSearchQuery(term, onNavigate)
-                                                    },
-                                                    label = { Text(term, style = MaterialTheme.typography.labelSmall) }
-                                                )
-                                            }
-                                        }
-                                        Text("Popular Now", style = MaterialTheme.typography.labelSmall, color = MutedText)
-                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                            items(listOf("Bike Taxi", "Biryani", "9-Min Milk", "Send Parcel", "Tata Ace", "Earbuds")) { pop ->
-                                                SuggestionChip(
-                                                    onClick = {
-                                                        onAddSearch(pop)
-                                                        searchExpanded = false
-                                                        routeSearchQuery(pop, onNavigate)
-                                                    },
-                                                    label = { Text(pop, style = MaterialTheme.typography.labelSmall, color = DeepNavy) }
-                                                )
-                                            }
+                            }
+                            AnimatedVisibility(visible = searchExpanded) {
+                                Column(
+                                    modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                                ) {
+                                    HorizontalDivider(color = LightBorder)
+                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        items(listOf("Bike Taxi", "Pizza", "9-Min Milk", "Send Parcel", "Mini Truck", "Local Shop")) { pop ->
+                                            AssistChip(
+                                                onClick = {
+                                                    onAddSearch(pop)
+                                                    searchExpanded = false
+                                                    routeSearchQuery(pop, onNavigate)
+                                                },
+                                                label = { Text(pop, style = MaterialTheme.typography.labelSmall) }
+                                            )
                                         }
                                     }
                                 }
@@ -368,567 +301,302 @@ fun CustomerHomeScreen(
                 }
             }
 
-            // 2. QUICK-LAUNCH SPEED PILLS STRIP
-            item {
-                val quickPills = listOf(
-                    Triple("⚡ 2m Bike", SkyBlueDark, AppRoute.RideBooking),
-                    Triple("🍕 50% Food", OrangeAccent, AppRoute.FoodDiscovery),
-                    Triple("🥬 9m Blink", SuccessGreen, AppRoute.GroceryStore),
-                    Triple("📦 Parcel", Color(0xFFB45309), AppRoute.ParcelDelivery),
-                    Triple("🚚 Cargo", VioletAccent, AppRoute.GoodsTransport),
-                    Triple("🛍️ Shops", PinkAccent, AppRoute.LocalShopping)
-                )
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(quickPills) { (text, accent, route) ->
-                        Box(
-                            modifier = Modifier
-                                .shadow(3.dp, RoundedCornerShape(50), spotColor = accent.copy(alpha = 0.25f))
-                                .clip(RoundedCornerShape(50))
-                                .background(SoftWhite)
-                                .border(1.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(50))
-                                .bounceClick { onNavigate(route) }
-                                .padding(horizontal = 14.dp, vertical = 8.dp)
-                        ) {
-                            Text(text, style = MaterialTheme.typography.labelMedium, color = DeepNavy, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
-            // 3. ULTRA-PREMIUM 3D HERO BANNER
+            // 2. HERO BANNER: "Everything You Need in One App!" WITH 3D BURGER
             item {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp)
-                        .height(216.dp)
-                        .shadow(16.dp, RoundedCornerShape(28.dp), ambientColor = DeepNavy, spotColor = SkyBlue)
-                        .clip(RoundedCornerShape(28.dp))
-                        .background(DeepNavy)
-                        .border(1.4.dp, SkyBlue.copy(alpha = 0.45f), RoundedCornerShape(28.dp))
+                        .height(164.dp)
+                        .shadow(10.dp, RoundedCornerShape(22.dp), spotColor = TakeItNavy)
+                        .clip(RoundedCornerShape(22.dp))
+                        .background(TakeItNavy)
                 ) {
                     Image(
-                        painter = painterResource(R.drawable.img_hero_superapp_1795421415685),
-                        contentDescription = "Zipora 3D Super App Ecosystem Hero",
+                        painter = painterResource(R.drawable.img_takeit_hero_burger_1795427328311),
+                        contentDescription = "Take It Everything You Need in One App Hero",
                         modifier = Modifier.fillMaxSize(),
                         contentScale = ContentScale.Crop
                     )
                     Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.horizontalGradient(
-                                    0.0f to Color(0xFA071B2D),
-                                    0.54f to Color(0xCC102A43),
-                                    1.0f to Color.Transparent
-                                )
+                        modifier = Modifier.fillMaxSize().background(
+                            Brush.horizontalGradient(
+                                0.0f to Color(0xEE091B42),
+                                0.52f to Color(0xBB0E2A66),
+                                1.0f to Color.Transparent
                             )
+                        )
                     )
                     Column(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .fillMaxWidth(0.65f)
-                            .padding(18.dp),
+                            .fillMaxWidth(0.66f)
+                            .padding(16.dp),
                         verticalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(SkyBlue.copy(alpha = 0.24f))
-                                .border(1.dp, SkyBlue.copy(alpha = 0.65f), RoundedCornerShape(50))
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
+                        Column {
                             Text(
-                                text = "★ ONE UNIFIED ECOSYSTEM",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = "Everything You Need",
+                                style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
+                                color = SoftWhite,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                            Text(
+                                text = "in One App!",
+                                style = MaterialTheme.typography.titleLarge.copy(fontSize = 20.sp),
                                 color = PremiumYellow,
                                 fontWeight = FontWeight.ExtraBold
                             )
-                        }
-                        Column {
+                            Spacer(Modifier.height(3.dp))
                             Text(
-                                text = "Everything You Need, One App.",
-                                style = MaterialTheme.typography.headlineLarge,
-                                color = SoftWhite,
-                                lineHeight = 27.sp
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                text = "Ride. Eat. Shop. Deliver. Move.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = Color(0xFFD6EEFF),
-                                fontWeight = FontWeight.Medium
+                                text = "Ride • Eat • Shop • Deliver",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = SoftWhite.copy(alpha = 0.88f)
                             )
                         }
                         Button(
-                            onClick = { scope.launch { listState.animateScrollToItem(4) } },
-                            colors = ButtonDefaults.buttonColors(containerColor = PremiumYellow, contentColor = DeepNavy),
-                            shape = RoundedCornerShape(15.dp),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 9.dp),
-                            modifier = Modifier.scale(ctaGlow).testTag("hero_explore_button")
+                            onClick = { scope.launch { listState.animateScrollToItem(2) } },
+                            colors = ButtonDefaults.buttonColors(containerColor = PremiumYellow, contentColor = TakeItNavy),
+                            shape = RoundedCornerShape(50),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                            modifier = Modifier.height(38.dp).testTag("hero_explore_button")
                         ) {
-                            Text("Explore Services", fontWeight = FontWeight.ExtraBold, style = MaterialTheme.typography.labelLarge)
-                            Spacer(Modifier.width(6.dp))
-                            Icon(Icons.Rounded.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Text("Explore Now  →", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.ExtraBold)
                         }
                     }
                 }
             }
 
-            // 4. FINTECH WALLET & 9-MODE SUPER SWITCHER CARDS
+            // 3. VIBRANT 3x2 COLORFUL SERVICE GRID (EXACT MOCKUP STYLE!)
             item {
                 Column(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        // Holographic Navy Wallet Card
-                        Box(
-                            modifier = Modifier
-                                .weight(1.22f)
-                                .shadow(10.dp, RoundedCornerShape(22.dp), spotColor = SkyBlue)
-                                .clip(RoundedCornerShape(22.dp))
-                                .background(Brush.linearGradient(listOf(Color(0xFF0A2138), DeepNavy, Color(0xFF0C4A6E))))
-                                .glassSheenOverlay(0.14f)
-                                .border(1.dp, SkyBlue.copy(alpha = 0.4f), RoundedCornerShape(22.dp))
-                                .bounceClick { onNavigate(AppRoute.Wallet) }
-                                .padding(14.dp)
-                                .testTag("home_wallet_card")
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconOrb3D(Icons.Rounded.AccountBalanceWallet, DeepNavy, PremiumYellow, OrangeAccent, size = 42.dp, iconSize = 21.dp)
-                                Spacer(Modifier.width(10.dp))
-                                Column {
-                                    Text("ZIPORA WALLET", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = SkyBlue)
-                                    AnimatedWalletAmount(uiState.appState.walletBalance, color = SoftWhite, style = MaterialTheme.typography.titleLarge)
-                                    Text("+ Add Money", style = MaterialTheme.typography.labelSmall, color = PremiumYellow)
-                                }
-                            }
-                        }
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        TakeItServiceTile(
+                            title = "Ride",
+                            subtitle = "Book a Ride",
+                            bgStart = Color(0xFF3B82F6),
+                            bgEnd = Color(0xFF1D4ED8),
+                            imageRes = R.drawable.img_char_ride_captain_1795426023899,
+                            modifier = Modifier.weight(1f).testTag("service_card_ride"),
+                            onClick = { onNavigate(AppRoute.RideBooking) }
+                        )
+                        TakeItServiceTile(
+                            title = "Food",
+                            subtitle = "Order Now",
+                            bgStart = Color(0xFFFB923C),
+                            bgEnd = Color(0xFFEA580C),
+                            imageRes = R.drawable.img_char_food_rider_1795426023084,
+                            modifier = Modifier.weight(1f).testTag("service_card_food"),
+                            onClick = { onNavigate(AppRoute.FoodDiscovery) }
+                        )
+                        TakeItServiceTile(
+                            title = "Grocery",
+                            subtitle = "Shop Now",
+                            bgStart = Color(0xFF4ADE80),
+                            bgEnd = Color(0xFF16A34A),
+                            imageRes = R.drawable.img_char_grocery_buddy_1795426023736,
+                            modifier = Modifier.weight(1f).testTag("service_card_grocery"),
+                            onClick = { onNavigate(AppRoute.GroceryStore) }
+                        )
+                    }
 
-                        // Rewards & Super Points Card
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        TakeItServiceTile(
+                            title = "Parcel",
+                            subtitle = "Send Now",
+                            bgStart = Color(0xFFA855F7),
+                            bgEnd = Color(0xFF6D28D9),
+                            imageRes = R.drawable.img_char_porter_mover_1795426024294,
+                            modifier = Modifier.weight(1f).testTag("service_card_parcel"),
+                            onClick = { onNavigate(AppRoute.ParcelDelivery) }
+                        )
+                        TakeItServiceTile(
+                            title = "Transport",
+                            subtitle = "Book Transport",
+                            bgStart = Color(0xFF60A5FA),
+                            bgEnd = Color(0xFF1E3A8A),
+                            imageRes = R.drawable.img_takeit_parcel_truck_1795427329625,
+                            modifier = Modifier.weight(1f).testTag("service_card_transport"),
+                            onClick = { onNavigate(AppRoute.GoodsTransport) }
+                        )
+                        // Vibrant Pink/Crimson "More" Grid Tile
                         Box(
                             modifier = Modifier
                                 .weight(1f)
-                                .shadow(6.dp, RoundedCornerShape(22.dp), spotColor = PremiumYellow.copy(alpha = 0.25f))
-                                .clip(RoundedCornerShape(22.dp))
-                                .background(SoftWhite)
-                                .border(1.2.dp, LightBorder, RoundedCornerShape(22.dp))
-                                .bounceClick { onNavigate(AppRoute.ReferEarn) }
-                                .padding(14.dp)
+                                .height(138.dp)
+                                .shadow(6.dp, RoundedCornerShape(20.dp), spotColor = Color(0xFFE11D48))
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(Brush.verticalGradient(listOf(Color(0xFFFB7185), Color(0xFFE11D48))))
+                                .bounceClick { onNavigate(AppRoute.LocalShopping) }
+                                .padding(12.dp)
+                                .testTag("service_card_shopping")
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconOrb3D(Icons.Rounded.WorkspacePremium, DeepNavy, PremiumYellow, Color(0xFFFDE047), size = 42.dp, iconSize = 22.dp)
-                                Spacer(Modifier.width(10.dp))
-                                Column {
-                                    Text("REWARDS", style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp), color = MutedText)
-                                    Text("${uiState.appState.rewardPoints}", style = MaterialTheme.typography.titleLarge, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
-                                    Text("Gold Tier", style = MaterialTheme.typography.labelSmall, color = SuccessGreen)
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Box(
+                                    modifier = Modifier.size(60.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Rounded.GridView, "More Services", tint = SoftWhite, modifier = Modifier.size(48.dp))
+                                }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("More", style = MaterialTheme.typography.titleMedium, color = SoftWhite, fontWeight = FontWeight.ExtraBold)
+                                    Text("Explore All", style = MaterialTheme.typography.labelSmall, color = SoftWhite.copy(alpha = 0.9f))
                                 }
                             }
-                        }
-                    }
-
-                    // Universal 9-Panel Switcher Callout Banner
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .shadow(5.dp, RoundedCornerShape(20.dp), spotColor = SkyBlue.copy(alpha = 0.25f))
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(Brush.horizontalGradient(listOf(Color(0xFFE0F2FE), SoftWhite, Color(0xFFFEF9C3))))
-                            .border(1.2.dp, SkyBlue.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
-                            .bounceClick { onOpenDrawer() }
-                            .padding(horizontal = 14.dp, vertical = 12.dp)
-                            .testTag("home_mode_switcher_card"),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconOrb3D(Icons.Rounded.DashboardCustomize, SoftWhite, SkyBlueDark, DeepNavy, size = 40.dp, iconSize = 20.dp)
-                        Spacer(Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("9 Business & Partner Panels Inside", style = MaterialTheme.typography.titleSmall, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
-                            Text("Switch to Captain, Chef, Grocery, Logistics or Admin", style = MaterialTheme.typography.bodySmall, color = SlateText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(DeepNavy)
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                        ) {
-                            Text("Switch", style = MaterialTheme.typography.labelSmall, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
                         }
                     }
                 }
             }
 
-            // 5. MAIN 3D SERVICE CATEGORIES GRID (ALL 6 SERVICES)
+            // 4. HOT OFFERS 🔥 GOLDEN PIZZA BANNER (EXACT MOCKUP!)
             item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text("Explore Services", style = MaterialTheme.typography.headlineMedium, color = DeepNavy)
-                            Text("Tap any vertical to launch full interactive experience", style = MaterialTheme.typography.bodySmall, color = MutedText)
-                        }
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(50))
-                                .background(DeepNavy)
-                                .padding(horizontal = 10.dp, vertical = 4.dp)
-                        ) {
-                            Text("6 Verticals", style = MaterialTheme.typography.labelSmall, color = PremiumYellow)
-                        }
-                    }
-
-                    Spacer(Modifier.height(12.dp))
-
-                    val services = listOf(
-                        ServiceCardSpec(
-                            title = "Ride Booking",
-                            subtitle = "Bike • Auto XL • Cab",
-                            cta = "Book a Ride",
-                            icon = Icons.Rounded.TwoWheeler,
-                            bgStart = RideCardStart,
-                            bgEnd = RideCardEnd,
-                            accent = SkyBlueDark,
-                            badge = "2 MIN ETA",
-                            imageRes = R.drawable.img_char_ride_captain_1795426023899,
-                            route = AppRoute.RideBooking,
-                            tag = "service_card_ride"
-                        ),
-                        ServiceCardSpec(
-                            title = "Food Delivery",
-                            subtitle = "Restaurants • Dishes",
-                            cta = "Order Food",
-                            icon = Icons.Rounded.LunchDining,
-                            bgStart = FoodCardStart,
-                            bgEnd = FoodCardEnd,
-                            accent = FoodWarmOrange,
-                            badge = "50% OFF",
-                            imageRes = R.drawable.img_char_food_rider_1795426023084,
-                            route = AppRoute.FoodDiscovery,
-                            tag = "service_card_food"
-                        ),
-                        ServiceCardSpec(
-                            title = "Instant Grocery",
-                            subtitle = "Fruits • Veggies • Daily",
-                            cta = "Shop Now",
-                            icon = Icons.Rounded.ShoppingBasket,
-                            bgStart = GroceryCardStart,
-                            bgEnd = GroceryCardEnd,
-                            accent = SuccessGreen,
-                            badge = "9 MIN",
-                            imageRes = R.drawable.img_char_grocery_buddy_1795426023736,
-                            route = AppRoute.GroceryStore,
-                            tag = "service_card_grocery"
-                        ),
-                        ServiceCardSpec(
-                            title = "Parcel Delivery",
-                            subtitle = "Docs • Express Box",
-                            cta = "Send Parcel",
-                            icon = Icons.Rounded.Inventory2,
-                            bgStart = ParcelCardStart,
-                            bgEnd = ParcelCardEnd,
-                            accent = Color(0xFFB45309),
-                            badge = "OTP SAFE",
-                            imageRes = R.drawable.img_char_porter_mover_1795426024294,
-                            route = AppRoute.ParcelDelivery,
-                            tag = "service_card_parcel"
-                        ),
-                        ServiceCardSpec(
-                            title = "Goods Transport",
-                            subtitle = "Tata Ace • Mini Truck",
-                            cta = "Book Transport",
-                            icon = Icons.Rounded.LocalShipping,
-                            bgStart = TransportCardStart,
-                            bgEnd = TransportCardEnd,
-                            accent = IndustrialBlue,
-                            badge = "UP TO 3.5T",
-                            imageRes = R.drawable.img_mobility_fleet_1795421417312,
-                            route = AppRoute.GoodsTransport,
-                            tag = "service_card_transport"
-                        ),
-                        ServiceCardSpec(
-                            title = "Local Shopping",
-                            subtitle = "Tech • Fashion • Home",
-                            cta = "Explore Shops",
-                            icon = Icons.Rounded.ShoppingBag,
-                            bgStart = ShoppingCardStart,
-                            bgEnd = ShoppingCardEnd,
-                            accent = PinkAccent,
-                            badge = "30 MIN",
-                            imageRes = null,
-                            route = AppRoute.LocalShopping,
-                            tag = "service_card_shopping"
+                        Text("Hot Offers 🔥", style = MaterialTheme.typography.titleLarge, color = TakeItNavy, fontWeight = FontWeight.ExtraBold)
+                        Text(
+                            "See All →",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = TakeItRoyalBlue,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clickable { onNavigate(AppRoute.CouponsOffers) }
                         )
-                    )
-
-                    services.chunked(2).forEach { rowItems ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            rowItems.forEach { spec ->
-                                Service3DCard(
-                                    spec = spec,
-                                    modifier = Modifier.weight(1f),
-                                    onClick = { onNavigate(spec.route) }
-                                )
-                            }
-                        }
                     }
 
-                    // MEET YOUR ZIPORA 3D CREW CHARACTER SPOTLIGHT
-                    Spacer(Modifier.height(6.dp))
-                    Text("Meet Your Zipora 3D Crew", style = MaterialTheme.typography.titleLarge, color = DeepNavy)
-                    Text("Tap a specialist to launch instant service", style = MaterialTheme.typography.bodySmall, color = MutedText)
-                    Spacer(Modifier.height(10.dp))
-                    val crew = listOf(
-                        Triple("Captain Arjun", "2m Bike & Auto", Pair(R.drawable.img_char_ride_captain_1795426023899, AppRoute.RideBooking)),
-                        Triple("Chef Rider Leo", "Hot Food Hero", Pair(R.drawable.img_char_food_rider_1795426023084, AppRoute.FoodDiscovery)),
-                        Triple("Blink Buddy Sam", "9m Fresh Mart", Pair(R.drawable.img_char_grocery_buddy_1795426023736, AppRoute.GroceryStore)),
-                        Triple("Mover Vikram", "Parcel & Cargo", Pair(R.drawable.img_char_porter_mover_1795426024294, AppRoute.GoodsTransport))
-                    )
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(crew) { (charName, roleTag, pair) ->
-                            val (resId, route) = pair
-                            Surface(
-                                shape = RoundedCornerShape(22.dp),
-                                color = SoftWhite,
-                                shadowElevation = 5.dp,
-                                modifier = Modifier
-                                    .width(126.dp)
-                                    .border(1.dp, LightBorder, RoundedCornerShape(22.dp))
-                                    .bounceClick { onNavigate(route) }
-                            ) {
-                                Column(
-                                    modifier = Modifier.padding(10.dp),
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                                ) {
-                                    Character3DPortrait(
-                                        drawableRes = resId,
-                                        contentDescription = charName,
-                                        borderColor = SkyBlue,
-                                        size = 86.dp,
-                                        bobbing = true
-                                    )
-                                    Text(charName, style = MaterialTheme.typography.labelLarge, color = DeepNavy, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text(roleTag, style = MaterialTheme.typography.labelSmall, color = SkyBlueDark, maxLines = 1)
-                                }
-                            }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(118.dp)
+                            .shadow(8.dp, RoundedCornerShape(20.dp), spotColor = OrangeAccent)
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(PremiumYellow)
+                            .bounceClick { onNavigate(AppRoute.FoodDiscovery) }
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.img_takeit_pizza_offer_1795427326877),
+                            contentDescription = "Flat 50% OFF on Food Orders",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .fillMaxWidth(0.58f)
+                                .padding(horizontal = 18.dp),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = "Flat 50% OFF",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = TakeItNavy,
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                            Text(
+                                text = "on Food Orders",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = Color(0xFF451A03),
+                                fontWeight = FontWeight.Bold
+                            )
                         }
                     }
                 }
             }
 
-            // 6. LIVE ACTIVE ORDER WITH 4-STEP MILESTONE PROGRESS BAR
+            // 5. LIVE ACTIVE ORDER TRACKER + 9-PANEL SWITCHER PILL
             if (activeOrders.isNotEmpty()) {
                 item {
                     val live = activeOrders.first()
-                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
-                        Text("Live Activity Tracker", style = MaterialTheme.typography.titleLarge, color = DeepNavy)
-                        Spacer(Modifier.height(8.dp))
-                        Surface(
-                            shape = RoundedCornerShape(22.dp),
-                            color = SoftWhite,
-                            shadowElevation = 6.dp,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .border(1.2.dp, SkyBlue.copy(alpha = 0.55f), RoundedCornerShape(22.dp))
-                                .bounceClick { onNavigate(AppRoute.OrderHistory("ALL")) }
-                        ) {
-                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    IconOrb3D(Icons.Rounded.DeliveryDining, SoftWhite, SkyBlue, DeepNavy, size = 46.dp)
-                                    Spacer(Modifier.width(12.dp))
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(live.title, style = MaterialTheme.typography.titleSmall, color = DeepNavy, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, false))
-                                            Spacer(Modifier.width(8.dp))
-                                            StatusPill(live.status)
-                                        }
-                                        Text(live.subtitle, style = MaterialTheme.typography.bodySmall, color = MutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text("Partner: ${live.partnerName} • OTP: ${live.otp}", style = MaterialTheme.typography.labelSmall, color = SkyBlueDark, fontWeight = FontWeight.Bold)
-                                    }
-                                    Icon(Icons.Rounded.ChevronRight, contentDescription = null, tint = DeepNavy)
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = SoftWhite,
+                        shadowElevation = 4.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .border(1.2.dp, TakeItRoyalBlue.copy(alpha = 0.25f), RoundedCornerShape(20.dp))
+                            .bounceClick { onNavigate(AppRoute.OrderHistory("ALL")) }
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Character3DPortrait(
+                                    drawableRes = R.drawable.img_char_food_rider_1795426023084,
+                                    contentDescription = "Active Partner",
+                                    borderColor = SuccessGreen,
+                                    size = 46.dp,
+                                    bobbing = false
+                                )
+                                Spacer(Modifier.width(10.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("LIVE ORDER • ${live.title}", style = MaterialTheme.typography.titleSmall, color = TakeItNavy, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text("Partner ${live.partnerName} • OTP ${live.otp}", style = MaterialTheme.typography.bodySmall, color = SuccessGreen, fontWeight = FontWeight.Bold)
                                 }
-                                LiveOrderMilestoneBar(status = live.status)
+                                StatusPill(live.status)
                             }
+                            LiveOrderMilestoneBar(status = live.status)
                         }
                     }
                 }
             }
 
-            // 7. FLOATING PROMOTIONAL BANNERS
+            // 6. SWITCH 9 PANELS CARD
             item {
-                Column(modifier = Modifier.padding(top = 14.dp)) {
-                    Text("Exclusive Super Offers", style = MaterialTheme.typography.titleLarge, color = DeepNavy, modifier = Modifier.padding(horizontal = 16.dp))
-                    Spacer(Modifier.height(10.dp))
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(DemoCatalog.coupons) { coupon ->
-                            Box(
-                                modifier = Modifier
-                                    .width(256.dp)
-                                    .shadow(8.dp, RoundedCornerShape(22.dp))
-                                    .clip(RoundedCornerShape(22.dp))
-                                    .background(
-                                        Brush.linearGradient(
-                                            when (coupon.category) {
-                                                "RIDE" -> listOf(DeepNavy, SkyBlueDark)
-                                                "GROCERY" -> listOf(Color(0xFF065F46), SuccessGreen)
-                                                "TRANSPORT" -> listOf(Color(0xFF4C1D95), VioletAccent)
-                                                else -> listOf(Color(0xFF9A3412), OrangeAccent)
-                                            }
-                                        )
-                                    )
-                                    .glassSheenOverlay(0.14f)
-                                    .bounceClick { onNavigate(AppRoute.CouponsOffers) }
-                                    .padding(16.dp)
-                            ) {
-                                Column {
-                                    Box(
-                                        modifier = Modifier.clip(RoundedCornerShape(8.dp)).background(PremiumYellow).padding(horizontal = 8.dp, vertical = 3.dp)
-                                    ) {
-                                        Text(coupon.code, style = MaterialTheme.typography.labelSmall, color = DeepNavy, fontWeight = FontWeight.ExtraBold)
-                                    }
-                                    Spacer(Modifier.height(8.dp))
-                                    Text(coupon.title, style = MaterialTheme.typography.titleLarge, color = SoftWhite)
-                                    Text(coupon.description, style = MaterialTheme.typography.bodySmall, color = SoftWhite.copy(alpha = 0.88f), maxLines = 2)
-                                }
-                            }
-                        }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Brush.horizontalGradient(listOf(TakeItNavy, Color(0xFF1E3A8A))))
+                        .bounceClick { onOpenDrawer() }
+                        .padding(horizontal = 14.dp, vertical = 12.dp)
+                        .testTag("home_mode_switcher_card"),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Rounded.DashboardCustomize, null, tint = PremiumYellow, modifier = Modifier.size(26.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Switch Panel (9 Modes Inside)", style = MaterialTheme.typography.titleSmall, color = SoftWhite, fontWeight = FontWeight.ExtraBold)
+                        Text("Captain, Delivery, Restaurant, Grocery, Logistics & Admin", style = MaterialTheme.typography.labelSmall, color = Color(0xFFBFDBFE), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                }
-            }
-
-            // 8. TOP RATED RESTAURANTS CAROUSEL
-            item {
-                Column(modifier = Modifier.padding(top = 18.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Top Rated Restaurants", style = MaterialTheme.typography.titleLarge, color = DeepNavy)
-                        TextButton(onClick = { onNavigate(AppRoute.FoodDiscovery) }) {
-                            Text("See All", color = SkyBlueDark, fontWeight = FontWeight.Bold)
-                        }
+                    Box(Modifier.clip(RoundedCornerShape(50)).background(PremiumYellow).padding(horizontal = 12.dp, vertical = 5.dp)) {
+                        Text("Switch", style = MaterialTheme.typography.labelSmall, color = TakeItNavy, fontWeight = FontWeight.ExtraBold)
                     }
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(DemoCatalog.restaurants.take(5)) { rest ->
-                            val isFav = rest.id in uiState.favouriteRestaurantIds
-                            Surface(
-                                shape = RoundedCornerShape(22.dp),
-                                color = SoftWhite,
-                                shadowElevation = 6.dp,
-                                modifier = Modifier
-                                    .width(228.dp)
-                                    .bounceClick { onNavigate(AppRoute.RestaurantDetail(rest.id)) }
-                            ) {
-                                Column {
-                                    Box(modifier = Modifier.fillMaxWidth().height(118.dp)) {
-                                        Image(
-                                            painter = painterResource(R.drawable.img_food_feast_1795421416008),
-                                            contentDescription = rest.name,
-                                            modifier = Modifier.fillMaxSize(),
-                                            contentScale = ContentScale.Crop
-                                        )
-                                        Box(
-                                            modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(Color.Transparent, DeepNavy.copy(alpha = 0.78f))))
-                                        )
-                                        IconButton(onClick = { onToggleFavourite(rest.id) }, modifier = Modifier.align(Alignment.TopEnd)) {
-                                            Icon(
-                                                if (isFav) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
-                                                contentDescription = "Favourite",
-                                                tint = if (isFav) CoralDanger else SoftWhite
-                                            )
-                                        }
-                                        Text(
-                                            text = rest.offerText,
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = PremiumYellow,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            modifier = Modifier.align(Alignment.BottomStart).padding(10.dp)
-                                        )
-                                    }
-                                    Column(modifier = Modifier.padding(12.dp)) {
-                                        Text(rest.name, style = MaterialTheme.typography.titleSmall, color = DeepNavy, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Text(rest.cuisines, style = MaterialTheme.typography.bodySmall, color = MutedText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                        Spacer(Modifier.height(6.dp))
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Rounded.Star, contentDescription = null, tint = SuccessGreen, modifier = Modifier.size(15.dp))
-                                            Text(" ${rest.rating} • ${rest.deliveryMins} min • ${rest.distanceKm} km", style = MaterialTheme.typography.labelSmall, color = SlateText)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 18.dp)) {
-                    PrototypeSimulationBanner("All 9 Panels Accessible via ☰ Menu • Local Room DB persistence active")
                 }
             }
         }
-
-        // Floating Cart Pill above Bottom Dock when cart has items
-        if (uiState.cartItemCount > 0) {
-            ExtendedFloatingActionButton(
-                onClick = { onNavigate(AppRoute.CartCheckout) },
-                containerColor = SuccessGreen,
-                contentColor = SoftWhite,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .navigationBarsPadding()
-                    .padding(end = 16.dp, bottom = 84.dp)
-                    .testTag("home_floating_cart")
-            ) {
-                Icon(Icons.Rounded.ShoppingCart, contentDescription = "View Cart")
-                Spacer(Modifier.width(8.dp))
-                Text("${uiState.cartItemCount} • ₹${uiState.cartGrandTotal}", fontWeight = FontWeight.ExtraBold)
-            }
-        }
-
-        // Sleek Floating Glassmorphic Bottom Navigation Dock
-        ZiporaFloatingBottomDock(
-            cartCount = uiState.cartItemCount,
-            onNavigate = onNavigate,
-            onScrollTop = { scope.launch { listState.animateScrollToItem(0) } },
-            modifier = Modifier.align(Alignment.BottomCenter)
-        )
     }
 
+    // Address Picker Sheet
     if (showLocationSheet) {
         ModalBottomSheet(onDismissRequest = { showLocationSheet = false }, containerColor = SoftWhite) {
             Column(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text("Select Delivery Location", style = MaterialTheme.typography.headlineMedium, color = DeepNavy)
-                Text("Saved addresses across Bengaluru", style = MaterialTheme.typography.bodySmall, color = MutedText)
-                DemoCatalog.savedAddresses.forEach { addr ->
-                    val selected = addr.label == uiState.appState.activeAddressLabel
+                Text("Select Delivery Location", style = MaterialTheme.typography.titleLarge, color = TakeItNavy, fontWeight = FontWeight.ExtraBold)
+                val addresses = listOf(
+                    SavedAddress("Sector 62, Noida", "Sector 62, Noida • Electronic City Metro", "Default"),
+                    *DemoCatalog.savedAddresses.toTypedArray()
+                )
+                addresses.forEach { addr ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(if (selected) RideCardStart else LightSkyBackground)
-                            .border(1.dp, if (selected) SkyBlue else LightBorder, RoundedCornerShape(16.dp))
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(if (uiState.appState.activeAddressLabel == addr.label) Color(0xFFEFF6FF) else Color(0xFFF8FAFC))
+                            .border(1.dp, if (uiState.appState.activeAddressLabel == addr.label) TakeItRoyalBlue else LightBorder, RoundedCornerShape(14.dp))
                             .clickable {
                                 onSelectAddress(addr)
                                 showLocationSheet = false
@@ -936,13 +604,12 @@ fun CustomerHomeScreen(
                             .padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(if (addr.label == "Home") Icons.Rounded.Home else Icons.Rounded.LocationOn, null, tint = SkyBlueDark)
-                        Spacer(Modifier.width(12.dp))
+                        Icon(Icons.Rounded.LocationOn, null, tint = TakeItRoyalBlue)
+                        Spacer(Modifier.width(10.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(addr.label, style = MaterialTheme.typography.titleSmall, color = DeepNavy)
-                            Text(addr.fullAddress, style = MaterialTheme.typography.bodySmall, color = SlateText)
+                            Text(addr.label, style = MaterialTheme.typography.titleSmall, color = TakeItNavy, fontWeight = FontWeight.Bold)
+                            Text(addr.fullAddress, style = MaterialTheme.typography.bodySmall, color = MutedText)
                         }
-                        if (selected) Icon(Icons.Rounded.CheckCircle, "Selected", tint = SuccessGreen)
                     }
                 }
             }
@@ -950,94 +617,94 @@ fun CustomerHomeScreen(
     }
 }
 
-private data class ServiceCardSpec(
-    val title: String,
-    val subtitle: String,
-    val cta: String,
-    val icon: ImageVector,
-    val bgStart: Color,
-    val bgEnd: Color,
-    val accent: Color,
-    val badge: String,
-    val imageRes: Int?,
-    val route: AppRoute,
-    val tag: String
-)
-
 @Composable
-private fun Service3DCard(
-    spec: ServiceCardSpec,
+private fun TakeItServiceTile(
+    title: String,
+    subtitle: String,
+    bgStart: Color,
+    bgEnd: Color,
+    imageRes: Int,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Box(
         modifier = modifier
-            .height(184.dp)
-            .shadow(10.dp, RoundedCornerShape(24.dp), ambientColor = spec.accent.copy(alpha = 0.25f), spotColor = spec.accent.copy(alpha = 0.38f))
-            .clip(RoundedCornerShape(24.dp))
-            .background(Brush.linearGradient(listOf(spec.bgStart, spec.bgEnd)))
-            .glassSheenOverlay(0.28f)
-            .border(1.4.dp, SoftWhite.copy(alpha = 0.9f), RoundedCornerShape(24.dp))
+            .height(138.dp)
+            .shadow(6.dp, RoundedCornerShape(20.dp), spotColor = bgEnd)
+            .clip(RoundedCornerShape(20.dp))
+            .background(Brush.verticalGradient(listOf(bgStart, bgEnd)))
             .bounceClick(onClick)
-            .testTag(spec.tag)
+            .padding(10.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(13.dp),
-            verticalArrangement = Arrangement.SpaceBetween
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween,
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .background(SoftWhite.copy(alpha = 0.92f))
-                        .padding(horizontal = 8.dp, vertical = 3.dp)
-                ) {
-                    Text(spec.badge, style = MaterialTheme.typography.labelSmall, color = spec.accent, fontWeight = FontWeight.ExtraBold)
-                }
-
-                if (spec.imageRes != null) {
-                    Image(
-                        painter = painterResource(spec.imageRes),
-                        contentDescription = spec.title,
-                        modifier = Modifier
-                            .size(60.dp)
-                            .shadow(8.dp, RoundedCornerShape(18.dp))
-                            .clip(RoundedCornerShape(18.dp))
-                            .border(1.8.dp, SoftWhite, RoundedCornerShape(18.dp)),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    IconOrb3D(
-                        icon = spec.icon,
-                        tint = SoftWhite,
-                        gradientStart = spec.accent,
-                        gradientEnd = DeepNavy,
-                        size = 54.dp,
-                        iconSize = 28.dp
-                    )
-                }
-            }
-
-            Column {
-                Text(spec.title, style = MaterialTheme.typography.titleMedium, color = DeepNavy, fontWeight = FontWeight.ExtraBold, maxLines = 1)
-                Text(spec.subtitle, style = MaterialTheme.typography.bodySmall, color = SlateText, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-
-            Row(
+            Image(
+                painter = painterResource(imageRes),
+                contentDescription = title,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(13.dp))
-                    .background(Brush.horizontalGradient(listOf(DeepNavy, DeepNavyLight)))
-                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(spec.cta, style = MaterialTheme.typography.labelSmall, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
-                Icon(Icons.Rounded.ArrowForward, contentDescription = null, tint = SoftWhite, modifier = Modifier.size(14.dp))
+                    .size(72.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .border(1.5.dp, SoftWhite.copy(alpha = 0.55f), RoundedCornerShape(16.dp))
+            )
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(title, style = MaterialTheme.typography.titleMedium, color = SoftWhite, fontWeight = FontWeight.ExtraBold, maxLines = 1)
+                Text(subtitle, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = SoftWhite.copy(alpha = 0.9f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+fun TakeItBottomNavBar(
+    activeIndex: Int,
+    onSelect: (Int) -> Unit
+) {
+    val items = listOf(
+        "Home" to Icons.Rounded.Home,
+        "Orders" to Icons.Rounded.ReceiptLong,
+        "Wallet" to Icons.Rounded.AccountBalanceWallet,
+        "Support" to Icons.Rounded.HeadsetMic,
+        "Profile" to Icons.Rounded.PersonOutline
+    )
+    Surface(
+        color = SoftWhite,
+        shadowElevation = 12.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(vertical = 8.dp, horizontal = 6.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items.forEachIndexed { idx, (label, icon) ->
+                val selected = idx == activeIndex
+                val tint = if (selected) TakeItRoyalBlue else Color(0xFF475569)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .clickable { onSelect(idx) }
+                        .padding(vertical = 4.dp)
+                        .testTag("bottom_dock_${label.lowercase()}")
+                ) {
+                    Icon(icon, contentDescription = label, tint = tint, modifier = Modifier.size(23.dp))
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.5.sp),
+                        color = tint,
+                        fontWeight = if (selected) FontWeight.ExtraBold else FontWeight.Medium,
+                        maxLines = 1
+                    )
+                }
             }
         }
     }
@@ -1046,11 +713,11 @@ private fun Service3DCard(
 private fun routeSearchQuery(query: String, onNavigate: (AppRoute) -> Unit) {
     val q = query.lowercase()
     when {
-        "bike" in q || "ride" in q || "auto" in q || "cab" in q -> onNavigate(AppRoute.RideBooking)
-        "milk" in q || "fruit" in q || "strawberr" in q || "grocery" in q || "blink" in q -> onNavigate(AppRoute.GroceryStore)
-        "parcel" in q || "doc" in q || "send" in q -> onNavigate(AppRoute.ParcelDelivery)
-        "truck" in q || "tata" in q || "transport" in q || "move" in q -> onNavigate(AppRoute.GoodsTransport)
-        "earbud" in q || "shop" in q || "fashion" in q || "lamp" in q -> onNavigate(AppRoute.LocalShopping)
+        q.contains("bike") || q.contains("auto") || q.contains("cab") || q.contains("ride") -> onNavigate(AppRoute.RideBooking)
+        q.contains("milk") || q.contains("fruit") || q.contains("grocery") || q.contains("veg") -> onNavigate(AppRoute.GroceryStore)
+        q.contains("parcel") || q.contains("courier") -> onNavigate(AppRoute.ParcelDelivery)
+        q.contains("truck") || q.contains("ace") || q.contains("cargo") || q.contains("transport") -> onNavigate(AppRoute.GoodsTransport)
+        q.contains("shop") || q.contains("earbud") || q.contains("local") -> onNavigate(AppRoute.LocalShopping)
         else -> onNavigate(AppRoute.FoodDiscovery)
     }
 }

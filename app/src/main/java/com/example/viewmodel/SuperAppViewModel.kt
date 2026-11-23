@@ -270,8 +270,9 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
         val state = uiState.value
         if (state.cart.isEmpty()) return false
         val total = state.cartGrandTotal.toDouble()
-        if (paymentMethod == "Zipora Wallet" && state.appState.walletBalance < total) {
-            showMessage("Insufficient Zipora Wallet balance. Please top up or select UPI/Card.")
+        val isWallet = paymentMethod.contains("Wallet", ignoreCase = true)
+        if (isWallet && state.appState.walletBalance < total) {
+            showMessage("Insufficient Take It Wallet balance. Please top up or select UPI/Card.")
             return false
         }
         val primaryType = state.cart.first().categoryType
@@ -279,7 +280,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
         val summary = state.cart.joinToString(", ") { "${it.quantity}x ${it.name}" }
         val otp = (1000..9999).random().toString()
         val order = OrderEntity(
-            id = "ZP-${(1000..9999).random()}",
+            id = "TK-${(1000..9999).random()}",
             type = primaryType,
             title = primarySource,
             subtitle = summary,
@@ -289,11 +290,11 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
             pickupLocation = primarySource,
             dropLocation = state.appState.activeAddressLine,
             otp = otp,
-            partnerName = listOf("Kiran Gowda", "Deepak R.", "Arjun Kumar", "Manoj Singh").random(),
+            partnerName = listOf("Rakesh Kumar", "Deepak R.", "Arjun Kumar", "Manoj Singh").random(),
             timestamp = System.currentTimeMillis()
         )
         viewModelScope.launch {
-            repository.createOrder(order, deductFromWallet = paymentMethod == "Zipora Wallet")
+            repository.createOrder(order, deductFromWallet = isWallet)
             _localState.update { it.copy(cart = emptyList(), appliedCoupon = null) }
             triggerConfetti()
             showMessage("Order ${order.id} placed! Delivery OTP: $otp")
@@ -315,7 +316,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
         status: String = "ON_THE_WAY",
         onCreated: (String) -> Unit = {}
     ) {
-        val id = "ZP-${(1000..9999).random()}"
+        val id = "TK-${(1000..9999).random()}"
         val order = OrderEntity(
             id = id,
             type = type,
@@ -331,7 +332,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
             timestamp = System.currentTimeMillis()
         )
         viewModelScope.launch {
-            repository.createOrder(order, deductFromWallet = paymentMethod == "Zipora Wallet")
+            repository.createOrder(order, deductFromWallet = paymentMethod.contains("Wallet", ignoreCase = true))
             onCreated(id)
         }
     }
@@ -359,7 +360,7 @@ class SuperAppViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             repository.addWalletMoney(amount, method)
             triggerConfetti()
-            showMessage("₹${amount.toInt()} added to Zipora Wallet (Simulated)")
+            showMessage("₹${amount.toInt()} added to Take It Wallet (Simulated)")
         }
         return true
     }

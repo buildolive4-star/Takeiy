@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Zipora"
+rootProject.name = "Take It"
 
 include(":app")

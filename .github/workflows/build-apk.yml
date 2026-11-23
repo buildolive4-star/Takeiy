@@ -1,4 +1,4 @@
-name: Build & Download Zipora APK
+name: Build & Download Take It APK
 
 on:
   push:
@@ -70,30 +70,30 @@ jobs:
       - name: Build Debug APK
         run: gradle :app:assembleDebug --no-daemon --stacktrace
 
-      - name: Prepare downloadable Zipora-App.apk
+      - name: Prepare downloadable TakeIt-App.apk
         run: |
           mkdir -p release-apk
-          cp app/build/outputs/apk/debug/app-debug.apk release-apk/Zipora-App.apk
-          ls -lh release-apk/Zipora-App.apk
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-App.apk
+          ls -lh release-apk/TakeIt-App.apk
 
       - name: Upload APK Artifact (Download from Actions tab)
         uses: actions/upload-artifact@v4
         with:
-          name: Zipora-App-APK
-          path: release-apk/Zipora-App.apk
+          name: TakeIt-App-APK
+          path: release-apk/TakeIt-App.apk
           retention-days: 30
 
       - name: Publish Latest Downloadable Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk
-          name: Zipora Super App (Latest APK)
+          name: Take It Super App (Latest APK)
           body: |
-            ### Download & Install Zipora Super App
-            Tap **Zipora-App.apk** below to download and install directly on your Android phone!
+            ### Download & Install Take It Super App
+            Tap **TakeIt-App.apk** below to download and install directly on your Android phone!
 
             - **All 9 Panels in One App** via the `☰` menu (Admin demo passcode: `2026`)
             - Built automatically on commit `${{ github.sha }}`
-          files: release-apk/Zipora-App.apk
+          files: release-apk/TakeIt-App.apk
           make_latest: true
         continue-on-error: true

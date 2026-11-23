@@ -41,7 +41,7 @@ fun WalletScreen(
 
     Scaffold(
         containerColor = LightSkyBackground,
-        topBar = { ZiporaSubTopBar("Zipora Universal Wallet", "Payments, cashback & instant refunds", onBack) }
+        topBar = { ZiporaSubTopBar("Take It Universal Wallet", "Payments, cashback & instant refunds", onBack) }
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(innerPadding),
@@ -384,7 +384,7 @@ fun ReferEarnScreen(
 ) {
     Scaffold(
         containerColor = LightSkyBackground,
-        topBar = { ZiporaSubTopBar("Refer & Earn", "Invite friends to Zipora Super App", onBack) }
+        topBar = { ZiporaSubTopBar("Refer & Earn", "Invite friends to Take It Super App", onBack) }
     ) { innerPadding ->
         Column(
             modifier = Modifier.fillMaxSize().padding(innerPadding).padding(20.dp),
@@ -393,10 +393,10 @@ fun ReferEarnScreen(
         ) {
             IconOrb3D(Icons.Rounded.CardGiftcard, DeepNavy, PremiumYellow, OrangeAccent, size = 76.dp, iconSize = 40.dp)
             Text("Earn ₹250 per Friend!", style = MaterialTheme.typography.headlineLarge, color = DeepNavy)
-            Text("Share your invite code. When they book their first Ride, Food, or Grocery basket, you both get ₹250 Zipora Wallet cash.", style = MaterialTheme.typography.bodyMedium, color = SlateText)
+            Text("Share your invite code. When they book their first Ride, Food, or Grocery basket, you both get ₹250 Take It Wallet cash.", style = MaterialTheme.typography.bodyMedium, color = SlateText)
             Surface(shape = RoundedCornerShape(16.dp), color = DeepNavy, modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.padding(18.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("ZIPORA250", style = MaterialTheme.typography.headlineMedium, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
+                    Text("TAKEIT250", style = MaterialTheme.typography.headlineMedium, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
                     StatusPill("ACTIVE")
                 }
             }
@@ -460,7 +460,7 @@ fun CustomerSupportScreen(
 fun InfoPageScreen(title: String, body: String, onBack: () -> Unit) {
     Scaffold(
         containerColor = LightSkyBackground,
-        topBar = { ZiporaSubTopBar(title, "Zipora Ecosystem Legal", onBack) }
+        topBar = { ZiporaSubTopBar(title, "Take It Ecosystem Legal", onBack) }
     ) { innerPadding ->
         Surface(shape = RoundedCornerShape(20.dp), color = SoftWhite, modifier = Modifier.padding(innerPadding).padding(16.dp)) {
             Text(body, style = MaterialTheme.typography.bodyLarge, color = SlateText, modifier = Modifier.padding(18.dp))

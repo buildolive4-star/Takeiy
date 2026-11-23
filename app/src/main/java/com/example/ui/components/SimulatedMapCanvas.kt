@@ -6,11 +6,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Navigation
-import androidx.compose.material.icons.rounded.Speed
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -20,26 +17,26 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
 
 /**
- * Interactive vector-styled city map rendered cleanly with Compose Canvas.
- * Clearly labeled as a Simulated Map Preview for prototype demonstration.
+ * Clean light street-map Canvas matching Take It Book a Ride & Track Your Order screens,
+ * with solid royal-blue route polyline, green pickup pin, red destination pin, and moving rider dot.
  */
 @Composable
 fun SimulatedMapCanvas(
     modifier: Modifier = Modifier,
-    pickupLabel: String = "Indiranagar",
-    dropLabel: String = "MG Road",
-    distanceKm: Double = 4.8,
+    pickupLabel: String = "Current Location",
+    dropLabel: String = "DLF Mall, Noida",
+    distanceKm: Double = 3.2,
     etaMinutes: Int = 12,
     driverProgress: Float = 0.35f,
     isDarkStyle: Boolean = false,
@@ -48,211 +45,168 @@ fun SimulatedMapCanvas(
 ) {
     val infinite = rememberInfiniteTransition(label = "mapAnim")
     val pulseRadius by infinite.animateFloat(
-        initialValue = 14f,
-        targetValue = 52f,
+        initialValue = 16f,
+        targetValue = 54f,
         animationSpec = infiniteRepeatable(tween(1500, easing = FastOutSlowInEasing), RepeatMode.Restart),
         label = "pulse"
     )
     val radarAlpha by infinite.animateFloat(
-        initialValue = 0.65f,
+        initialValue = 0.58f,
         targetValue = 0f,
         animationSpec = infiniteRepeatable(tween(1500, easing = FastOutSlowInEasing), RepeatMode.Restart),
         label = "radarAlpha"
     )
     val autoDriverT by infinite.animateFloat(
-        initialValue = 0.08f,
-        targetValue = 0.92f,
-        animationSpec = infiniteRepeatable(tween(7500, easing = LinearEasing), RepeatMode.Reverse),
+        initialValue = 0.12f,
+        targetValue = 0.88f,
+        animationSpec = infiniteRepeatable(tween(7200, easing = LinearEasing), RepeatMode.Reverse),
         label = "driverMove"
     )
 
-    val effectiveT = if (driverProgress >= 0f) driverProgress.coerceIn(0.05f, 0.95f) else autoDriverT
+    val effectiveT = if (driverProgress >= 0f) driverProgress.coerceIn(0.06f, 0.94f) else autoDriverT
+    val routeBlue = Color(0xFF2563EB)
 
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(if (isDarkStyle) DarkBackground else Color(0xFFE6F4FE))
-            .border(1.dp, if (isDarkStyle) DarkBorder else LightBorder, RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(20.dp))
+            .background(if (isDarkStyle) DarkBackground else Color(0xFFE9EEF5))
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
 
-            // Base map land blocks & parks
-            val roadColor = if (isDarkStyle) Color(0xFF173654) else Color(0xFFFFFFFF)
-            val mainAvenueColor = if (isDarkStyle) Color(0xFF214B73) else Color(0xFFD0EAFC)
-            val parkColor = if (isDarkStyle) Color(0xFF103B38) else Color(0xFFC8F3DC)
+            val blockColor = if (isDarkStyle) Color(0xFF0E2942) else Color(0xFFDFE6F0)
+            val roadColor = if (isDarkStyle) Color(0xFF173A5C) else Color(0xFFFFFFFF)
+            val parkColor = if (isDarkStyle) Color(0xFF103B38) else Color(0xFFC4EBC7)
             val waterColor = if (isDarkStyle) Color(0xFF0C3454) else Color(0xFFBAE6FD)
 
-            // Parks
-            drawRoundRect(
-                color = parkColor,
-                topLeft = Offset(w * 0.06f, h * 0.14f),
-                size = Size(w * 0.22f, h * 0.24f),
-                cornerRadius = CornerRadius(24f, 24f)
-            )
-            drawRoundRect(
-                color = parkColor,
-                topLeft = Offset(w * 0.68f, h * 0.56f),
-                size = Size(w * 0.25f, h * 0.26f),
-                cornerRadius = CornerRadius(28f, 28f)
-            )
-            // Lake / River body
-            drawRoundRect(
-                color = waterColor,
-                topLeft = Offset(w * 0.62f, h * 0.08f),
-                size = Size(w * 0.30f, h * 0.20f),
-                cornerRadius = CornerRadius(40f, 40f)
-            )
+            // Subtle city blocks
+            drawRoundRect(blockColor, Offset(w * 0.04f, h * 0.06f), Size(w * 0.25f, h * 0.22f), CornerRadius(14f, 14f))
+            drawRoundRect(blockColor, Offset(w * 0.36f, h * 0.10f), Size(w * 0.24f, h * 0.24f), CornerRadius(14f, 14f))
+            drawRoundRect(blockColor, Offset(w * 0.34f, h * 0.54f), Size(w * 0.28f, h * 0.28f), CornerRadius(14f, 14f))
 
-            // Grid streets
+            // Parks
+            drawRoundRect(parkColor, Offset(w * 0.04f, h * 0.38f), Size(w * 0.22f, h * 0.28f), CornerRadius(24f, 24f))
+            drawRoundRect(parkColor, Offset(w * 0.72f, h * 0.58f), Size(w * 0.24f, h * 0.28f), CornerRadius(26f, 26f))
+            drawRoundRect(waterColor, Offset(w * 0.68f, h * 0.06f), Size(w * 0.26f, h * 0.20f), CornerRadius(32f, 32f))
+
+            // Crisp white streets grid
             for (i in 1..5) {
                 val y = h * (i / 6f)
-                drawLine(roadColor, Offset(0f, y), Offset(w, y), strokeWidth = if (i == 3) 14f else 6f)
+                drawLine(roadColor, Offset(0f, y), Offset(w, y), strokeWidth = if (i == 3) 14f else 8f)
             }
             for (j in 1..4) {
                 val x = w * (j / 5f)
-                drawLine(roadColor, Offset(x, 0f), Offset(x, h), strokeWidth = if (j == 2) 14f else 6f)
+                drawLine(roadColor, Offset(x, 0f), Offset(x, h), strokeWidth = if (j == 2) 14f else 8f)
             }
-            // Diagonal arterial boulevard
-            drawLine(mainAvenueColor, Offset(0f, h * 0.85f), Offset(w, h * 0.20f), strokeWidth = 18f)
+            drawLine(roadColor, Offset(0f, h * 0.82f), Offset(w, h * 0.22f), strokeWidth = 14f)
+            drawLine(roadColor, Offset(w * 0.12f, 0f), Offset(w * 0.86f, h), strokeWidth = 9f)
 
-            // Pickup -> Waypoint -> Destination Route
-            val p0 = Offset(w * 0.20f, h * 0.74f)
-            val p1 = Offset(w * 0.44f, h * 0.52f)
-            val p2 = Offset(w * 0.56f, h * 0.34f)
-            val p3 = Offset(w * 0.80f, h * 0.26f)
+            // Crisp Google-Maps style segmented polyline route
+            val p0 = Offset(w * 0.22f, h * 0.34f)
+            val p1 = Offset(w * 0.44f, h * 0.44f)
+            val p2 = Offset(w * 0.56f, h * 0.66f)
+            val p3 = Offset(w * 0.78f, h * 0.58f)
 
             val routePath = Path().apply {
                 moveTo(p0.x, p0.y)
-                cubicTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y)
+                lineTo(p1.x, p1.y)
+                lineTo(p2.x, p2.y)
+                lineTo(p3.x, p3.y)
             }
 
-            // Route glow
+            // Soft route halo
             drawPath(
                 path = routePath,
-                color = SkyBlue.copy(alpha = 0.28f),
-                style = Stroke(width = 22f, cap = StrokeCap.Round)
+                color = routeBlue.copy(alpha = 0.24f),
+                style = Stroke(width = 20f, cap = StrokeCap.Round, join = StrokeJoin.Round)
             )
-            // Primary route line
+            // Solid bright blue route
             drawPath(
                 path = routePath,
-                brush = Brush.linearGradient(listOf(SkyBlue, PremiumYellow, OrangeAccent)),
-                style = Stroke(
-                    width = 9f,
-                    cap = StrokeCap.Round,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(24f, 12f), 0f)
-                )
+                color = routeBlue,
+                style = Stroke(width = 9f, cap = StrokeCap.Round, join = StrokeJoin.Round)
             )
 
-            // Matching radar rings around pickup
+            // Radar rings when matching driver
             if (showMatchingRadar) {
-                drawCircle(
-                    color = SkyBlue.copy(alpha = radarAlpha),
-                    radius = pulseRadius * 2.1f,
-                    center = p0
-                )
-                drawCircle(
-                    color = PremiumYellow.copy(alpha = radarAlpha * 0.8f),
-                    radius = pulseRadius * 1.3f,
-                    center = p0,
-                    style = Stroke(width = 4f)
-                )
+                drawCircle(routeBlue.copy(alpha = radarAlpha), pulseRadius * 2.1f, p0)
+                drawCircle(PremiumYellow.copy(alpha = radarAlpha * 0.8f), pulseRadius * 1.3f, p0, style = Stroke(4f))
             }
 
-            // Pickup Pin (Pulsing Sky Blue)
-            drawCircle(color = SkyBlue.copy(alpha = 0.25f), radius = pulseRadius * 0.65f, center = p0)
-            drawCircle(color = SoftWhite, radius = 15f, center = p0)
-            drawCircle(color = SkyBlue, radius = 9f, center = p0)
+            // Green Pickup Pin
+            drawCircle(SuccessGreen.copy(alpha = 0.22f), pulseRadius * 0.6f, p0)
+            drawCircle(SuccessGreen, 16f, p0)
+            drawCircle(SoftWhite, 6.5f, p0)
 
-            // Destination Pin (Amber/Coral)
-            drawCircle(color = OrangeAccent.copy(alpha = 0.25f), radius = 24f, center = p3)
-            drawCircle(color = SoftWhite, radius = 15f, center = p3)
-            drawCircle(color = CoralDanger, radius = 9f, center = p3)
+            // Red Destination Pin
+            drawCircle(CoralDanger.copy(alpha = 0.22f), 24f, p3)
+            drawCircle(CoralDanger, 16f, p3)
+            drawCircle(SoftWhite, 6.5f, p3)
 
-            // Animated moving driver marker on cubic bezier curve
+            // Moving rider marker interpolated along polyline segments
             if (showMovingDriver) {
-                val u = 1f - effectiveT
-                val bx = u * u * u * p0.x + 3 * u * u * effectiveT * p1.x + 3 * u * effectiveT * effectiveT * p2.x + effectiveT * effectiveT * effectiveT * p3.x
-                val by = u * u * u * p0.y + 3 * u * u * effectiveT * p1.y + 3 * u * effectiveT * effectiveT * p2.y + effectiveT * effectiveT * effectiveT * p3.y
-                val driverPos = Offset(bx, by)
-
-                drawCircle(color = PremiumYellow.copy(alpha = 0.35f), radius = 28f, center = driverPos)
-                drawCircle(color = DeepNavy, radius = 16f, center = driverPos)
-                drawCircle(color = PremiumYellow, radius = 10f, center = driverPos)
+                val seg = effectiveT * 3f
+                val driverPos = when {
+                    seg < 1f -> Offset(p0.x + (p1.x - p0.x) * seg, p0.y + (p1.y - p0.y) * seg)
+                    seg < 2f -> {
+                        val t = seg - 1f
+                        Offset(p1.x + (p2.x - p1.x) * t, p1.y + (p2.y - p1.y) * t)
+                    }
+                    else -> {
+                        val t = (seg - 2f).coerceIn(0f, 1f)
+                        Offset(p2.x + (p3.x - p2.x) * t, p2.y + (p3.y - p2.y) * t)
+                    }
+                }
+                drawCircle(PremiumYellow.copy(alpha = 0.4f), 26f, driverPos)
+                drawCircle(Color(0xFF0B1F4B), 15f, driverPos)
+                drawCircle(PremiumYellow, 9f, driverPos)
             }
         }
 
-        // Top-left Route Pill
-        Row(
+        // Center-top Crisp White Floating Distance & ETA Card (exact mockup style)
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = if (isDarkStyle) DarkCardElevated.copy(alpha = 0.94f) else SoftWhite,
+            shadowElevation = 6.dp,
             modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(12.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(DeepNavy.copy(alpha = 0.88f))
-                .border(1.dp, SkyBlue.copy(alpha = 0.4f), RoundedCornerShape(14.dp))
-                .padding(horizontal = 12.dp, vertical = 7.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .align(Alignment.TopCenter)
+                .padding(top = 18.dp)
         ) {
-            Icon(Icons.Rounded.Navigation, contentDescription = null, tint = PremiumYellow, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(
-                text = "${"%.1f".format(distanceKm)} km • $etaMinutes min",
-                style = MaterialTheme.typography.labelMedium,
-                color = SoftWhite,
-                fontWeight = FontWeight.Bold
-            )
+            Column(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "${"%.1f".format(distanceKm)} km",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = if (isDarkStyle) SoftWhite else DeepNavy,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    text = "$etaMinutes min",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isDarkStyle) PremiumYellow else MutedText,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
 
-        // Top-right Simulated Badge
-        Row(
+        // Subtle Simulated GPS Pill in bottom-right
+        Box(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(12.dp)
-                .clip(RoundedCornerShape(50))
-                .background(if (isDarkStyle) DarkCardElevated.copy(alpha = 0.92f) else SoftWhite.copy(alpha = 0.92f))
-                .padding(horizontal = 10.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(Icons.Rounded.Speed, contentDescription = null, tint = SkyBlue, modifier = Modifier.size(13.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-                text = "Simulated GPS",
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isDarkStyle) SkyBlue else DeepNavy
-            )
-        }
-
-        // Bottom pickup/drop tag bar
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
+                .align(Alignment.BottomEnd)
                 .padding(10.dp)
-                .clip(RoundedCornerShape(14.dp))
-                .background(if (isDarkStyle) DarkCardSurface.copy(alpha = 0.9f) else SoftWhite.copy(alpha = 0.92f))
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .clip(RoundedCornerShape(50))
+                .background((if (isDarkStyle) DarkCardSurface else SoftWhite).copy(alpha = 0.88f))
+                .border(1.dp, if (isDarkStyle) DarkBorder else LightBorder, RoundedCornerShape(50))
+                .padding(horizontal = 9.dp, vertical = 3.dp)
         ) {
             Text(
-                text = "● $pickupLabel",
-                style = MaterialTheme.typography.labelMedium,
-                color = SkyBlueDark,
-                maxLines = 1,
-                modifier = Modifier.weight(1f)
-            )
-            Text(
-                text = "  →  ",
-                style = MaterialTheme.typography.labelMedium,
-                color = MutedText
-            )
-            Text(
-                text = "● $dropLabel",
-                style = MaterialTheme.typography.labelMedium,
-                color = CoralDanger,
-                maxLines = 1,
-                modifier = Modifier.weight(1f)
+                text = "$pickupLabel → $dropLabel",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.5.sp),
+                color = if (isDarkStyle) SkyBlue else SlateText,
+                maxLines = 1
             )
         }
     }

@@ -78,7 +78,7 @@ fun AdminPanelScreen(
                         Spacer(Modifier.width(12.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text("AUTHORIZED ADMIN ONLY", style = MaterialTheme.typography.labelSmall, color = PremiumYellow, fontWeight = FontWeight.ExtraBold)
-                            Text("Zipora Control Tower", style = MaterialTheme.typography.titleLarge, color = SoftWhite)
+                            Text("Take It Control Tower", style = MaterialTheme.typography.titleLarge, color = SoftWhite)
                         }
                         FilledTonalButton(
                             onClick = onLockAdmin,

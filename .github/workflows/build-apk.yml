@@ -66,6 +66,7 @@ jobs:
               -dname "CN=Android Debug,O=Zipora,C=IN"
             echo "Generated fresh debug.keystore"
           fi
+          keytool -list -v -keystore debug.keystore -storepass android -alias androiddebugkey | grep -E "SHA1:|SHA256:" || true
 
       - name: Connect Client Firebase (google-services.json + default Firestore DB)
         env:
@@ -146,7 +147,7 @@ jobs:
           FIREBASE_SA_SECRET: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
           python3 - <<'PY'
-          import base64, json, os, subprocess, sys
+          import base64, json, os, subprocess, sys, time, urllib.request, urllib.parse, urllib.error
 
           raw = os.environ.get("FIREBASE_SA_SECRET", "").strip()
           if not raw:
@@ -167,35 +168,124 @@ jobs:
               print("Could not resolve Firebase project_id for rules deployment.")
               sys.exit(1)
 
+          def b64url(b: bytes) -> str:
+              return base64.urlsafe_b64encode(b).rstrip(b"=").decode("ascii")
+
+          key_path = "/tmp/firebase-sa-key.pem"
           sa_path = "/tmp/firebase-service-account.json"
           with open(sa_path, "w", encoding="utf-8") as f:
               json.dump(sa_data, f)
-
-          # Point firebase.json to client database for deployment
-          fb_cfg = {
-              "firestore": [
-                  {
-                      "database": db_id,
-                      "rules": "firestore.rules"
-                  }
-              ]
-          }
-          with open("firebase.json", "w", encoding="utf-8") as f:
-              json.dump(fb_cfg, f, indent=2)
+          with open(key_path, "w", encoding="utf-8") as f:
+              f.write(sa_data["private_key"])
 
           try:
+              # 1) Mint OAuth2 access token and deploy directly via Firebase Rules REST API (bypasses serviceusage 403!)
+              now = int(time.time())
+              header = b64url(json.dumps({"alg": "RS256", "typ": "JWT"}).encode())
+              claim = b64url(json.dumps({
+                  "iss": sa_data["client_email"],
+                  "scope": "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/firebase",
+                  "aud": "https://oauth2.googleapis.com/token",
+                  "iat": now,
+                  "exp": now + 3600,
+              }).encode())
+              signing_input = f"{header}.{claim}".encode()
+              sig = subprocess.check_output(
+                  ["openssl", "dgst", "-sha256", "-sign", key_path],
+                  input=signing_input,
+              )
+              assertion = f"{header}.{claim}.{b64url(sig)}"
+              token_req = urllib.request.Request(
+                  "https://oauth2.googleapis.com/token",
+                  data=urllib.parse.urlencode({
+                      "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+                      "assertion": assertion,
+                  }).encode(),
+                  headers={"Content-Type": "application/x-www-form-urlencoded"},
+              )
+              with urllib.request.urlopen(token_req, timeout=20) as resp:
+                  access_token = json.loads(resp.read().decode())["access_token"]
+
+              with open("firestore.rules", "r", encoding="utf-8") as f:
+                  rules_content = f.read()
+
+              ruleset_body = json.dumps({
+                  "source": {
+                      "files": [{"name": "firestore.rules", "content": rules_content}]
+                  }
+              }).encode()
+              create_req = urllib.request.Request(
+                  f"https://firebaserules.googleapis.com/v1/projects/{project_id}/rulesets",
+                  data=ruleset_body,
+                  headers={
+                      "Authorization": f"Bearer {access_token}",
+                      "Content-Type": "application/json",
+                  },
+                  method="POST",
+              )
+              with urllib.request.urlopen(create_req, timeout=25) as resp:
+                  ruleset_name = json.loads(resp.read().decode())["name"]
+              print(f"Created ruleset: {ruleset_name}")
+
+              release_id = "cloud.firestore" if db_id == "(default)" else f"cloud.firestore/{db_id}"
+              release_full = f"projects/{project_id}/releases/{release_id}"
+              patch_body = json.dumps({
+                  "release": {
+                      "name": release_full,
+                      "rulesetName": ruleset_name,
+                  }
+              }).encode()
+              patch_req = urllib.request.Request(
+                  f"https://firebaserules.googleapis.com/v1/{release_full}",
+                  data=patch_body,
+                  headers={
+                      "Authorization": f"Bearer {access_token}",
+                      "Content-Type": "application/json",
+                  },
+                  method="PATCH",
+              )
+              try:
+                  with urllib.request.urlopen(patch_req, timeout=25) as resp:
+                      print("Firestore security rules deployed directly via Firebase Rules REST API!")
+              except urllib.error.HTTPError as pe:
+                  if pe.code == 404:
+                      post_body = json.dumps({
+                          "name": release_full,
+                          "rulesetName": ruleset_name,
+                      }).encode()
+                      post_req = urllib.request.Request(
+                          f"https://firebaserules.googleapis.com/v1/projects/{project_id}/releases",
+                          data=post_body,
+                          headers={
+                              "Authorization": f"Bearer {access_token}",
+                              "Content-Type": "application/json",
+                          },
+                          method="POST",
+                      )
+                      with urllib.request.urlopen(post_req, timeout=25) as resp:
+                          print("Created Firestore rules release directly via Firebase Rules REST API!")
+                  else:
+                      raise
+          except Exception as rest_err:
+              print(f"Direct REST rules deploy notice: {rest_err}")
+              # Fallback to firebase-tools CLI
+              fb_cfg = {
+                  "firestore": [{"database": db_id, "rules": "firestore.rules"}]
+              }
+              with open("firebase.json", "w", encoding="utf-8") as f:
+                  json.dump(fb_cfg, f, indent=2)
               env = os.environ.copy()
               env["GOOGLE_APPLICATION_CREDENTIALS"] = sa_path
-              print(f"Deploying firestore.rules to project={project_id}, database={db_id}...")
               subprocess.run(
                   ["npx", "--yes", "firebase-tools", "deploy", "--only", "firestore:rules", "--project", project_id, "--non-interactive", "--force"],
                   check=True,
-                  env=env
+                  env=env,
               )
-              print("Firestore security rules deployed successfully!")
+              print("Firestore security rules deployed via firebase-tools!")
           finally:
-              if os.path.exists(sa_path):
-                  os.remove(sa_path)
+              for p in (sa_path, key_path):
+                  if os.path.exists(p):
+                      os.remove(p)
           PY
 
       - name: Set up Gradle 9.3.1

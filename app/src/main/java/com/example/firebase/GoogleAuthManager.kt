@@ -44,6 +44,7 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.Companion.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
 import com.google.firebase.Firebase
 import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.OAuthProvider
 import com.google.firebase.auth.auth
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.NonCancellable
@@ -58,6 +59,41 @@ private tailrec fun Context.findActivity(): Activity? = when (this) {
 }
 
 /**
+ * Reliable Firebase Google Sign-In via Chrome Custom Tab OAuthProvider ("google.com").
+ * Bypasses OEM/ColorOS/MIUI CredentialManager cancellations while still producing a real Firebase Google user.
+ */
+fun signInWithGoogleBrowser(
+    context: Context,
+    onAuthSuccess: () -> Unit,
+    onAuthError: (String) -> Unit,
+    scope: CoroutineScope
+) {
+    scope.launch {
+        try {
+            val activity = context.findActivity()
+                ?: throw IllegalStateException("Activity context required for Google Sign-In")
+            val pending = Firebase.auth.pendingAuthResult
+            if (pending != null) {
+                pending.await()
+            } else {
+                val provider = OAuthProvider.newBuilder("google.com")
+                    .addCustomParameter("prompt", "select_account")
+                    .build()
+                Firebase.auth.startActivityForSignInWithProvider(activity, provider).await()
+            }
+            if (Firebase.auth.currentUser != null) {
+                onAuthSuccess()
+            } else {
+                onAuthError("Google Sign-In did not return a user session. Please try again.")
+            }
+        } catch (e: Exception) {
+            Log.e("Auth", "Google browser OAuth Sign-In failed", e)
+            onAuthError(e.localizedMessage ?: "Google Sign-In failed. Please try again.")
+        }
+    }
+}
+
+/**
  * Silent auto sign-in using strictly a single GetGoogleIdOption per request (API 36 safe).
  */
 fun attemptAutoSignIn(
@@ -69,6 +105,22 @@ fun attemptAutoSignIn(
 ) {
     if (Firebase.auth.currentUser != null) {
         onAuthSuccess()
+        return
+    }
+    val pending = Firebase.auth.pendingAuthResult
+    if (pending != null) {
+        scope.launch {
+            try {
+                pending.await()
+                if (Firebase.auth.currentUser != null) {
+                    onAuthSuccess()
+                } else {
+                    onUnauthenticated()
+                }
+            } catch (_: Exception) {
+                onUnauthenticated()
+            }
+        }
         return
     }
     val clientId = try {
@@ -106,7 +158,8 @@ fun attemptAutoSignIn(
 }
 
 /**
- * Interactive Google Sign-In using strictly a single GetSignInWithGoogleOption per request.
+ * Interactive Google Sign-In: tries CredentialManager first, and automatically falls back
+ * to Firebase Google OAuthProvider (Chrome Custom Tab) if OEM/Play Services cancels CredentialManager.
  */
 fun onGoogleSignInClicked(
     context: Context,
@@ -119,7 +172,7 @@ fun onGoogleSignInClicked(
     val clientId = try {
         context.getString(R.string.default_web_client_id)
     } catch (_: Exception) {
-        onAuthError("Google Sign-In configuration missing: default_web_client_id not found")
+        signInWithGoogleBrowser(context, onAuthSuccess, onAuthError, scope)
         return
     }
     val signInOption = GetSignInWithGoogleOption.Builder(serverClientId = clientId).build()
@@ -136,21 +189,14 @@ fun onGoogleSignInClicked(
                 Firebase.auth.signInWithCredential(GoogleAuthProvider.getCredential(token, null)).await()
                 onAuthSuccess()
             } else {
-                onAuthError("Unexpected credential type received")
+                signInWithGoogleBrowser(context, onAuthSuccess, onAuthError, scope)
             }
         } catch (e: GetCredentialCancellationException) {
-            Log.w("Auth", "Google Sign-In flow cancelled or rejected: ${e.message}", e)
-            val detail = e.message.orEmpty()
-            if (detail.contains("28444") || detail.contains("Developer", ignoreCase = true) || detail.contains("10:")) {
-                onAuthError("Firebase OAuth/SHA-1 mismatch ($detail). Register a unique package name + SHA-1 in Firebase Console.")
-            } else if (detail.isNotBlank()) {
-                onAuthError("Google Sign-In cancelled ($detail). If you selected an account, check Firebase SHA-1 has no warning icon.")
-            } else {
-                onAuthCancelled()
-            }
+            Log.w("Auth", "CredentialManager cancelled (${e.message}); falling back to Firebase Google OAuth", e)
+            signInWithGoogleBrowser(context, onAuthSuccess, onAuthError, scope)
         } catch (e: Exception) {
-            Log.e("Auth", "Google Sign-In failed", e)
-            onAuthError(e.localizedMessage ?: "Google Sign-In failed. Please try again.")
+            Log.w("Auth", "CredentialManager failed (${e.message}); falling back to Firebase Google OAuth", e)
+            signInWithGoogleBrowser(context, onAuthSuccess, onAuthError, scope)
         }
     }
 }
@@ -259,7 +305,7 @@ fun TakeItAuthScreen(
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(235.dp)
+                        .height(205.dp)
                         .shadow(14.dp, RoundedCornerShape(28.dp))
                         .clip(RoundedCornerShape(28.dp))
                 )
@@ -298,7 +344,7 @@ fun TakeItAuthScreen(
                 Column(
                     modifier = Modifier.padding(20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
                         "Sign in to sync your orders, wallet & partner dashboards",
@@ -352,7 +398,7 @@ fun TakeItAuthScreen(
                         shape = RoundedCornerShape(50),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(54.dp)
+                            .height(52.dp)
                             .testTag("google_sign_in_button")
                     ) {
                         if (isSigningIn || isCheckingAuto) {
@@ -383,6 +429,45 @@ fun TakeItAuthScreen(
                                 fontWeight = FontWeight.ExtraBold
                             )
                         }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            errorMessage = null
+                            isSigningIn = true
+                            signInWithGoogleBrowser(
+                                context = context,
+                                onAuthSuccess = {
+                                    isSigningIn = false
+                                    onAuthSuccess()
+                                },
+                                onAuthError = { msg ->
+                                    isSigningIn = false
+                                    errorMessage = msg
+                                },
+                                scope = scope
+                            )
+                        },
+                        enabled = !isSigningIn && !isCheckingAuto,
+                        shape = RoundedCornerShape(50),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
+                            .testTag("google_browser_sign_in_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Public,
+                            contentDescription = "Direct Google Login via Chrome",
+                            tint = Color(0xFF1D4ED8),
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Direct Google Login (Chrome)",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = DeepNavy,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
 
                     Text(

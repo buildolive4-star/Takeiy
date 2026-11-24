@@ -596,10 +596,10 @@ jobs:
           gradle :app:assembleDebug -PtakeItAppId=$ADMIN_PKG -PtakeItAppMode=ADMIN -PtakeItAppLabel="Take It Admin" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Admin.apk
 
-          echo "=== [5/5] Building TakeIt-Delivery.apk (3D Delivery Partner App: $DELIVERY_PKG) ==="
+          echo "=== [5/5] Building TakeIt-Delivery.apk (3D Captain Partner App: $DELIVERY_PKG) ==="
           rm -rf app/build
           [ -f /tmp/google-services-delivery.json ] && cp /tmp/google-services-delivery.json app/google-services.json
-          gradle :app:assembleDebug -PtakeItAppId=$DELIVERY_PKG -PtakeItAppMode=DELIVERY -PtakeItAppLabel="Take It Delivery" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
+          gradle :app:assembleDebug -PtakeItAppId=$DELIVERY_PKG -PtakeItAppMode=DELIVERY -PtakeItAppLabel="Take It Captain" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Delivery.apk
 
           ls -lh release-apk/
@@ -643,14 +643,14 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk
-          name: "Take It Suite - 5 Standalone Apps (Food, Ride, Transport, Admin, Delivery)"
+          name: "Take It Suite - 5 Standalone Apps (Food, RideX, MoveX, Admin, Captain)"
           body: |
             ### Download & Install All 5 Distinct Take It Apps Side-by-Side
-            1. **TakeIt-Customer.apk** — Full **Take It Food Delivery** App (3D UI, Single-Line Categories, 3s Hero Carousel, Leaflet Map, 3x3 Dish History, 16:9 Offers)
-            2. **TakeIt-Ride.apk** — Distinct **Take It Ride** (Rapido-style Bike Moto, Auto, Mini Cab, Prime Sedan + Live Captain OTP)
-            3. **TakeIt-Transport.apk** — Distinct **Take It Transport** (2W Parcel, 3W Cargo, Tata Ace Mini Truck, 8ft Pickup + Live OTP)
-            4. **TakeIt-Admin.apk** — Distinct Obsidian/Gold **Take It Executive Command Center** (`buildolive4@gmail.com` Main Admin + Co-Admin + Restaurant Partner Passwords + Fees & Coupons)
-            5. **TakeIt-Delivery.apk** — Distinct Emerald/3D **Take It Delivery Partner App** (Food + Ride + Parcel Dispatch, Leaflet Route Navigation, Customer OTP Verification & Earnings)
+            1. **TakeIt-Customer.apk** — Full **Take It Food Delivery** App (3D UI, Restaurant Bottom Tab, 3s Hero Carousel, Leaflet Map, 3x3 Dish History, 16:9 Offers & Live Support)
+            2. **TakeIt-Ride.apk** — **RideX Smart Mobility** (3-Step Onboarding, Leaflet GPS Pickup/Drop, 6 Ride Modes, Fare Breakdown, Radar Captain Search, Live Tracking, 4-Digit OTP, SOS & Digital Receipt)
+            3. **TakeIt-Transport.apk** — **MoveX Smart Logistics** (6 Freight Vehicles, Open/Closed Body, Leaflet Tracking, 3-Step Delivery Progress, 4 Payment Options & Support Tab)
+            4. **TakeIt-Admin.apk** — **Take It Executive Command Center** (`buildolive4@gmail.com` Main Admin + Co-Admin + Fleet & Captains KYC/Payouts/SOS/Analytics + Dynamic Vehicle Categories & Fees)
+            5. **TakeIt-Delivery.apk** — **Take It Captain Panel** (Food + RideX + MoveX Dispatch, 30s Ride Countdown, 4-Digit Start/Drop OTP, Leaflet Route, Earnings Chart, Withdrawals & Captain KYC)
 
             - Forced **Google Account Chooser** enabled across all 5 apps
             - Auto-synced APK SHA-1/SHA-256 & deployed Firestore Security Rules

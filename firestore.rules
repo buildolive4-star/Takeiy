@@ -127,6 +127,17 @@ service cloud.firestore {
         data.acceptingOrders is bool &&
         (!('supportPhone' in data) || (data.supportPhone is string && data.supportPhone.size() <= 40)) &&
         (!('supportEmail' in data) || (data.supportEmail is string && data.supportEmail.size() <= 120)) &&
+        (!('supportWhatsapp' in data) || (data.supportWhatsapp is string && data.supportWhatsapp.size() <= 40)) &&
+        (!('supportTelegram' in data) || (data.supportTelegram is string && data.supportTelegram.size() <= 80)) &&
+        (!('sosNumber' in data) || (data.sosNumber is string && data.sosNumber.size() <= 20)) &&
+        (!('waitingChargePerMin' in data) || (data.waitingChargePerMin is int && data.waitingChargePerMin >= 0 && data.waitingChargePerMin <= 200)) &&
+        (!('nightSurgePercent' in data) || (data.nightSurgePercent is int && data.nightSurgePercent >= 0 && data.nightSurgePercent <= 200)) &&
+        (!('peakMultiplier' in data) || (data.peakMultiplier is number && data.peakMultiplier >= 1 && data.peakMultiplier <= 5)) &&
+        (!('cancellationFee' in data) || (data.cancellationFee is int && data.cancellationFee >= 0 && data.cancellationFee <= 500)) &&
+        (!('walletMinTopup' in data) || (data.walletMinTopup is int && data.walletMinTopup >= 1 && data.walletMinTopup <= 5000)) &&
+        (!('aboutUsText' in data) || (data.aboutUsText is string && data.aboutUsText.size() <= 1200)) &&
+        (!('termsText' in data) || (data.termsText is string && data.termsText.size() <= 2000)) &&
+        (!('privacyText' in data) || (data.privacyText is string && data.privacyText.size() <= 2000)) &&
         (!('announcementText' in data) || (data.announcementText is string && data.announcementText.size() <= 300)) &&
         isValidTimestamp(data.updatedAt);
     }
@@ -448,13 +459,31 @@ service cloud.firestore {
         data.customerName is string && data.customerName.size() >= 1 && data.customerName.size() <= 100 &&
         (!('customerEmail' in data) || (data.customerEmail is string && data.customerEmail.size() <= 120)) &&
         (!('customerPhone' in data) || (data.customerPhone is string && data.customerPhone.size() <= 30)) &&
-        data.vehicleType is string && data.vehicleType in ['BIKE', 'AUTO', 'MINI_CAB', 'PRIME_SEDAN'] &&
+        data.vehicleType is string && data.vehicleType.size() >= 1 && data.vehicleType.size() <= 50 &&
+        (!('bookingCategory' in data) || (data.bookingCategory is string && data.bookingCategory.size() <= 40)) &&
+        (!('scheduledFor' in data) || (data.scheduledFor is string && data.scheduledFor.size() <= 60)) &&
         data.pickupAddress is string && data.pickupAddress.size() >= 1 && data.pickupAddress.size() <= 300 &&
         data.dropAddress is string && data.dropAddress.size() >= 1 && data.dropAddress.size() <= 300 &&
+        (!('pickupLat' in data) || (data.pickupLat is number && data.pickupLat >= -90 && data.pickupLat <= 90)) &&
+        (!('pickupLng' in data) || (data.pickupLng is number && data.pickupLng >= -180 && data.pickupLng <= 180)) &&
+        (!('dropLat' in data) || (data.dropLat is number && data.dropLat >= -90 && data.dropLat <= 90)) &&
+        (!('dropLng' in data) || (data.dropLng is number && data.dropLng >= -180 && data.dropLng <= 180)) &&
         data.distanceKm is int && data.distanceKm >= 1 && data.distanceKm <= 500 &&
+        (!('durationMin' in data) || (data.durationMin is int && data.durationMin >= 0 && data.durationMin <= 1440)) &&
+        (!('baseFare' in data) || (data.baseFare is int && data.baseFare >= 0 && data.baseFare <= 50000)) &&
+        (!('distanceCharge' in data) || (data.distanceCharge is int && data.distanceCharge >= 0 && data.distanceCharge <= 100000)) &&
+        (!('timeCharge' in data) || (data.timeCharge is int && data.timeCharge >= 0 && data.timeCharge <= 50000)) &&
+        (!('waitingCharge' in data) || (data.waitingCharge is int && data.waitingCharge >= 0 && data.waitingCharge <= 50000)) &&
+        (!('surchargeAmount' in data) || (data.surchargeAmount is int && data.surchargeAmount >= 0 && data.surchargeAmount <= 50000)) &&
+        (!('platformFee' in data) || (data.platformFee is int && data.platformFee >= 0 && data.platformFee <= 5000)) &&
+        (!('gstAmount' in data) || (data.gstAmount is int && data.gstAmount >= 0 && data.gstAmount <= 25000)) &&
+        (!('discountAmount' in data) || (data.discountAmount is int && data.discountAmount >= 0 && data.discountAmount <= 50000)) &&
+        (!('couponCode' in data) || (data.couponCode is string && data.couponCode.size() <= 40)) &&
+        (!('commissionAmount' in data) || (data.commissionAmount is int && data.commissionAmount >= 0 && data.commissionAmount <= 50000)) &&
+        (!('driverEarnings' in data) || (data.driverEarnings is int && data.driverEarnings >= 0 && data.driverEarnings <= 100000)) &&
         data.totalFare is int && data.totalFare >= 0 && data.totalFare <= 100000 &&
-        data.paymentMethod is string && data.paymentMethod in ['RAZORPAY', 'WALLET', 'COD', 'CASH', 'UPI'] &&
-        data.paymentStatus is string && data.paymentStatus in ['PAID', 'PENDING', 'REFUNDED'] &&
+        data.paymentMethod is string && data.paymentMethod in ['RAZORPAY', 'WALLET', 'COD', 'CASH', 'UPI', 'CARD'] &&
+        data.paymentStatus is string && data.paymentStatus in ['PAID', 'PENDING', 'PAY_ON_DROP', 'PAY_ON_DELIVERY', 'REFUNDED'] &&
         (!('paymentRef' in data) || (data.paymentRef is string && data.paymentRef.size() <= 120)) &&
         data.status is string && data.status in ['REQUESTED', 'CAPTAIN_ASSIGNED', 'ARRIVING', 'ON_TRIP', 'COMPLETED', 'CANCELLED', 'REFUNDED'] &&
         (!('captainName' in data) || (data.captainName is string && data.captainName.size() <= 80)) &&
@@ -462,6 +491,8 @@ service cloud.firestore {
         (!('vehicleNumber' in data) || (data.vehicleNumber is string && data.vehicleNumber.size() <= 40)) &&
         (!('etaMinutes' in data) || (data.etaMinutes is int && data.etaMinutes >= 0 && data.etaMinutes <= 240)) &&
         data.otp is string && data.otp.size() <= 12 &&
+        (!('otpVerified' in data) || data.otpVerified is bool) &&
+        (!('sosActive' in data) || data.sosActive is bool) &&
         data.rating is int && data.rating >= 0 && data.rating <= 5 &&
         isValidTimestamp(data.createdAt) &&
         isValidTimestamp(data.updatedAt);
@@ -477,13 +508,26 @@ service cloud.firestore {
         data.receiverPhone is string && data.receiverPhone.size() >= 3 && data.receiverPhone.size() <= 30 &&
         data.pickupAddress is string && data.pickupAddress.size() >= 1 && data.pickupAddress.size() <= 300 &&
         data.dropAddress is string && data.dropAddress.size() >= 1 && data.dropAddress.size() <= 300 &&
-        data.vehicleType is string && data.vehicleType in ['TWO_WHEELER', 'THREE_WHEELER', 'MINI_TRUCK', 'PICKUP_8FT'] &&
+        (!('pickupLat' in data) || (data.pickupLat is number && data.pickupLat >= -90 && data.pickupLat <= 90)) &&
+        (!('pickupLng' in data) || (data.pickupLng is number && data.pickupLng >= -180 && data.pickupLng <= 180)) &&
+        (!('dropLat' in data) || (data.dropLat is number && data.dropLat >= -90 && data.dropLat <= 90)) &&
+        (!('dropLng' in data) || (data.dropLng is number && data.dropLng >= -180 && data.dropLng <= 180)) &&
+        (!('distanceKm' in data) || (data.distanceKm is int && data.distanceKm >= 1 && data.distanceKm <= 2000)) &&
+        data.vehicleType is string && data.vehicleType.size() >= 1 && data.vehicleType.size() <= 50 &&
+        (!('bodyType' in data) || (data.bodyType is string && data.bodyType.size() <= 40)) &&
         data.packageType is string && data.packageType.size() >= 1 && data.packageType.size() <= 80 &&
         data.weightKg is int && data.weightKg >= 1 && data.weightKg <= 10000 &&
         data.fragileFlag is bool &&
+        (!('baseFare' in data) || (data.baseFare is int && data.baseFare >= 0 && data.baseFare <= 100000)) &&
+        (!('distanceCharge' in data) || (data.distanceCharge is int && data.distanceCharge >= 0 && data.distanceCharge <= 100000)) &&
+        (!('platformFee' in data) || (data.platformFee is int && data.platformFee >= 0 && data.platformFee <= 5000)) &&
+        (!('gstAmount' in data) || (data.gstAmount is int && data.gstAmount >= 0 && data.gstAmount <= 25000)) &&
+        (!('discountAmount' in data) || (data.discountAmount is int && data.discountAmount >= 0 && data.discountAmount <= 50000)) &&
+        (!('couponCode' in data) || (data.couponCode is string && data.couponCode.size() <= 40)) &&
+        (!('driverEarnings' in data) || (data.driverEarnings is int && data.driverEarnings >= 0 && data.driverEarnings <= 200000)) &&
         data.totalFare is int && data.totalFare >= 0 && data.totalFare <= 200000 &&
-        data.paymentMethod is string && data.paymentMethod in ['RAZORPAY', 'WALLET', 'COD', 'CASH', 'UPI'] &&
-        data.paymentStatus is string && data.paymentStatus in ['PAID', 'PENDING', 'REFUNDED'] &&
+        data.paymentMethod is string && data.paymentMethod in ['RAZORPAY', 'WALLET', 'COD', 'CASH', 'UPI', 'CARD'] &&
+        data.paymentStatus is string && data.paymentStatus in ['PAID', 'PENDING', 'PAY_ON_DROP', 'PAY_ON_DELIVERY', 'REFUNDED'] &&
         (!('paymentRef' in data) || (data.paymentRef is string && data.paymentRef.size() <= 120)) &&
         data.status is string && data.status in ['BOOKED', 'PARTNER_ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED', 'REFUNDED'] &&
         (!('partnerName' in data) || (data.partnerName is string && data.partnerName.size() <= 80)) &&
@@ -496,7 +540,7 @@ service cloud.firestore {
         isValidTimestamp(data.updatedAt);
     }
 
-    // --- 6B. LIVE RAPIDO RIDES ---
+    // --- 6B. LIVE RIDEX RIDES ---
     match /takeit_rides/{rideId} {
       allow get: if isSignedIn() && (isOwner(existing().userId) || canManageOrders() || isStaff() || isDeliveryPartner());
       allow list: if isSignedIn() && (canManageOrders() || isStaff() || isDeliveryPartner() || resource.data.userId == request.auth.uid);
@@ -523,6 +567,10 @@ service cloud.firestore {
           ) ||
           (
             isOwner(existing().userId) &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['sosActive', 'updatedAt'])
+          ) ||
+          (
+            isOwner(existing().userId) &&
             existing().status == 'REQUESTED' &&
             incoming().status == 'CANCELLED' &&
             incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
@@ -532,7 +580,7 @@ service cloud.firestore {
       allow delete: if isMainAdmin();
     }
 
-    // --- 6C. LIVE PARCEL & GOODS TRANSPORT ---
+    // --- 6C. LIVE MOVEX PARCEL & GOODS TRANSPORT ---
     match /takeit_parcels/{parcelId} {
       allow get: if isSignedIn() && (isOwner(existing().userId) || canManageOrders() || isStaff() || isDeliveryPartner());
       allow list: if isSignedIn() && (canManageOrders() || isStaff() || isDeliveryPartner() || resource.data.userId == request.auth.uid);
@@ -565,6 +613,54 @@ service cloud.firestore {
           )
         );
 
+      allow delete: if isMainAdmin();
+    }
+
+    // --- 6D. MOBILITY VEHICLE CATEGORIES & DYNAMIC PRICING ---
+    match /takeit_vehicle_categories/{vehicleId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if isStaff() && isValidId(vehicleId) &&
+        incoming().vertical in ['RIDE', 'TRANSPORT'] &&
+        incoming().code is string && incoming().code.size() >= 1 && incoming().code.size() <= 40 &&
+        incoming().name is string && incoming().name.size() >= 1 && incoming().name.size() <= 80 &&
+        incoming().baseFare is int && incoming().baseFare >= 0 &&
+        incoming().perKmRate is int && incoming().perKmRate >= 0 &&
+        incoming().activeFlag is bool;
+      allow delete: if isStaff();
+    }
+
+    // --- 6E. CAPTAIN KYC PROFILES ---
+    match /takeit_captains/{captainUid} {
+      allow get: if isSignedIn() && (isOwner(captainUid) || isStaff() || isDeliveryPartner());
+      allow list: if isStaff() || isDeliveryPartner();
+      allow create: if isSignedIn() && isValidId(captainUid) && isOwner(captainUid) &&
+        incoming().userId == captainUid &&
+        incoming().approvalStatus == 'PENDING';
+      allow update: if isSignedIn() && isValidId(captainUid) && (
+        isStaff() ||
+        (
+          isOwner(captainUid) &&
+          incoming().userId == existing().userId &&
+          incoming().approvalStatus == existing().approvalStatus &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'fullName', 'phone', 'vehicleCategory', 'vehicleModel', 'vehicleNumber',
+            'licenseNumber', 'aadhaarLast4', 'bankAccount', 'ifscCode',
+            'licensePhotoUrl', 'vehiclePhotoUrl', 'onlineFlag', 'updatedAt'
+          ])
+        )
+      );
+      allow delete: if isMainAdmin();
+    }
+
+    // --- 6F. CAPTAIN WITHDRAWAL PAYOUT REQUESTS ---
+    match /takeit_withdrawals/{withdrawalId} {
+      allow get: if isSignedIn() && (isOwner(existing().captainUserId) || isStaff());
+      allow list: if isSignedIn() && (isStaff() || resource.data.captainUserId == request.auth.uid);
+      allow create: if isSignedIn() && isValidId(withdrawalId) &&
+        incoming().captainUserId == request.auth.uid &&
+        incoming().status == 'PENDING' &&
+        incoming().amount is number && incoming().amount > 0;
+      allow update: if isStaff() && isValidId(withdrawalId);
       allow delete: if isMainAdmin();
     }
 
@@ -637,6 +733,11 @@ service cloud.firestore {
         allow get, list: if isSignedIn() && (isOwner(userId) || isStaff());
         allow create: if isSignedIn() && isValidId(txId) && (isOwner(userId) || canManageUsers()) && isValidWalletTx(incoming(), userId);
         allow update, delete: if isMainAdmin();
+      }
+
+      match /emergency_contacts/{contactId} {
+        allow get, list: if isSignedIn() && (isOwner(userId) || isStaff());
+        allow create, update, delete: if isSignedIn() && isValidId(contactId) && isOwner(userId);
       }
     }
   }

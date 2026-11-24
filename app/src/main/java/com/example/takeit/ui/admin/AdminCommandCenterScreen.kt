@@ -86,6 +86,7 @@ fun AdminCommandCenterRoot(
         buildList {
             add(AdminTab.OVERVIEW)
             if (uiState.canManageOrders) add(AdminTab.ORDERS)
+            if (uiState.canManageOrders || uiState.canManageSettings) add(AdminTab.FLEET)
             if (uiState.canManageRestaurants) add(AdminTab.CATALOG)
             if (uiState.canManageCoupons) add(AdminTab.OFFERS)
             if (uiState.canManageUsers) add(AdminTab.PEOPLE)
@@ -194,9 +195,9 @@ fun AdminCommandCenterRoot(
                                     .height(38.dp)
                                     .testTag("admin_switch_to_delivery_btn")
                             ) {
-                                Icon(Icons.Rounded.DeliveryDining, contentDescription = "Delivery Panel", modifier = Modifier.size(16.dp))
+                                Icon(Icons.Rounded.DeliveryDining, contentDescription = "Captain Panel", modifier = Modifier.size(16.dp))
                                 Spacer(Modifier.width(4.dp))
-                                Text("Delivery", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                                Text("Captain", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                             }
                             Spacer(Modifier.width(6.dp))
                         }
@@ -246,6 +247,7 @@ fun AdminCommandCenterRoot(
                             val icon = when (tab) {
                                 AdminTab.OVERVIEW -> Icons.Rounded.Dashboard
                                 AdminTab.ORDERS -> Icons.Rounded.ReceiptLong
+                                AdminTab.FLEET -> Icons.Rounded.DirectionsCar
                                 AdminTab.CATALOG -> Icons.Rounded.RestaurantMenu
                                 AdminTab.OFFERS -> Icons.Rounded.LocalOffer
                                 AdminTab.PEOPLE -> Icons.Rounded.Groups
@@ -300,6 +302,26 @@ fun AdminCommandCenterRoot(
                                             }
                                         }
                                     }
+                                    if (tab == AdminTab.FLEET) {
+                                        val fleetAlerts =
+                                            uiState.allRides.count { it.sosActive } +
+                                            uiState.allCaptains.count { it.approvalStatus == "PENDING" } +
+                                            uiState.allWithdrawals.count { it.status == "PENDING" }
+                                        if (fleetAlerts > 0) {
+                                            Surface(
+                                                shape = CircleShape,
+                                                color = if (selected) AdminBg else AdminCrimson
+                                            ) {
+                                                Text(
+                                                    text = "$fleetAlerts",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = if (selected) AdminGold else Color.White,
+                                                    fontWeight = FontWeight.ExtraBold,
+                                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                                )
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -320,6 +342,7 @@ fun AdminCommandCenterRoot(
             when (activeTab) {
                 AdminTab.OVERVIEW -> AdminOverviewTab(uiState = uiState, viewModel = viewModel)
                 AdminTab.ORDERS -> AdminOrdersTab(uiState = uiState, viewModel = viewModel)
+                AdminTab.FLEET -> AdminMobilityTab(uiState = uiState, viewModel = viewModel)
                 AdminTab.CATALOG -> AdminCatalogTab(uiState = uiState, viewModel = viewModel)
                 AdminTab.OFFERS -> AdminCouponsTab(uiState = uiState, viewModel = viewModel)
                 AdminTab.PEOPLE -> AdminPeopleTab(uiState = uiState, viewModel = viewModel)

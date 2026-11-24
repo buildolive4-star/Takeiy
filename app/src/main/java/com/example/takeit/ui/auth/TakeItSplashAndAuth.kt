@@ -160,7 +160,7 @@ fun TakeItFoodSplashScreen(
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.DeliveryDining,
-                                contentDescription = "Take It Delivery Partner Logo",
+                                contentDescription = "Take It Captain Logo",
                                 tint = DeliveryEmerald,
                                 modifier = Modifier.size(84.dp)
                             )
@@ -179,7 +179,7 @@ fun TakeItFoodSplashScreen(
                 }
                 Spacer(Modifier.height(26.dp))
                 Text(
-                    text = if (isDelivery) "TAKE IT DELIVERY" else "TAKE IT ADMIN",
+                    text = if (isDelivery) "TAKE IT CAPTAIN" else "TAKE IT ADMIN",
                     style = MaterialTheme.typography.headlineLarge,
                     color = primaryAccent,
                     fontWeight = FontWeight.ExtraBold,
@@ -192,7 +192,7 @@ fun TakeItFoodSplashScreen(
                     border = BorderStroke(1.dp, primaryAccent.copy(alpha = 0.5f))
                 ) {
                     Text(
-                        text = if (isDelivery) "PARTNER APP • FOOD • RIDE • PARCEL" else "3D Command Center • Live Cloud Sync",
+                        text = if (isDelivery) "CAPTAIN PANEL • FOOD • RIDEX • MOVEX" else "3D Command Center • Live Cloud Sync",
                         style = MaterialTheme.typography.labelMedium,
                         color = inkColor,
                         fontWeight = FontWeight.Bold,
@@ -373,7 +373,7 @@ fun TakeItFoodAuthScreen(
 
     val badgeText = when (variant) {
         TakeItAppVariant.ADMIN -> "EXECUTIVE ADMIN CONTROL APP"
-        TakeItAppVariant.DELIVERY -> "DELIVERY PARTNER • EARN DAILY"
+        TakeItAppVariant.DELIVERY -> "CAPTAIN PARTNER • EARN DAILY"
         TakeItAppVariant.RIDE -> "BIKE • AUTO • CAB • PARCEL"
         TakeItAppVariant.TRANSPORT -> "PARCEL & TRUCK TRANSPORT"
         else -> "FAST FOOD DELIVERY APP"
@@ -381,7 +381,7 @@ fun TakeItFoodAuthScreen(
 
     val headlineText = when (variant) {
         TakeItAppVariant.ADMIN -> "Take It Admin HQ"
-        TakeItAppVariant.DELIVERY -> "Take It Delivery Partner"
+        TakeItAppVariant.DELIVERY -> "Take It Captain"
         TakeItAppVariant.RIDE -> "Take It Ride Smart"
         TakeItAppVariant.TRANSPORT -> "Take It Parcel Transport"
         else -> "Take It Food Delivery"
@@ -389,7 +389,7 @@ fun TakeItFoodAuthScreen(
 
     val subtitleText = when (variant) {
         TakeItAppVariant.ADMIN -> "Main Admin ($MAIN_ADMIN_EMAIL), Co-Admins & Restaurant Owners"
-        TakeItAppVariant.DELIVERY -> "Food, Ride & Parcel jobs • Live Leaflet GPS & OTP delivery"
+        TakeItAppVariant.DELIVERY -> "Food, RideX & MoveX jobs • Live Leaflet GPS, OTP & KYC"
         TakeItAppVariant.RIDE -> "Rapido-fast Bike, Auto & Cab rides at lowest fares"
         TakeItAppVariant.TRANSPORT -> "Send parcels, boxes & mini-truck cargo safely with live OTP"
         else -> "Hot meals from top restaurants • Live tracking & Razorpay"
@@ -507,7 +507,7 @@ fun TakeItFoodAuthScreen(
                             ) {
                                 Icon(
                                     imageVector = Icons.Rounded.DeliveryDining,
-                                    contentDescription = "Take It Delivery Partner",
+                                    contentDescription = "Take It Captain",
                                     tint = DeliveryEmerald,
                                     modifier = Modifier.size(76.dp)
                                 )
@@ -607,7 +607,7 @@ fun TakeItFoodAuthScreen(
                     Text(
                         text = when {
                             isAdmin -> "Choose Admin / Partner Google Account"
-                            isDelivery -> "Choose Delivery Partner Google Account"
+                            isDelivery -> "Choose Captain Google Account"
                             else -> "Choose your Google Account to continue"
                         },
                         style = MaterialTheme.typography.titleMedium,

@@ -112,7 +112,8 @@ fun CustomerHomeTab(
     onOpenAddresses: () -> Unit,
     onOpenCart: () -> Unit,
     onOpenTrackOrder: (String) -> Unit,
-    onOpenOffersTab: () -> Unit
+    onOpenOffersTab: () -> Unit,
+    onOpenRestaurantTab: () -> Unit = {}
 ) {
     val activeOrder = remember(uiState.myOrders) {
         uiState.myOrders.firstOrNull { it.status !in listOf("DELIVERED", "CANCELLED", "REFUNDED") }
@@ -674,7 +675,10 @@ fun CustomerHomeTab(
                         fontWeight = FontWeight.ExtraBold,
                         color = TakeItInk
                     )
-                    TextButton(onClick = { onOpenRestaurants("All") }) {
+                    TextButton(
+                        onClick = onOpenRestaurantTab,
+                        modifier = Modifier.testTag("home_top_restaurants_see_all")
+                    ) {
                         Text("See All →", color = TakeItRed, fontWeight = FontWeight.Bold)
                     }
                 }

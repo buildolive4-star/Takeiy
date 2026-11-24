@@ -59,30 +59,39 @@ enum class TakeItAppVariant {
 enum class CustomerTab(val label: String) {
     HOME("Home"),
     HISTORY("History"),
-    EXPLORE("Explore"),
+    EXPLORE("Restaurant"),
     OFFERS("Offers"),
     ACCOUNT("Account")
 }
 
 enum class RideTab(val label: String) {
-    BOOK("Book Ride"),
+    BOOK("Home"),
     TRIPS("My Rides"),
     WALLET("Wallet"),
-    ACCOUNT("Account")
+    ACTIVITY("Activity"),
+    PROFILE("Profile")
 }
 
 enum class TransportTab(val label: String) {
-    SEND("Send Parcel"),
-    SHIPMENTS("Shipments"),
+    SEND("Home"),
+    SHIPMENTS("Bookings"),
     WALLET("Wallet"),
-    ACCOUNT("Account")
+    SUPPORT("Support"),
+    ACCOUNT("Profile")
 }
 
 enum class DeliveryTab(val label: String) {
-    TASKS("Tasks"),
+    TASKS("Jobs"),
     ACTIVE("Route Map"),
-    EARNINGS("History"),
-    ACCOUNT("Account")
+    EARNINGS("Earnings"),
+    KYC("Captain KYC"),
+    ACCOUNT("Profile")
+}
+
+enum class CaptainVertical(val label: String) {
+    FOOD("Food Captain"),
+    RIDE("RideX Captain"),
+    TRANSPORT("MoveX Captain")
 }
 
 sealed class CustomerScreen {
@@ -102,6 +111,7 @@ sealed class CustomerScreen {
 enum class AdminTab(val label: String) {
     OVERVIEW("Dashboard"),
     ORDERS("Orders"),
+    FLEET("Fleet & Captains"),
     CATALOG("Menu"),
     OFFERS("Coupons"),
     PEOPLE("Users"),
@@ -199,6 +209,17 @@ data class TakeItAppConfig(
     val acceptingOrders: Boolean = true,
     val supportPhone: String = "+91 98765 43210",
     val supportEmail: String = MAIN_ADMIN_EMAIL,
+    val supportWhatsapp: String = "+919876543210",
+    val supportTelegram: String = "takeitsupport",
+    val sosNumber: String = "112",
+    val waitingChargePerMin: Int = 2,
+    val nightSurgePercent: Int = 15,
+    val peakMultiplier: Double = 1.0,
+    val cancellationFee: Int = 25,
+    val walletMinTopup: Int = 50,
+    val aboutUsText: String = "Take It Super Suite connects Food Delivery, RideX Smart Mobility & MoveX Logistics on one live Firebase platform.",
+    val termsText: String = "Verify the 4-digit OTP before boarding or handing over parcels. Emergency SOS shares live GPS coordinates with trusted contacts and Admin.",
+    val privacyText: String = "Profile, addresses, emergency contacts and live trip coordinates are encrypted in Firebase Firestore strictly for service fulfilment.",
     val announcementText: String = "",
     val updatedAt: Timestamp? = null
 )
@@ -418,10 +439,28 @@ data class RideBooking(
     val customerName: String = "",
     val customerEmail: String = "",
     val customerPhone: String = "",
-    val vehicleType: String = "BIKE", // BIKE, AUTO, MINI_CAB, PRIME_SEDAN
+    val vehicleType: String = "BIKE",
+    val bookingCategory: String = "Ride Now",
+    val scheduledFor: String = "",
     val pickupAddress: String = "",
     val dropAddress: String = "",
+    val pickupLat: Double = 28.4744,
+    val pickupLng: Double = 77.5040,
+    val dropLat: Double = 28.4842,
+    val dropLng: Double = 77.5150,
     val distanceKm: Int = 5,
+    val durationMin: Int = 10,
+    val baseFare: Int = 25,
+    val distanceCharge: Int = 24,
+    val timeCharge: Int = 0,
+    val waitingCharge: Int = 0,
+    val surchargeAmount: Int = 0,
+    val platformFee: Int = 5,
+    val gstAmount: Int = 0,
+    val discountAmount: Int = 0,
+    val couponCode: String = "",
+    val commissionAmount: Int = 8,
+    val driverEarnings: Int = 41,
     val totalFare: Int = 49,
     val paymentMethod: String = "RAZORPAY",
     val paymentStatus: String = "PAID",
@@ -432,6 +471,8 @@ data class RideBooking(
     val vehicleNumber: String = "",
     val etaMinutes: Int = 4,
     val otp: String = "4821",
+    val otpVerified: Boolean = false,
+    val sosActive: Boolean = false,
     val rating: Int = 0,
     val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null
@@ -450,11 +491,24 @@ data class ParcelOrder(
     val receiverPhone: String = "",
     val pickupAddress: String = "",
     val dropAddress: String = "",
-    val vehicleType: String = "TWO_WHEELER", // TWO_WHEELER, THREE_WHEELER, MINI_TRUCK, PICKUP_8FT
+    val pickupLat: Double = 28.4744,
+    val pickupLng: Double = 77.5040,
+    val dropLat: Double = 28.4842,
+    val dropLng: Double = 77.5150,
+    val distanceKm: Int = 5,
+    val vehicleType: String = "MINI_TRUCK",
+    val bodyType: String = "Open Body",
     val packageType: String = "Box / Documents",
-    val weightKg: Int = 3,
+    val weightKg: Int = 5,
     val fragileFlag: Boolean = false,
-    val totalFare: Int = 79,
+    val baseFare: Int = 199,
+    val distanceCharge: Int = 60,
+    val platformFee: Int = 10,
+    val gstAmount: Int = 10,
+    val discountAmount: Int = 0,
+    val couponCode: String = "",
+    val driverEarnings: Int = 220,
+    val totalFare: Int = 279,
     val paymentMethod: String = "RAZORPAY",
     val paymentStatus: String = "PAID",
     val paymentRef: String = "",
@@ -462,11 +516,85 @@ data class ParcelOrder(
     val partnerName: String = "Assigning Partner...",
     val partnerPhone: String = "",
     val vehicleNumber: String = "",
-    val etaMinutes: Int = 25,
+    val etaMinutes: Int = 20,
     val otp: String = "9274",
     val rating: Int = 0,
     val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class MobilityVehicleCategory(
+    @DocumentId val id: String = "",
+    val vertical: String = "RIDE", // RIDE or TRANSPORT
+    val code: String = "BIKE",
+    val name: String = "Bike",
+    val subtitle: String = "Quick & economical",
+    val capacityLabel: String = "1 Person",
+    val etaMinutes: Int = 3,
+    val baseFare: Int = 25,
+    val perKmRate: Int = 7,
+    val perMinRate: Int = 1,
+    val minFare: Int = 35,
+    val commissionPercent: Int = 15,
+    val imageUrl: String = "",
+    val sortOrder: Int = 0,
+    val activeFlag: Boolean = true,
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class CaptainProfile(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val email: String = "",
+    val fullName: String = "",
+    val phone: String = "",
+    val vehicleCategory: String = "BIKE",
+    val vehicleModel: String = "",
+    val vehicleNumber: String = "",
+    val licenseNumber: String = "",
+    val aadhaarLast4: String = "",
+    val bankAccount: String = "",
+    val ifscCode: String = "",
+    val licensePhotoUrl: String = "",
+    val vehiclePhotoUrl: String = "",
+    val approvalStatus: String = "PENDING", // PENDING, APPROVED, REJECTED, SUSPENDED
+    val onlineFlag: Boolean = true,
+    val earningsBalance: Double = 0.0,
+    val totalCompletedTrips: Int = 0,
+    val rating: Double = 4.9,
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class CaptainWithdrawal(
+    @DocumentId val id: String = "",
+    val captainUserId: String = "",
+    val captainName: String = "",
+    val captainEmail: String = "",
+    val bankDetails: String = "",
+    val amount: Double = 0.0,
+    val status: String = "PENDING", // PENDING, PAID, REJECTED
+    val adminNote: String = "",
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class EmergencyContact(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val name: String = "",
+    val phone: String = "",
+    val relation: String = "Family",
+    val createdAt: Timestamp? = null
 )
 
 data class CartItem(

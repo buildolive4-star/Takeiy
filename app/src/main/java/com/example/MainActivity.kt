@@ -401,7 +401,8 @@ private fun CustomerAppRoot(
                                 onOpenTrackOrder = { orderId ->
                                     viewModel.navigateCustomer(CustomerScreen.TrackOrder(orderId))
                                 },
-                                onOpenOffersTab = { viewModel.selectCustomerTab(CustomerTab.OFFERS) }
+                                onOpenOffersTab = { viewModel.selectCustomerTab(CustomerTab.OFFERS) },
+                                onOpenRestaurantTab = { viewModel.selectCustomerTab(CustomerTab.EXPLORE) }
                             )
                             CustomerTab.HISTORY -> CustomerHistoryTab(
                                 uiState = uiState,

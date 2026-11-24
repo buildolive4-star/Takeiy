@@ -573,6 +573,17 @@ class TakeItFirestoreRepository(context: Context) {
                     "acceptingOrders" to config.acceptingOrders,
                     "supportPhone" to config.supportPhone.take(35),
                     "supportEmail" to config.supportEmail.take(110),
+                    "supportWhatsapp" to config.supportWhatsapp.take(35),
+                    "supportTelegram" to config.supportTelegram.take(75),
+                    "sosNumber" to config.sosNumber.take(18),
+                    "waitingChargePerMin" to config.waitingChargePerMin.coerceIn(0, 200),
+                    "nightSurgePercent" to config.nightSurgePercent.coerceIn(0, 200),
+                    "peakMultiplier" to config.peakMultiplier.coerceIn(1.0, 5.0),
+                    "cancellationFee" to config.cancellationFee.coerceIn(0, 500),
+                    "walletMinTopup" to config.walletMinTopup.coerceIn(1, 5000),
+                    "aboutUsText" to config.aboutUsText.take(1100),
+                    "termsText" to config.termsText.take(1900),
+                    "privacyText" to config.privacyText.take(1900),
                     "announcementText" to config.announcementText.take(280),
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
@@ -1229,6 +1240,8 @@ class TakeItFirestoreRepository(context: Context) {
                 ).await()
             }
 
+            seedDefaultMobilityVehiclesIfEmpty()
+
             Result.success(starterRestaurants.size)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -1279,10 +1292,28 @@ class TakeItFirestoreRepository(context: Context) {
                         "customerName" to ride.customerName.trim().take(90),
                         "customerEmail" to ride.customerEmail.trim().take(110),
                         "customerPhone" to ride.customerPhone.trim().take(28),
-                        "vehicleType" to ride.vehicleType,
+                        "vehicleType" to ride.vehicleType.trim().take(45),
+                        "bookingCategory" to ride.bookingCategory.trim().take(36),
+                        "scheduledFor" to ride.scheduledFor.trim().take(55),
                         "pickupAddress" to ride.pickupAddress.trim().take(280),
                         "dropAddress" to ride.dropAddress.trim().take(280),
+                        "pickupLat" to ride.pickupLat.coerceIn(-90.0, 90.0),
+                        "pickupLng" to ride.pickupLng.coerceIn(-180.0, 180.0),
+                        "dropLat" to ride.dropLat.coerceIn(-90.0, 90.0),
+                        "dropLng" to ride.dropLng.coerceIn(-180.0, 180.0),
                         "distanceKm" to ride.distanceKm.coerceIn(1, 500),
+                        "durationMin" to ride.durationMin.coerceIn(0, 1440),
+                        "baseFare" to ride.baseFare.coerceAtLeast(0),
+                        "distanceCharge" to ride.distanceCharge.coerceAtLeast(0),
+                        "timeCharge" to ride.timeCharge.coerceAtLeast(0),
+                        "waitingCharge" to ride.waitingCharge.coerceAtLeast(0),
+                        "surchargeAmount" to ride.surchargeAmount.coerceAtLeast(0),
+                        "platformFee" to ride.platformFee.coerceAtLeast(0),
+                        "gstAmount" to ride.gstAmount.coerceAtLeast(0),
+                        "discountAmount" to ride.discountAmount.coerceAtLeast(0),
+                        "couponCode" to ride.couponCode.trim().uppercase().take(35),
+                        "commissionAmount" to ride.commissionAmount.coerceAtLeast(0),
+                        "driverEarnings" to ride.driverEarnings.coerceAtLeast(0),
                         "totalFare" to ride.totalFare.coerceAtLeast(0),
                         "paymentMethod" to ride.paymentMethod,
                         "paymentStatus" to ride.paymentStatus,
@@ -1291,8 +1322,10 @@ class TakeItFirestoreRepository(context: Context) {
                         "captainName" to "Finding Captain...",
                         "captainPhone" to "",
                         "vehicleNumber" to "",
-                        "etaMinutes" to 4,
+                        "etaMinutes" to ride.etaMinutes.coerceIn(1, 240),
                         "otp" to ride.otp,
+                        "otpVerified" to false,
+                        "sosActive" to false,
                         "rating" to 0,
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
@@ -1354,13 +1387,27 @@ class TakeItFirestoreRepository(context: Context) {
         }
     }
 
+    suspend fun triggerRideSos(rideId: String, active: Boolean = true): Result<Unit> {
+        requireUid()
+        return try {
+            db.collection("takeit_rides").document(rideId).update(
+                mapOf("sosActive" to active, "updatedAt" to FieldValue.serverTimestamp())
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
     suspend fun adminUpdateRide(
         rideId: String,
         status: String,
         captainName: String? = null,
         captainPhone: String? = null,
         vehicleNumber: String? = null,
-        etaMinutes: Int? = null
+        etaMinutes: Int? = null,
+        otpVerified: Boolean? = null
     ): Result<Unit> {
         requireUid()
         return try {
@@ -1372,6 +1419,7 @@ class TakeItFirestoreRepository(context: Context) {
             if (captainPhone != null) updates["captainPhone"] = captainPhone.trim().take(28)
             if (vehicleNumber != null) updates["vehicleNumber"] = vehicleNumber.trim().take(36)
             if (etaMinutes != null) updates["etaMinutes"] = etaMinutes.coerceIn(0, 240)
+            if (otpVerified != null) updates["otpVerified"] = otpVerified
             if (status == "COMPLETED") updates["paymentStatus"] = "PAID"
             db.collection("takeit_rides").document(rideId).update(updates).await()
             Result.success(Unit)
@@ -1382,7 +1430,7 @@ class TakeItFirestoreRepository(context: Context) {
         }
     }
 
-    // --- LIVE PARCEL & GOODS TRANSPORT (takeit_parcels) ---
+    // --- LIVE MOVEX PARCEL & GOODS TRANSPORT (takeit_parcels) ---
 
     fun observeMyParcels(uid: String): Flow<List<ParcelOrder>> =
         db.collection("takeit_parcels")
@@ -1428,10 +1476,23 @@ class TakeItFirestoreRepository(context: Context) {
                         "receiverPhone" to parcel.receiverPhone.trim().take(28),
                         "pickupAddress" to parcel.pickupAddress.trim().take(280),
                         "dropAddress" to parcel.dropAddress.trim().take(280),
-                        "vehicleType" to parcel.vehicleType,
+                        "pickupLat" to parcel.pickupLat.coerceIn(-90.0, 90.0),
+                        "pickupLng" to parcel.pickupLng.coerceIn(-180.0, 180.0),
+                        "dropLat" to parcel.dropLat.coerceIn(-90.0, 90.0),
+                        "dropLng" to parcel.dropLng.coerceIn(-180.0, 180.0),
+                        "distanceKm" to parcel.distanceKm.coerceIn(1, 2000),
+                        "vehicleType" to parcel.vehicleType.trim().take(45),
+                        "bodyType" to parcel.bodyType.trim().take(36),
                         "packageType" to parcel.packageType.trim().take(75),
                         "weightKg" to parcel.weightKg.coerceIn(1, 10000),
                         "fragileFlag" to parcel.fragileFlag,
+                        "baseFare" to parcel.baseFare.coerceAtLeast(0),
+                        "distanceCharge" to parcel.distanceCharge.coerceAtLeast(0),
+                        "platformFee" to parcel.platformFee.coerceAtLeast(0),
+                        "gstAmount" to parcel.gstAmount.coerceAtLeast(0),
+                        "discountAmount" to parcel.discountAmount.coerceAtLeast(0),
+                        "couponCode" to parcel.couponCode.trim().uppercase().take(35),
+                        "driverEarnings" to parcel.driverEarnings.coerceAtLeast(0),
                         "totalFare" to parcel.totalFare.coerceAtLeast(0),
                         "paymentMethod" to parcel.paymentMethod,
                         "paymentStatus" to parcel.paymentStatus,
@@ -1440,7 +1501,7 @@ class TakeItFirestoreRepository(context: Context) {
                         "partnerName" to "Assigning Partner...",
                         "partnerPhone" to "",
                         "vehicleNumber" to "",
-                        "etaMinutes" to 25,
+                        "etaMinutes" to parcel.etaMinutes.coerceIn(5, 480),
                         "otp" to parcel.otp,
                         "rating" to 0,
                         "createdAt" to FieldValue.serverTimestamp(),
@@ -1527,6 +1588,314 @@ class TakeItFirestoreRepository(context: Context) {
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             logError("adminUpdateParcel", "takeit_parcels/$parcelId", e)
+            Result.failure(e)
+        }
+    }
+
+    // --- MOBILITY VEHICLE CATEGORIES & DYNAMIC PRICING ---
+
+    fun observeMobilityVehicles(): Flow<List<MobilityVehicleCategory>> =
+        db.collection("takeit_vehicle_categories")
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<MobilityVehicleCategory>() }
+                    .sortedWith(compareBy<MobilityVehicleCategory> { it.vertical }.thenBy { it.sortOrder }.thenBy { it.baseFare })
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
+    suspend fun saveMobilityVehicle(vehicle: MobilityVehicleCategory): Result<String> {
+        requireUid()
+        val isNew = vehicle.id.isBlank()
+        val id = if (isNew) cleanId("veh") else vehicle.id
+        return try {
+            val data = mutableMapOf<String, Any>(
+                "vertical" to vehicle.vertical.trim().uppercase().take(20),
+                "code" to vehicle.code.trim().uppercase().take(35),
+                "name" to vehicle.name.trim().take(75),
+                "subtitle" to vehicle.subtitle.trim().take(120),
+                "capacityLabel" to vehicle.capacityLabel.trim().take(60),
+                "etaMinutes" to vehicle.etaMinutes.coerceIn(1, 120),
+                "baseFare" to vehicle.baseFare.coerceAtLeast(0),
+                "perKmRate" to vehicle.perKmRate.coerceAtLeast(0),
+                "perMinRate" to vehicle.perMinRate.coerceAtLeast(0),
+                "minFare" to vehicle.minFare.coerceAtLeast(0),
+                "commissionPercent" to vehicle.commissionPercent.coerceIn(0, 60),
+                "imageUrl" to vehicle.imageUrl.trim().take(550),
+                "sortOrder" to vehicle.sortOrder.coerceIn(0, 999),
+                "activeFlag" to vehicle.activeFlag,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            val ref = db.collection("takeit_vehicle_categories").document(id)
+            if (isNew) {
+                data["createdAt"] = FieldValue.serverTimestamp()
+                ref.set(data).await()
+            } else {
+                ref.set(data, SetOptions.merge()).await()
+            }
+            Result.success(id)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("saveMobilityVehicle", "takeit_vehicle_categories/$id", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteMobilityVehicle(vehicleId: String): Result<Unit> {
+        requireUid()
+        return try {
+            db.collection("takeit_vehicle_categories").document(vehicleId).delete().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun seedDefaultMobilityVehiclesIfEmpty() {
+        try {
+            val snap = db.collection("takeit_vehicle_categories").limit(1).get().await()
+            if (!snap.isEmpty) return
+            val defaults = listOf(
+                MobilityVehicleCategory("veh_ride_bike", "RIDE", "BIKE", "Bike", "1 rider • Beats traffic", "1 Seat", 2, 25, 7, 1, 35, 15, "", 1, true),
+                MobilityVehicleCategory("veh_ride_auto", "RIDE", "AUTO", "Auto", "Doorstep pickup", "3 Seats", 3, 35, 11, 1, 45, 15, "", 2, true),
+                MobilityVehicleCategory("veh_ride_mini", "RIDE", "MINI", "Mini", "Compact AC hatchback", "4 Seats", 4, 55, 14, 2, 75, 18, "", 3, true),
+                MobilityVehicleCategory("veh_ride_sedan", "RIDE", "SEDAN", "Sedan", "Spacious AC sedan", "4 Seats", 5, 80, 17, 2, 110, 18, "", 4, true),
+                MobilityVehicleCategory("veh_ride_suv", "RIDE", "SUV", "SUV", "6-seater family AC ride", "6 Seats", 6, 110, 22, 3, 149, 20, "", 5, true),
+                MobilityVehicleCategory("veh_ride_premium", "RIDE", "PREMIUM", "Premium", "Executive chauffeur ride", "4 Seats", 5, 149, 26, 3, 199, 20, "", 6, true),
+                MobilityVehicleCategory("veh_tr_bike", "TRANSPORT", "BIKE", "Bike Parcel", "Up to 20 kg • Express", "20 kg Load", 5, 49, 8, 1, 49, 15, "", 1, true),
+                MobilityVehicleCategory("veh_tr_auto", "TRANSPORT", "AUTO", "Auto Cargo", "Up to 350 kg • Boxes", "350 kg Load", 8, 149, 12, 1, 149, 15, "", 2, true),
+                MobilityVehicleCategory("veh_tr_mini", "TRANSPORT", "MINI_TRUCK", "Mini Truck", "1 Ton Load • Open/Closed", "1 Ton Load", 15, 299, 18, 2, 349, 18, "", 3, true),
+                MobilityVehicleCategory("veh_tr_pickup", "TRANSPORT", "PICKUP", "Pickup", "1.5 Ton • Furniture & Goods", "1.5 Ton Load", 20, 499, 24, 2, 549, 18, "", 4, true),
+                MobilityVehicleCategory("veh_tr_truck", "TRANSPORT", "TRUCK", "Truck", "3.5 Ton • Wholesale Move", "3.5 Ton Load", 30, 899, 32, 3, 999, 20, "", 5, true),
+                MobilityVehicleCategory("veh_tr_container", "TRANSPORT", "CONTAINER", "Container", "7 Ton • Closed Body Hub", "7 Ton Closed", 45, 1499, 42, 4, 1599, 20, "", 6, true)
+            )
+            defaults.forEach { v ->
+                db.collection("takeit_vehicle_categories").document(v.id).set(
+                    mapOf(
+                        "vertical" to v.vertical,
+                        "code" to v.code,
+                        "name" to v.name,
+                        "subtitle" to v.subtitle,
+                        "capacityLabel" to v.capacityLabel,
+                        "etaMinutes" to v.etaMinutes,
+                        "baseFare" to v.baseFare,
+                        "perKmRate" to v.perKmRate,
+                        "perMinRate" to v.perMinRate,
+                        "minFare" to v.minFare,
+                        "commissionPercent" to v.commissionPercent,
+                        "imageUrl" to v.imageUrl,
+                        "sortOrder" to v.sortOrder,
+                        "activeFlag" to v.activeFlag,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    ),
+                    SetOptions.merge()
+                ).await()
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("seedDefaultMobilityVehiclesIfEmpty", "takeit_vehicle_categories", e)
+        }
+    }
+
+    // --- CAPTAIN KYC PROFILES & WITHDRAWALS ---
+
+    fun observeMyCaptainProfile(uid: String): Flow<CaptainProfile?> =
+        db.collection("takeit_captains").document(uid)
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { it.toSafeObject<CaptainProfile>() }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(null)
+            }
+
+    fun observeAllCaptains(): Flow<List<CaptainProfile>> =
+        db.collection("takeit_captains")
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<CaptainProfile>() }
+                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
+    suspend fun saveMyCaptainKyc(profile: CaptainProfile): Result<Unit> {
+        val uid = requireUid()
+        return try {
+            val ref = db.collection("takeit_captains").document(uid)
+            val snap = ref.get().await()
+            val payload = mutableMapOf<String, Any>(
+                "fullName" to profile.fullName.trim().take(80),
+                "phone" to profile.phone.trim().take(28),
+                "vehicleCategory" to profile.vehicleCategory.trim().uppercase().take(35),
+                "vehicleModel" to profile.vehicleModel.trim().take(70),
+                "vehicleNumber" to profile.vehicleNumber.trim().uppercase().take(30),
+                "licenseNumber" to profile.licenseNumber.trim().uppercase().take(40),
+                "aadhaarLast4" to profile.aadhaarLast4.filter { it.isDigit() }.take(4),
+                "bankAccount" to profile.bankAccount.trim().take(32),
+                "ifscCode" to profile.ifscCode.trim().uppercase().take(20),
+                "licensePhotoUrl" to profile.licensePhotoUrl.trim().take(550),
+                "vehiclePhotoUrl" to profile.vehiclePhotoUrl.trim().take(550),
+                "onlineFlag" to profile.onlineFlag,
+                "updatedAt" to FieldValue.serverTimestamp()
+            )
+            if (!snap.exists()) {
+                payload["userId"] = uid
+                payload["email"] = profile.email.trim().lowercase()
+                payload["approvalStatus"] = "PENDING"
+                payload["earningsBalance"] = 0.0
+                payload["totalCompletedTrips"] = 0
+                payload["rating"] = 4.9
+                payload["createdAt"] = FieldValue.serverTimestamp()
+                ref.set(payload).await()
+            } else {
+                ref.update(payload).await()
+            }
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("saveMyCaptainKyc", "takeit_captains/$uid", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun adminUpdateCaptainStatus(captainUid: String, approvalStatus: String): Result<Unit> {
+        requireUid()
+        return try {
+            db.collection("takeit_captains").document(captainUid).update(
+                mapOf(
+                    "approvalStatus" to approvalStatus,
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("adminUpdateCaptainStatus", "takeit_captains/$captainUid", e)
+            Result.failure(e)
+        }
+    }
+
+    fun observeMyWithdrawals(uid: String): Flow<List<CaptainWithdrawal>> =
+        db.collection("takeit_withdrawals")
+            .whereEqualTo("captainUserId", uid)
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<CaptainWithdrawal>() }
+                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
+    fun observeAllWithdrawals(): Flow<List<CaptainWithdrawal>> =
+        db.collection("takeit_withdrawals")
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<CaptainWithdrawal>() }
+                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
+    suspend fun requestCaptainWithdrawal(
+        captainName: String,
+        captainEmail: String,
+        bankDetails: String,
+        amount: Double
+    ): Result<String> {
+        val uid = requireUid()
+        val id = cleanId("wd")
+        return try {
+            db.collection("takeit_withdrawals").document(id).set(
+                mapOf(
+                    "captainUserId" to uid,
+                    "captainName" to captainName.trim().take(80),
+                    "captainEmail" to captainEmail.trim().lowercase().take(110),
+                    "bankDetails" to bankDetails.trim().take(120),
+                    "amount" to amount.coerceAtLeast(1.0),
+                    "status" to "PENDING",
+                    "adminNote" to "",
+                    "createdAt" to FieldValue.serverTimestamp(),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            Result.success(id)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("requestCaptainWithdrawal", "takeit_withdrawals/$id", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun adminUpdateWithdrawal(withdrawalId: String, status: String, note: String): Result<Unit> {
+        requireUid()
+        return try {
+            db.collection("takeit_withdrawals").document(withdrawalId).update(
+                mapOf(
+                    "status" to status,
+                    "adminNote" to note.trim().take(200),
+                    "updatedAt" to FieldValue.serverTimestamp()
+                )
+            ).await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("adminUpdateWithdrawal", "takeit_withdrawals/$withdrawalId", e)
+            Result.failure(e)
+        }
+    }
+
+    // --- EMERGENCY SOS CONTACTS ---
+
+    fun observeEmergencyContacts(uid: String): Flow<List<EmergencyContact>> =
+        db.collection("takeit_users").document(uid).collection("emergency_contacts")
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<EmergencyContact>() }
+                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
+    suspend fun saveEmergencyContact(contact: EmergencyContact): Result<String> {
+        val uid = requireUid()
+        val id = if (contact.id.isBlank()) cleanId("sos") else contact.id
+        return try {
+            db.collection("takeit_users").document(uid).collection("emergency_contacts").document(id).set(
+                mapOf(
+                    "userId" to uid,
+                    "name" to contact.name.trim().take(70),
+                    "phone" to contact.phone.trim().take(28),
+                    "relation" to contact.relation.trim().ifBlank { "Family" }.take(30),
+                    "createdAt" to FieldValue.serverTimestamp()
+                ),
+                SetOptions.merge()
+            ).await()
+            Result.success(id)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteEmergencyContact(contactId: String): Result<Unit> {
+        val uid = requireUid()
+        return try {
+            db.collection("takeit_users").document(uid).collection("emergency_contacts").document(contactId).delete().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Result.failure(e)
         }
     }

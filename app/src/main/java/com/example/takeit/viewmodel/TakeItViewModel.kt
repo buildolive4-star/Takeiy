@@ -73,7 +73,15 @@ data class TakeItUiState(
     val appliedCoupon: PromoCoupon? = null,
     val searchQuery: String = "",
     val isUploadingPhoto: Boolean = false,
-    val snackbarMessage: String? = null
+    val snackbarMessage: String? = null,
+    // Mobility Fleet, Captain KYC, Withdrawals & Safety Contacts
+    val mobilityVehicles: List<MobilityVehicleCategory> = emptyList(),
+    val myCaptainProfile: CaptainProfile? = null,
+    val allCaptains: List<CaptainProfile> = emptyList(),
+    val myWithdrawals: List<CaptainWithdrawal> = emptyList(),
+    val allWithdrawals: List<CaptainWithdrawal> = emptyList(),
+    val emergencyContacts: List<EmergencyContact> = emptyList(),
+    val captainVertical: CaptainVertical = CaptainVertical.FOOD
 ) {
     val currentCustomerScreen: CustomerScreen get() = customerBackStack.lastOrNull() ?: CustomerScreen.MainTabs
     val isMainAdmin: Boolean get() = email.trim().equals(MAIN_ADMIN_EMAIL, ignoreCase = true)
@@ -235,6 +243,18 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         sessionJobs += viewModelScope.launch {
             repo.observeMyTickets(uid).collect { list -> _uiState.update { it.copy(myTickets = list) } }
         }
+        sessionJobs += viewModelScope.launch {
+            repo.observeMobilityVehicles().collect { list -> _uiState.update { it.copy(mobilityVehicles = list) } }
+        }
+        sessionJobs += viewModelScope.launch {
+            repo.observeMyCaptainProfile(uid).collect { cp -> _uiState.update { it.copy(myCaptainProfile = cp) } }
+        }
+        sessionJobs += viewModelScope.launch {
+            repo.observeMyWithdrawals(uid).collect { list -> _uiState.update { it.copy(myWithdrawals = list) } }
+        }
+        sessionJobs += viewModelScope.launch {
+            repo.observeEmergencyContacts(uid).collect { list -> _uiState.update { it.copy(emergencyContacts = list) } }
+        }
 
         if (isMain) {
             attachAdminStreams(role = AdminRole.MAIN_ADMIN, assignedRestId = "")
@@ -279,6 +299,9 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
                 adminJobs += viewModelScope.launch {
                     repo.observeAllParcels().collect { list -> _uiState.update { it.copy(allParcels = list) } }
                 }
+                adminJobs += viewModelScope.launch {
+                    repo.observeAllCaptains().collect { list -> _uiState.update { it.copy(allCaptains = list) } }
+                }
             }
             AdminRole.MAIN_ADMIN, AdminRole.CO_ADMIN -> {
                 adminJobs += viewModelScope.launch {
@@ -298,6 +321,12 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 adminJobs += viewModelScope.launch {
                     repo.observeCoAdmins().collect { list -> _uiState.update { it.copy(coAdmins = list) } }
+                }
+                adminJobs += viewModelScope.launch {
+                    repo.observeAllCaptains().collect { list -> _uiState.update { it.copy(allCaptains = list) } }
+                }
+                adminJobs += viewModelScope.launch {
+                    repo.observeAllWithdrawals().collect { list -> _uiState.update { it.copy(allWithdrawals = list) } }
                 }
                 refreshRazorpayLedger()
             }
@@ -333,6 +362,10 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectDeliveryTab(tab: DeliveryTab) {
         _uiState.update { it.copy(deliveryTab = tab) }
+    }
+
+    fun selectCaptainVertical(vertical: CaptainVertical) {
+        _uiState.update { it.copy(captainVertical = vertical) }
     }
 
     fun toggleDeliveryOnline(online: Boolean) {
@@ -896,10 +929,28 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deliveryClaimRide(ride: RideBooking) {
         val state = _uiState.value
-        val cName = state.activeCoAdmin?.name?.ifBlank { state.displayName } ?: state.displayName
-        val cPhone = state.activeCoAdmin?.phone?.ifBlank { state.profile.phone } ?: state.profile.phone
-        val cVeh = state.activeCoAdmin?.vehicleNumber?.ifBlank { "UP16 TK 2026" } ?: "UP16 TK 2026"
+        val cName = state.myCaptainProfile?.fullName?.ifBlank { null }
+            ?: state.activeCoAdmin?.name?.ifBlank { state.displayName } ?: state.displayName
+        val cPhone = state.myCaptainProfile?.phone?.ifBlank { null }
+            ?: state.activeCoAdmin?.phone?.ifBlank { state.profile.phone } ?: state.profile.phone
+        val cVeh = state.myCaptainProfile?.vehicleNumber?.ifBlank { null }
+            ?: state.activeCoAdmin?.vehicleNumber?.ifBlank { "UP16 TK 2026" } ?: "UP16 TK 2026"
         adminUpdateRide(ride.id, "CAPTAIN_ASSIGNED", cName, cPhone, cVeh, 4)
+    }
+
+    fun captainStartRideWithOtp(ride: RideBooking, enteredOtp: String, onSuccess: () -> Unit) {
+        if (enteredOtp.trim() != ride.otp.trim()) {
+            showMessage("Wrong Rider OTP! Ask the passenger for the 4-digit OTP.")
+            return
+        }
+        viewModelScope.launch {
+            repo.adminUpdateRide(ride.id, "ON_TRIP", etaMinutes = ride.durationMin.coerceIn(3, 60), otpVerified = true)
+                .onSuccess {
+                    showMessage("OTP verified! Trip started.")
+                    onSuccess()
+                }
+                .onFailure { showMessage(it.localizedMessage ?: "Failed to start trip") }
+        }
     }
 
     fun deliveryCompleteRideWithOtp(ride: RideBooking, enteredOtp: String, onSuccess: () -> Unit) {
@@ -907,15 +958,24 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
             showMessage("Wrong Ride OTP! Ask rider for 4-digit OTP.")
             return
         }
-        adminUpdateRide(ride.id, "COMPLETED", etaMinutes = 0)
-        onSuccess()
+        viewModelScope.launch {
+            repo.adminUpdateRide(ride.id, "COMPLETED", etaMinutes = 0, otpVerified = true)
+                .onSuccess {
+                    showMessage("Ride completed! Earnings recorded.")
+                    onSuccess()
+                }
+                .onFailure { showMessage(it.localizedMessage ?: "Failed to complete ride") }
+        }
     }
 
     fun deliveryClaimParcel(parcel: ParcelOrder) {
         val state = _uiState.value
-        val pName = state.activeCoAdmin?.name?.ifBlank { state.displayName } ?: state.displayName
-        val pPhone = state.activeCoAdmin?.phone?.ifBlank { state.profile.phone } ?: state.profile.phone
-        val pVeh = state.activeCoAdmin?.vehicleNumber?.ifBlank { "UP16 CR 1102" } ?: "UP16 CR 1102"
+        val pName = state.myCaptainProfile?.fullName?.ifBlank { null }
+            ?: state.activeCoAdmin?.name?.ifBlank { state.displayName } ?: state.displayName
+        val pPhone = state.myCaptainProfile?.phone?.ifBlank { null }
+            ?: state.activeCoAdmin?.phone?.ifBlank { state.profile.phone } ?: state.profile.phone
+        val pVeh = state.myCaptainProfile?.vehicleNumber?.ifBlank { null }
+            ?: state.activeCoAdmin?.vehicleNumber?.ifBlank { "UP16 CR 1102" } ?: "UP16 CR 1102"
         adminUpdateParcel(parcel.id, "PARTNER_ASSIGNED", pName, pPhone, pVeh, 20)
     }
 
@@ -986,6 +1046,23 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         paymentMethod: String,
         paymentStatus: String,
         paymentRef: String,
+        bookingCategory: String = "Ride Now",
+        scheduledFor: String = "",
+        pickupLat: Double = 28.4744,
+        pickupLng: Double = 77.5040,
+        dropLat: Double = 28.4842,
+        dropLng: Double = 77.5150,
+        durationMin: Int = (distanceKm * 2).coerceIn(5, 180),
+        baseFare: Int = 25,
+        distanceCharge: Int = (fare - 25).coerceAtLeast(0),
+        timeCharge: Int = 0,
+        surchargeAmount: Int = 0,
+        platformFee: Int = _uiState.value.config.platformFee,
+        gstAmount: Int = 0,
+        discountAmount: Int = 0,
+        couponCode: String = "",
+        commissionAmount: Int = (fare * 0.15).roundToInt(),
+        driverEarnings: Int = (fare - (fare * 0.15).roundToInt()).coerceAtLeast(1),
         onBooked: () -> Unit = {}
     ) {
         val state = _uiState.value
@@ -1011,9 +1088,26 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
             customerEmail = state.email,
             customerPhone = state.profile.phone,
             vehicleType = vehicleType,
+            bookingCategory = bookingCategory,
+            scheduledFor = scheduledFor,
             pickupAddress = pickup.trim(),
             dropAddress = drop.trim(),
+            pickupLat = pickupLat,
+            pickupLng = pickupLng,
+            dropLat = dropLat,
+            dropLng = dropLng,
             distanceKm = distanceKm.coerceAtLeast(1),
+            durationMin = durationMin.coerceAtLeast(1),
+            baseFare = baseFare,
+            distanceCharge = distanceCharge,
+            timeCharge = timeCharge,
+            surchargeAmount = surchargeAmount,
+            platformFee = platformFee,
+            gstAmount = gstAmount,
+            discountAmount = discountAmount,
+            couponCode = couponCode,
+            commissionAmount = commissionAmount,
+            driverEarnings = driverEarnings,
             totalFare = fare.coerceAtLeast(1),
             paymentMethod = paymentMethod,
             paymentStatus = paymentStatus,
@@ -1045,6 +1139,16 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun triggerRideSos(rideId: String, active: Boolean) {
+        viewModelScope.launch {
+            repo.triggerRideSos(rideId, active)
+                .onSuccess {
+                    showMessage(if (active) "SOS Emergency Alert triggered! Admin & Support notified." else "SOS Emergency cleared.")
+                }
+                .onFailure { showMessage(it.localizedMessage ?: "Could not update SOS state") }
+        }
+    }
+
     fun adminUpdateRide(
         rideId: String,
         status: String,
@@ -1073,6 +1177,19 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         paymentMethod: String,
         paymentStatus: String,
         paymentRef: String,
+        pickupLat: Double = 28.4744,
+        pickupLng: Double = 77.5040,
+        dropLat: Double = 28.4842,
+        dropLng: Double = 77.5150,
+        distanceKm: Int = 5,
+        bodyType: String = "Open Body",
+        baseFare: Int = fare,
+        distanceCharge: Int = 0,
+        platformFee: Int = _uiState.value.config.platformFee,
+        gstAmount: Int = 0,
+        discountAmount: Int = 0,
+        couponCode: String = "",
+        driverEarnings: Int = (fare * 0.82).roundToInt(),
         onBooked: () -> Unit = {}
     ) {
         val state = _uiState.value
@@ -1101,10 +1218,23 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
             receiverPhone = receiverPhone.trim(),
             pickupAddress = pickup.trim(),
             dropAddress = drop.trim(),
+            pickupLat = pickupLat,
+            pickupLng = pickupLng,
+            dropLat = dropLat,
+            dropLng = dropLng,
+            distanceKm = distanceKm.coerceAtLeast(1),
             vehicleType = vehicleType,
+            bodyType = bodyType,
             packageType = packageType.ifBlank { "Parcel Box" },
             weightKg = weightKg.coerceAtLeast(1),
             fragileFlag = fragile,
+            baseFare = baseFare,
+            distanceCharge = distanceCharge,
+            platformFee = platformFee,
+            gstAmount = gstAmount,
+            discountAmount = discountAmount,
+            couponCode = couponCode,
+            driverEarnings = driverEarnings,
             totalFare = fare.coerceAtLeast(1),
             paymentMethod = paymentMethod,
             paymentStatus = paymentStatus,
@@ -1148,6 +1278,107 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
             repo.adminUpdateParcel(parcelId, status, partnerName, partnerPhone, vehicleNumber, etaMinutes)
                 .onSuccess { showMessage("Shipment updated to $status live!") }
                 .onFailure { showMessage(it.localizedMessage ?: "Failed to update shipment") }
+        }
+    }
+
+    // --- FLEET VEHICLES, CAPTAIN KYC, WITHDRAWALS & EMERGENCY CONTACTS ---
+
+    fun saveMobilityVehicle(vehicle: MobilityVehicleCategory) {
+        if (vehicle.name.isBlank() || vehicle.code.isBlank()) {
+            showMessage("Enter vehicle code and name")
+            return
+        }
+        viewModelScope.launch {
+            repo.saveMobilityVehicle(vehicle)
+                .onSuccess { showMessage("Vehicle '${vehicle.name}' saved live!") }
+                .onFailure { showMessage(it.localizedMessage ?: "Failed to save vehicle") }
+        }
+    }
+
+    fun deleteMobilityVehicle(vehicleId: String) {
+        viewModelScope.launch {
+            repo.deleteMobilityVehicle(vehicleId)
+                .onSuccess { showMessage("Vehicle category removed.") }
+        }
+    }
+
+    fun seedDefaultMobilityVehicles() {
+        viewModelScope.launch {
+            repo.seedDefaultMobilityVehiclesIfEmpty()
+            showMessage("Default RideX & MoveX fleet categories synced!")
+        }
+    }
+
+    fun saveMyCaptainKyc(profile: CaptainProfile) {
+        if (profile.fullName.isBlank() || profile.phone.isBlank() || profile.vehicleNumber.isBlank()) {
+            showMessage("Enter Full Name, Phone & Vehicle Number")
+            return
+        }
+        val state = _uiState.value
+        viewModelScope.launch {
+            repo.saveMyCaptainKyc(
+                profile.copy(
+                    userId = state.uid,
+                    email = state.email
+                )
+            )
+                .onSuccess { showMessage("Captain KYC submitted! Admin verification synced.") }
+                .onFailure { showMessage(it.localizedMessage ?: "KYC submission failed") }
+        }
+    }
+
+    fun adminUpdateCaptainStatus(captainUid: String, approvalStatus: String) {
+        viewModelScope.launch {
+            repo.adminUpdateCaptainStatus(captainUid, approvalStatus)
+                .onSuccess { showMessage("Captain status set to $approvalStatus") }
+                .onFailure { showMessage(it.localizedMessage ?: "Failed to update captain") }
+        }
+    }
+
+    fun requestCaptainWithdrawal(amount: Double) {
+        val state = _uiState.value
+        if (amount < 50.0) {
+            showMessage("Minimum withdrawal amount is ₹50")
+            return
+        }
+        val cp = state.myCaptainProfile
+        val cName = cp?.fullName?.ifBlank { state.displayName } ?: state.displayName
+        val bank = if (!cp?.bankAccount.isNullOrBlank()) {
+            "${cp?.bankAccount} • IFSC: ${cp?.ifscCode}"
+        } else {
+            "UPI / Registered Phone: ${state.profile.phone.ifBlank { state.email }}"
+        }
+        viewModelScope.launch {
+            repo.requestCaptainWithdrawal(cName, state.email, bank, amount)
+                .onSuccess { showMessage("Withdrawal of ₹${amount.toInt()} requested!") }
+                .onFailure { showMessage(it.localizedMessage ?: "Withdrawal request failed") }
+        }
+    }
+
+    fun adminUpdateWithdrawal(withdrawalId: String, status: String, note: String = "") {
+        viewModelScope.launch {
+            repo.adminUpdateWithdrawal(withdrawalId, status, note)
+                .onSuccess { showMessage("Withdrawal marked $status!") }
+                .onFailure { showMessage(it.localizedMessage ?: "Failed to update payout") }
+        }
+    }
+
+    fun saveEmergencyContact(contact: EmergencyContact) {
+        if (contact.name.isBlank() || contact.phone.isBlank()) {
+            showMessage("Enter contact name & phone")
+            return
+        }
+        viewModelScope.launch {
+            repo.saveEmergencyContact(contact)
+                .onSuccess { showMessage("Emergency contact saved!") }
+                .onFailure { showMessage(it.localizedMessage ?: "Failed to save contact") }
+        }
+    }
+
+    fun deleteEmergencyContact(contactId: String) {
+        viewModelScope.launch {
+            repo.deleteEmergencyContact(contactId)
+                .onSuccess { showMessage("Emergency contact removed.") }
         }
     }
 }

@@ -1810,6 +1810,17 @@ fun AdminSettingsTab(
     var announcement by remember(cfg.announcementText) { mutableStateOf(cfg.announcementText) }
     var supportPhone by remember(cfg.supportPhone) { mutableStateOf(cfg.supportPhone) }
     var supportEmail by remember(cfg.supportEmail) { mutableStateOf(cfg.supportEmail) }
+    var supportWhatsapp by remember(cfg.supportWhatsapp) { mutableStateOf(cfg.supportWhatsapp) }
+    var supportTelegram by remember(cfg.supportTelegram) { mutableStateOf(cfg.supportTelegram) }
+    var sosNumber by remember(cfg.sosNumber) { mutableStateOf(cfg.sosNumber) }
+    var waitingChargePerMin by remember(cfg.waitingChargePerMin) { mutableStateOf(cfg.waitingChargePerMin.toString()) }
+    var nightSurgePercent by remember(cfg.nightSurgePercent) { mutableStateOf(cfg.nightSurgePercent.toString()) }
+    var peakMultiplier by remember(cfg.peakMultiplier) { mutableStateOf(cfg.peakMultiplier.toString()) }
+    var cancellationFee by remember(cfg.cancellationFee) { mutableStateOf(cfg.cancellationFee.toString()) }
+    var walletMinTopup by remember(cfg.walletMinTopup) { mutableStateOf(cfg.walletMinTopup.toString()) }
+    var aboutUsText by remember(cfg.aboutUsText) { mutableStateOf(cfg.aboutUsText) }
+    var termsText by remember(cfg.termsText) { mutableStateOf(cfg.termsText) }
+    var privacyText by remember(cfg.privacyText) { mutableStateOf(cfg.privacyText) }
     var acceptingOrders by remember(cfg.acceptingOrders) { mutableStateOf(cfg.acceptingOrders) }
     var maintenanceMode by remember(cfg.maintenanceMode) { mutableStateOf(cfg.maintenanceMode) }
 
@@ -1958,8 +1969,32 @@ fun AdminSettingsTab(
                         OutlinedTextField(value = gstPercent, onValueChange = { gstPercent = it.filter(Char::isDigit) }, label = { Text("GST %") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
                         OutlinedTextField(value = freeAbove, onValueChange = { freeAbove = it.filter(Char::isDigit) }, label = { Text("Free Deliv Above ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
                     }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(value = waitingChargePerMin, onValueChange = { waitingChargePerMin = it.filter(Char::isDigit) }, label = { Text("Waiting ₹/min") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = nightSurgePercent, onValueChange = { nightSurgePercent = it.filter(Char::isDigit) }, label = { Text("Night Surge %") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(value = peakMultiplier, onValueChange = { peakMultiplier = it }, label = { Text("Peak Multiplier") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = cancellationFee, onValueChange = { cancellationFee = it.filter(Char::isDigit) }, label = { Text("Cancel Fee ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                    }
+                    OutlinedTextField(value = walletMinTopup, onValueChange = { walletMinTopup = it.filter(Char::isDigit) }, label = { Text("Wallet Min Top-Up ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+
+                    HorizontalDivider(color = AdminBorder)
+                    Text("24x7 Support Channels & Safety", color = AdminGold, fontWeight = FontWeight.ExtraBold)
                     OutlinedTextField(value = supportPhone, onValueChange = { supportPhone = it }, label = { Text("Support Phone") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     OutlinedTextField(value = supportEmail, onValueChange = { supportEmail = it }, label = { Text("Support Email") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(value = supportWhatsapp, onValueChange = { supportWhatsapp = it }, label = { Text("WhatsApp No.") }, singleLine = true, modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = supportTelegram, onValueChange = { supportTelegram = it }, label = { Text("Telegram Handle") }, singleLine = true, modifier = Modifier.weight(1f))
+                    }
+                    OutlinedTextField(value = sosNumber, onValueChange = { sosNumber = it }, label = { Text("Emergency SOS Helpline") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                    HorizontalDivider(color = AdminBorder)
+                    Text("About, Terms & Privacy Copy", color = AdminGold, fontWeight = FontWeight.ExtraBold)
+                    OutlinedTextField(value = aboutUsText, onValueChange = { aboutUsText = it }, label = { Text("About Take It / RideX / MoveX") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = termsText, onValueChange = { termsText = it }, label = { Text("Terms & Conditions") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = privacyText, onValueChange = { privacyText = it }, label = { Text("Privacy Policy") }, minLines = 2, modifier = Modifier.fillMaxWidth())
+
                     HorizontalDivider(color = AdminBorder)
                     PermissionRow("Accepting Live Orders", acceptingOrders) { acceptingOrders = it }
                     PermissionRow("Maintenance Mode (Lock Customer App)", maintenanceMode) { maintenanceMode = it }
@@ -1985,6 +2020,17 @@ fun AdminSettingsTab(
                             freeDeliveryAbove = freeAbove.toIntOrNull() ?: 299,
                             supportPhone = supportPhone.trim(),
                             supportEmail = supportEmail.trim(),
+                            supportWhatsapp = supportWhatsapp.trim(),
+                            supportTelegram = supportTelegram.trim(),
+                            sosNumber = sosNumber.trim().ifBlank { "112" },
+                            waitingChargePerMin = waitingChargePerMin.toIntOrNull() ?: 2,
+                            nightSurgePercent = nightSurgePercent.toIntOrNull() ?: 15,
+                            peakMultiplier = (peakMultiplier.toDoubleOrNull() ?: 1.0).coerceIn(1.0, 5.0),
+                            cancellationFee = cancellationFee.toIntOrNull() ?: 25,
+                            walletMinTopup = walletMinTopup.toIntOrNull() ?: 50,
+                            aboutUsText = aboutUsText.trim(),
+                            termsText = termsText.trim(),
+                            privacyText = privacyText.trim(),
                             acceptingOrders = acceptingOrders,
                             maintenanceMode = maintenanceMode
                         )

@@ -53,6 +53,7 @@ import com.example.network.TakeItPaymentGateway
 import com.example.takeit.model.*
 import com.example.takeit.theme.*
 import com.example.takeit.ui.components.LeafletAddressPickerMap
+import com.example.takeit.ui.components.SupportChannelsCard
 import com.example.takeit.ui.components.TakeIt3DBackdrop
 import com.example.takeit.ui.components.TakeIt3DButton
 import com.example.takeit.ui.components.TakeIt3DCard
@@ -892,12 +893,12 @@ fun CustomerAccountTab(
                                 )
                                 Column {
                                     Text(
-                                        "Open Delivery Partner Panel",
+                                        "Open Captain Panel",
                                         color = Color.White,
                                         fontWeight = FontWeight.ExtraBold
                                     )
                                     Text(
-                                        "Accept Food, Ride & Parcel jobs with live Leaflet map & OTP",
+                                        "Accept Food, RideX & MoveX Captain jobs with live Leaflet GPS & OTP",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = DeliveryEmerald
                                     )
@@ -934,6 +935,16 @@ fun CustomerAccountTab(
                         AccountMenuRow(Icons.Rounded.SwitchAccount, "Switch Google Account / Sign Out", "", onSignOut, tint = TakeItRed)
                     }
                 }
+            }
+
+            // Live 24x7 Support Channels Card
+            item {
+                SupportChannelsCard(
+                    config = uiState.config,
+                    accentColor = TakeItRed,
+                    onRaiseTicket = onOpenSupport,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                )
             }
         }
     }
@@ -1546,6 +1557,12 @@ fun CustomerSupportScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                item {
+                    SupportChannelsCard(
+                        config = uiState.config,
+                        accentColor = TakeItRed
+                    )
+                }
                 item {
                     TakeIt3DCard(
                         containerColor = Color.White,

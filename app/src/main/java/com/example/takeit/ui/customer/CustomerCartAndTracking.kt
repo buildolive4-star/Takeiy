@@ -52,6 +52,7 @@ import com.example.network.TakeItPaymentBus
 import com.example.network.TakeItPaymentGateway
 import com.example.takeit.model.*
 import com.example.takeit.theme.*
+import com.example.takeit.ui.components.LeafletTrackingMap
 import com.example.takeit.ui.components.TakeIt3DBackdrop
 import com.example.takeit.ui.components.TakeIt3DButton
 import com.example.takeit.ui.components.TakeIt3DCard
@@ -700,7 +701,7 @@ fun TrackOrderScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                // 3D Live Route Map Canvas
+                // 3D Live OpenStreetMap + Leaflet Route Map
                 item {
                     TakeIt3DCard(
                         containerColor = Color(0xFFE8F1FF),
@@ -714,63 +715,20 @@ fun TrackOrderScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(216.dp)
+                                .height(250.dp)
                         ) {
-                            Canvas(modifier = Modifier.fillMaxSize()) {
-                                val w = size.width
-                                val h = size.height
-                                for (i in 1..6) {
-                                    drawLine(Color.White.copy(alpha = 0.75f), Offset(w * i / 7f, 0f), Offset(w * i / 7f, h), strokeWidth = 10f)
-                                    drawLine(Color.White.copy(alpha = 0.75f), Offset(0f, h * i / 7f), Offset(w, h * i / 7f), strokeWidth = 10f)
-                                }
-                                val start = Offset(w * 0.18f, h * 0.28f)
-                                val mid = Offset(w * 0.52f, h * 0.56f)
-                                val end = Offset(w * 0.84f, h * 0.74f)
-
-                                drawLine(
-                                    color = Color(0xFF93C5FD),
-                                    start = start,
-                                    end = mid,
-                                    strokeWidth = 14f,
-                                    cap = StrokeCap.Round,
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(18f, 12f))
-                                )
-                                drawLine(
-                                    color = Color(0xFF93C5FD),
-                                    start = mid,
-                                    end = end,
-                                    strokeWidth = 14f,
-                                    cap = StrokeCap.Round,
-                                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(18f, 12f))
-                                )
-
-                                val riderPos = if (animatedProgress < 0.5f) {
-                                    val t = animatedProgress * 2f
-                                    Offset(start.x + (mid.x - start.x) * t, start.y + (mid.y - start.y) * t)
-                                } else {
-                                    val t = (animatedProgress - 0.5f) * 2f
-                                    Offset(mid.x + (end.x - mid.x) * t, mid.y + (end.y - mid.y) * t)
-                                }
-                                drawLine(Color(0xFF1D4ED8), start, if (animatedProgress < 0.5f) riderPos else mid, strokeWidth = 14f, cap = StrokeCap.Round)
-                                if (animatedProgress >= 0.5f) {
-                                    drawLine(Color(0xFF1D4ED8), mid, riderPos, strokeWidth = 14f, cap = StrokeCap.Round)
-                                }
-
-                                // 3D Pin Shadows
-                                drawCircle(Color.Black.copy(alpha = 0.2f), radius = 20f, center = Offset(start.x, start.y + 8f))
-                                drawCircle(TakeItRed, radius = 22f, center = start)
-                                drawCircle(Color.White, radius = 9f, center = start)
-
-                                drawCircle(Color.Black.copy(alpha = 0.2f), radius = 20f, center = Offset(end.x, end.y + 8f))
-                                drawCircle(TakeItGreen, radius = 22f, center = end)
-                                drawCircle(Color.White, radius = 9f, center = end)
-
-                                // Pulsing 3D Rider Orb
-                                drawCircle(TakeItOrange.copy(alpha = 0.28f), radius = beaconPulse, center = riderPos)
-                                drawCircle(Color.Black.copy(alpha = 0.22f), radius = 17f, center = Offset(riderPos.x, riderPos.y + 6f))
-                                drawCircle(TakeItOrange, radius = 18f, center = riderPos)
-                                drawCircle(Color.White, radius = 7f, center = riderPos)
-                            }
+                            LeafletTrackingMap(
+                                pickupLat = order.pickupLat,
+                                pickupLng = order.pickupLng,
+                                pickupTitle = order.restaurantName,
+                                dropLat = order.deliveryLat,
+                                dropLng = order.deliveryLng,
+                                dropTitle = order.deliveryAddress,
+                                riderLabel = order.riderName.ifBlank { "Take It Rider" },
+                                progressFraction = animatedProgress,
+                                accentHex = "#E23744",
+                                modifier = Modifier.fillMaxSize()
+                            )
 
                             Surface(
                                 shape = RoundedCornerShape(50),

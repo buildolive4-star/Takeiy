@@ -36,8 +36,30 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/takeit_co_admins/$(userEmail())).data;
     }
 
-    function isActiveCoAdmin() {
+    function isActiveStaffRecord() {
       return coAdminDocExists() && coAdminData().activeFlag == true;
+    }
+
+    function staffRoleType() {
+      return ('roleType' in coAdminData() && coAdminData().roleType is string)
+        ? coAdminData().roleType
+        : 'CO_ADMIN';
+    }
+
+    function isActiveCoAdmin() {
+      return isActiveStaffRecord() && staffRoleType() == 'CO_ADMIN';
+    }
+
+    function isRestaurantOwner() {
+      return isActiveStaffRecord() &&
+        staffRoleType() == 'RESTAURANT_OWNER' &&
+        ('assignedRestaurantId' in coAdminData()) &&
+        coAdminData().assignedRestaurantId is string &&
+        coAdminData().assignedRestaurantId != '';
+    }
+
+    function isDeliveryPartner() {
+      return isActiveStaffRecord() && staffRoleType() == 'DELIVERY_PARTNER';
     }
 
     function isStaff() {
@@ -113,6 +135,11 @@ service cloud.firestore {
       return data.email is string && data.email == docEmail && data.email.size() >= 5 && data.email.size() <= 120 &&
         data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
         data.roleTitle is string && data.roleTitle.size() >= 1 && data.roleTitle.size() <= 60 &&
+        (!('roleType' in data) || (data.roleType is string && data.roleType in ['CO_ADMIN', 'RESTAURANT_OWNER', 'DELIVERY_PARTNER'])) &&
+        (!('assignedRestaurantId' in data) || (data.assignedRestaurantId is string && data.assignedRestaurantId.size() <= 128)) &&
+        (!('assignedRestaurantName' in data) || (data.assignedRestaurantName is string && data.assignedRestaurantName.size() <= 120)) &&
+        (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+        (!('vehicleNumber' in data) || (data.vehicleNumber is string && data.vehicleNumber.size() <= 40)) &&
         data.passcode is string && data.passcode.size() >= 4 && data.passcode.size() <= 40 &&
         data.activeFlag is bool &&
         data.canManageOrders is bool &&
@@ -121,6 +148,28 @@ service cloud.firestore {
         data.canManageUsers is bool &&
         data.canManageSettings is bool &&
         data.createdBy is string && data.createdBy.size() <= 120 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidFoodCategory(data) {
+      return data.name is string && data.name.size() >= 1 && data.name.size() <= 60 &&
+        (!('emoji' in data) || (data.emoji is string && data.emoji.size() <= 16)) &&
+        (!('imageUrl' in data) || isSafeImageUrl(data.imageUrl)) &&
+        (!('sortOrder' in data) || (data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 1000)) &&
+        data.activeFlag is bool &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidHeroBanner(data) {
+      return (!('title' in data) || (data.title is string && data.title.size() <= 120)) &&
+        (!('subtitle' in data) || (data.subtitle is string && data.subtitle.size() <= 180)) &&
+        (!('imageUrl' in data) || isSafeImageUrl(data.imageUrl)) &&
+        (!('restaurantId' in data) || (data.restaurantId is string && data.restaurantId.size() <= 128)) &&
+        (!('promoCode' in data) || (data.promoCode is string && data.promoCode.size() <= 40)) &&
+        (!('sortOrder' in data) || (data.sortOrder is int && data.sortOrder >= 0 && data.sortOrder <= 1000)) &&
+        data.activeFlag is bool &&
         isValidTimestamp(data.createdAt) &&
         isValidTimestamp(data.updatedAt);
     }
@@ -137,6 +186,10 @@ service cloud.firestore {
         (!('offerCode' in data) || (data.offerCode is string && data.offerCode.size() <= 40)) &&
         (!('address' in data) || (data.address is string && data.address.size() <= 240)) &&
         (!('imageUrl' in data) || isSafeImageUrl(data.imageUrl)) &&
+        (!('offerImageUrl' in data) || isSafeImageUrl(data.offerImageUrl)) &&
+        (!('latitude' in data) || (data.latitude is number && data.latitude >= -90 && data.latitude <= 90)) &&
+        (!('longitude' in data) || (data.longitude is number && data.longitude >= -180 && data.longitude <= 180)) &&
+        (!('ownerEmail' in data) || (data.ownerEmail is string && data.ownerEmail.size() <= 120)) &&
         (!('pureVegFlag' in data) || data.pureVegFlag is bool) &&
         (!('freeDeliveryFlag' in data) || data.freeDeliveryFlag is bool) &&
         (!('verifiedFlag' in data) || data.verifiedFlag is bool) &&
@@ -195,7 +248,11 @@ service cloud.firestore {
         data.paymentMethod is string && data.paymentMethod in ['RAZORPAY', 'WALLET', 'COD', 'UPI'] &&
         data.paymentStatus is string && data.paymentStatus in ['PAID', 'PENDING', 'REFUNDED'] &&
         (!('paymentRef' in data) || (data.paymentRef is string && data.paymentRef.size() <= 120)) &&
-        data.deliveryAddress is string && data.deliveryAddress.size() >= 1 && data.deliveryAddress.size() <= 300 &&
+        data.deliveryAddress is string && data.deliveryAddress.size() >= 1 && data.deliveryAddress.size() <= 350 &&
+        (!('deliveryLat' in data) || (data.deliveryLat is number && data.deliveryLat >= -90 && data.deliveryLat <= 90)) &&
+        (!('deliveryLng' in data) || (data.deliveryLng is number && data.deliveryLng >= -180 && data.deliveryLng <= 180)) &&
+        (!('pickupLat' in data) || (data.pickupLat is number && data.pickupLat >= -90 && data.pickupLat <= 90)) &&
+        (!('pickupLng' in data) || (data.pickupLng is number && data.pickupLng >= -180 && data.pickupLng <= 180)) &&
         data.status is string && data.status in ['PLACED', 'CONFIRMED', 'PREPARING', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED', 'REFUNDED'] &&
         (!('riderName' in data) || (data.riderName is string && data.riderName.size() <= 80)) &&
         (!('riderPhone' in data) || (data.riderPhone is string && data.riderPhone.size() <= 30)) &&
@@ -215,7 +272,7 @@ service cloud.firestore {
         (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
         (!('avatarUrl' in data) || isSafeImageUrl(data.avatarUrl)) &&
         (!('activeAddressLabel' in data) || (data.activeAddressLabel is string && data.activeAddressLabel.size() <= 80)) &&
-        (!('activeAddressLine' in data) || (data.activeAddressLine is string && data.activeAddressLine.size() <= 300)) &&
+        (!('activeAddressLine' in data) || (data.activeAddressLine is string && data.activeAddressLine.size() <= 350)) &&
         data.walletBalance is number && data.walletBalance >= 0 && data.walletBalance <= 1000000 &&
         data.goldMemberFlag is bool &&
         data.suspendedFlag is bool &&
@@ -249,8 +306,16 @@ service cloud.firestore {
     function isValidAddress(data, userId) {
       return data.userId is string && data.userId == userId &&
         data.label is string && data.label.size() >= 1 && data.label.size() <= 60 &&
-        data.fullAddress is string && data.fullAddress.size() >= 1 && data.fullAddress.size() <= 260 &&
+        data.fullAddress is string && data.fullAddress.size() >= 1 && data.fullAddress.size() <= 350 &&
         (!('landmark' in data) || (data.landmark is string && data.landmark.size() <= 160)) &&
+        (!('city' in data) || (data.city is string && data.city.size() <= 80)) &&
+        (!('areaStreet' in data) || (data.areaStreet is string && data.areaStreet.size() <= 120)) &&
+        (!('mapLink' in data) || (data.mapLink is string && data.mapLink.size() <= 350)) &&
+        (!('receiverName' in data) || (data.receiverName is string && data.receiverName.size() <= 90)) &&
+        (!('receiverPhone' in data) || (data.receiverPhone is string && data.receiverPhone.size() <= 30)) &&
+        (!('forSomeoneElse' in data) || data.forSomeoneElse is bool) &&
+        (!('latitude' in data) || (data.latitude is number && data.latitude >= -90 && data.latitude <= 90)) &&
+        (!('longitude' in data) || (data.longitude is number && data.longitude >= -180 && data.longitude <= 180)) &&
         isValidTimestamp(data.createdAt) &&
         isValidTimestamp(data.updatedAt);
     }
@@ -264,12 +329,15 @@ service cloud.firestore {
         isValidTimestamp(data.createdAt);
     }
 
-    // --- 1. CO-ADMINS REGISTRY (MAIN ADMIN ONLY WRITE, SELF-GET FOR PASSCODE CHECK) ---
+    // --- 1. STAFF / CO-ADMIN / PARTNER REGISTRY ---
     match /takeit_co_admins/{coAdminEmail} {
-      allow get: if isMainAdmin() || (isSignedIn() && userEmail() == coAdminEmail);
-      allow list: if isMainAdmin();
-      allow create, update: if isMainAdmin() && isValidCoAdmin(incoming(), coAdminEmail);
-      allow delete: if isMainAdmin();
+      allow get: if isMainAdmin() || isActiveCoAdmin() || (isSignedIn() && userEmail() == coAdminEmail);
+      allow list: if isMainAdmin() || isActiveCoAdmin();
+      allow create, update: if isValidCoAdmin(incoming(), coAdminEmail) && (
+        isMainAdmin() ||
+        (isActiveCoAdmin() && (!('roleType' in incoming()) || incoming().roleType in ['RESTAURANT_OWNER', 'DELIVERY_PARTNER']))
+      );
+      allow delete: if isMainAdmin() || (isActiveCoAdmin() && ('roleType' in existing()) && existing().roleType in ['RESTAURANT_OWNER', 'DELIVERY_PARTNER']);
     }
 
     // --- 2. GLOBAL LIVE APP CONFIG ---
@@ -279,21 +347,42 @@ service cloud.firestore {
       allow delete: if isMainAdmin();
     }
 
+    // --- 2B. DYNAMIC FOOD CATEGORIES ---
+    match /takeit_categories/{categoryId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if canManageRestaurants() && isValidId(categoryId) && isValidFoodCategory(incoming());
+      allow delete: if canManageRestaurants();
+    }
+
+    // --- 2C. HERO BANNER CAROUSEL SLIDES ---
+    match /takeit_hero_banners/{bannerId} {
+      allow get, list: if isSignedIn();
+      allow create, update: if (canManageSettings() || canManageRestaurants()) && isValidId(bannerId) && isValidHeroBanner(incoming());
+      allow delete: if canManageSettings() || canManageRestaurants();
+    }
+
     // --- 3. RESTAURANTS CATALOG ---
     match /takeit_restaurants/{restaurantId} {
       allow get, list: if isSignedIn();
-      allow create, update: if canManageRestaurants() && isValidId(restaurantId) && isValidRestaurant(incoming());
+      allow create: if canManageRestaurants() && isValidId(restaurantId) && isValidRestaurant(incoming());
+      allow update: if isValidId(restaurantId) && isValidRestaurant(incoming()) && (
+        canManageRestaurants() ||
+        (isRestaurantOwner() && restaurantId == coAdminData().assignedRestaurantId)
+      );
       allow delete: if canManageRestaurants();
     }
 
     // --- 4. MENU ITEMS ---
     match /takeit_menu_items/{itemId} {
       allow get, list: if isSignedIn();
-      allow create, update: if canManageRestaurants() && isValidId(itemId) && isValidMenuItem(incoming());
-      allow delete: if canManageRestaurants();
+      allow create, update: if isValidId(itemId) && isValidMenuItem(incoming()) && (
+        canManageRestaurants() ||
+        (isRestaurantOwner() && incoming().restaurantId == coAdminData().assignedRestaurantId)
+      );
+      allow delete: if canManageRestaurants() || (isRestaurantOwner() && existing().restaurantId == coAdminData().assignedRestaurantId);
     }
 
-    // --- 5. PROMO COUPONS ---
+    // --- 5. PROMO COUPONS (ADMIN & CO-ADMIN ONLY) ---
     match /takeit_coupons/{couponId} {
       allow get, list: if isSignedIn();
       allow create, update: if canManageCoupons() && isValidId(couponId) && isValidCoupon(incoming());
@@ -302,8 +391,20 @@ service cloud.firestore {
 
     // --- 6. LIVE FOOD ORDERS ---
     match /takeit_orders/{orderId} {
-      allow get: if isSignedIn() && (isOwner(existing().userId) || canManageOrders() || isStaff());
-      allow list: if isSignedIn() && (canManageOrders() || isStaff() || resource.data.userId == request.auth.uid);
+      allow get: if isSignedIn() && (
+        isOwner(existing().userId) ||
+        canManageOrders() ||
+        isStaff() ||
+        isDeliveryPartner() ||
+        (isRestaurantOwner() && existing().restaurantId == coAdminData().assignedRestaurantId)
+      );
+      allow list: if isSignedIn() && (
+        canManageOrders() ||
+        isStaff() ||
+        isDeliveryPartner() ||
+        (isRestaurantOwner() && resource.data.restaurantId == coAdminData().assignedRestaurantId) ||
+        resource.data.userId == request.auth.uid
+      );
 
       allow create: if isSignedIn() &&
         isValidId(orderId) &&
@@ -318,6 +419,12 @@ service cloud.firestore {
         incoming().createdAt == existing().createdAt &&
         (
           canManageOrders() ||
+          isDeliveryPartner() ||
+          (
+            isRestaurantOwner() &&
+            existing().restaurantId == coAdminData().assignedRestaurantId &&
+            incoming().restaurantId == existing().restaurantId
+          ) ||
           (
             isOwner(existing().userId) &&
             existing().status == 'DELIVERED' &&
@@ -391,8 +498,8 @@ service cloud.firestore {
 
     // --- 6B. LIVE RAPIDO RIDES ---
     match /takeit_rides/{rideId} {
-      allow get: if isSignedIn() && (isOwner(existing().userId) || canManageOrders() || isStaff());
-      allow list: if isSignedIn() && (canManageOrders() || isStaff() || resource.data.userId == request.auth.uid);
+      allow get: if isSignedIn() && (isOwner(existing().userId) || canManageOrders() || isStaff() || isDeliveryPartner());
+      allow list: if isSignedIn() && (canManageOrders() || isStaff() || isDeliveryPartner() || resource.data.userId == request.auth.uid);
 
       allow create: if isSignedIn() &&
         isValidId(rideId) &&
@@ -407,6 +514,7 @@ service cloud.firestore {
         incoming().createdAt == existing().createdAt &&
         (
           canManageOrders() ||
+          isDeliveryPartner() ||
           (
             isOwner(existing().userId) &&
             existing().status == 'COMPLETED' &&
@@ -426,8 +534,8 @@ service cloud.firestore {
 
     // --- 6C. LIVE PARCEL & GOODS TRANSPORT ---
     match /takeit_parcels/{parcelId} {
-      allow get: if isSignedIn() && (isOwner(existing().userId) || canManageOrders() || isStaff());
-      allow list: if isSignedIn() && (canManageOrders() || isStaff() || resource.data.userId == request.auth.uid);
+      allow get: if isSignedIn() && (isOwner(existing().userId) || canManageOrders() || isStaff() || isDeliveryPartner());
+      allow list: if isSignedIn() && (canManageOrders() || isStaff() || isDeliveryPartner() || resource.data.userId == request.auth.uid);
 
       allow create: if isSignedIn() &&
         isValidId(parcelId) &&
@@ -442,6 +550,7 @@ service cloud.firestore {
         incoming().createdAt == existing().createdAt &&
         (
           canManageOrders() ||
+          isDeliveryPartner() ||
           (
             isOwner(existing().userId) &&
             existing().status == 'DELIVERED' &&

@@ -30,18 +30,21 @@ android {
       "ADMIN" -> "@mipmap/ic_launcher_admin"
       "RIDE" -> "@mipmap/ic_launcher_ride"
       "TRANSPORT" -> "@mipmap/ic_launcher_transport"
+      "DELIVERY" -> "@mipmap/ic_launcher_delivery"
       else -> "@mipmap/ic_launcher"
     }
     manifestPlaceholders["appRoundIcon"] = when (normalizedMode) {
       "ADMIN" -> "@mipmap/ic_launcher_admin_round"
       "RIDE" -> "@mipmap/ic_launcher_ride_round"
       "TRANSPORT" -> "@mipmap/ic_launcher_transport_round"
+      "DELIVERY" -> "@mipmap/ic_launcher_delivery_round"
       else -> "@mipmap/ic_launcher_round"
     }
     manifestPlaceholders["paymentScheme"] = when (normalizedMode) {
       "ADMIN" -> "takeitadmin"
       "RIDE" -> "takeitride"
       "TRANSPORT" -> "takeittransport"
+      "DELIVERY" -> "takeitdelivery"
       else -> "takeit"
     }
 

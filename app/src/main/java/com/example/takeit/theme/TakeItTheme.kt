@@ -103,6 +103,16 @@ val TransportNavy = Color(0xFF0F172A)
 val TransportOrange = Color(0xFFF97316)
 val TransportOrangeSoft = Color(0xFFFFEDD5)
 
+// --- 3D Delivery Partner App Palette ---
+val DeliveryBg = Color(0xFF071318)
+val DeliverySurface = Color(0xFF0F2027)
+val DeliveryCard = Color(0xFF152C35)
+val DeliveryBorder = Color(0xFF234552)
+val DeliveryEmerald = Color(0xFF10B981)
+val DeliveryAmber = Color(0xFFF59E0B)
+val DeliveryInk = Color(0xFFF0FDF4)
+val DeliveryMuted = Color(0xFF94A3B8)
+
 private val RideColorScheme = lightColorScheme(
     primary = RideCharcoal,
     onPrimary = RideYellow,
@@ -139,6 +149,28 @@ private val TransportColorScheme = lightColorScheme(
     onError = Color.White
 )
 
+private val DeliveryColorScheme = darkColorScheme(
+    primary = DeliveryEmerald,
+    onPrimary = DeliveryBg,
+    primaryContainer = Color(0xFF064E3B),
+    onPrimaryContainer = DeliveryInk,
+    secondary = DeliveryAmber,
+    onSecondary = DeliveryBg,
+    secondaryContainer = DeliveryCard,
+    onSecondaryContainer = DeliveryInk,
+    tertiary = AdminCyan,
+    onTertiary = DeliveryBg,
+    background = DeliveryBg,
+    onBackground = DeliveryInk,
+    surface = DeliverySurface,
+    onSurface = DeliveryInk,
+    surfaceVariant = DeliveryCard,
+    onSurfaceVariant = DeliveryMuted,
+    outline = DeliveryBorder,
+    error = AdminCrimson,
+    onError = Color.White
+)
+
 @Composable
 fun TakeItCustomerTheme(content: @Composable () -> Unit) {
     MaterialTheme(
@@ -163,6 +195,16 @@ fun TakeItRideTheme(content: @Composable () -> Unit) {
 fun TakeItTransportTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = TransportColorScheme,
+        typography = ZiporaTypography,
+        shapes = TakeItShapes,
+        content = content
+    )
+}
+
+@Composable
+fun TakeItDeliveryTheme(content: @Composable () -> Unit) {
+    MaterialTheme(
+        colorScheme = DeliveryColorScheme,
         typography = ZiporaTypography,
         shapes = TakeItShapes,
         content = content

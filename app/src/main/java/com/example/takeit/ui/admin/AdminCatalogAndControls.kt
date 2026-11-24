@@ -10,6 +10,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -28,6 +29,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -45,7 +47,7 @@ import com.example.takeit.viewmodel.TakeItViewModel
 import kotlin.random.Random
 
 // ---------------------------------------------------------------------------
-// 1. RESTAURANTS & MENU CATALOG TAB (with Android Photo Picker + ImgBB Cloud)
+// 1. RESTAURANTS, DISHES & FOOD CATEGORIES CATALOG TAB
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -53,11 +55,13 @@ fun AdminCatalogTab(
     uiState: TakeItUiState,
     viewModel: TakeItViewModel
 ) {
-    var section by remember { mutableIntStateOf(0) } // 0 = Restaurants, 1 = Menu Dishes
+    var section by remember { mutableIntStateOf(0) } // 0 = Restaurants, 1 = Dishes, 2 = Categories
     var editingRestaurant by remember { mutableStateOf<Restaurant?>(null) }
     var showRestaurantDialog by remember { mutableStateOf(false) }
     var editingDish by remember { mutableStateOf<MenuItem?>(null) }
     var showDishDialog by remember { mutableStateOf(false) }
+    var editingCategory by remember { mutableStateOf<FoodCategory?>(null) }
+    var showCategoryDialog by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -67,67 +71,58 @@ fun AdminCatalogTab(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            TakeIt3DCard(
-                onClick = { section = 0 },
-                containerColor = if (section == 0) AdminGold else AdminSurface,
-                depthColor = if (section == 0) AdminGold.darken3D(0.42f) else Color(0xFF060A15),
-                borderColor = if (section == 0) AdminGold.lighten3D(0.35f) else AdminBorder,
-                cornerRadius = 14.dp,
-                depth = if (section == 0) 4.dp else 2.dp,
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
+            listOf(
+                Triple(0, "Rest. (${uiState.restaurants.size})", "admin_cat_tab_rest"),
+                Triple(1, "Dishes (${uiState.menuItems.size})", "admin_cat_tab_dish"),
+                Triple(2, "Cat. (${uiState.categories.size})", "admin_cat_tab_cat")
+            ).forEach { (idx, label, tag) ->
+                val sel = section == idx
+                TakeIt3DCard(
+                    onClick = { section = idx },
+                    containerColor = if (sel) AdminGold else AdminSurface,
+                    depthColor = if (sel) AdminGold.darken3D(0.42f) else Color(0xFF060A15),
+                    borderColor = if (sel) AdminGold.lighten3D(0.35f) else AdminBorder,
+                    cornerRadius = 14.dp,
+                    depth = if (sel) 4.dp else 2.dp,
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 11.dp),
-                    contentAlignment = Alignment.Center
+                        .weight(1f)
+                        .testTag(tag)
                 ) {
-                    Text(
-                        "Restaurants (${uiState.restaurants.size})",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 12.sp,
-                        color = if (section == 0) AdminBg else AdminInk,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-            }
-            TakeIt3DCard(
-                onClick = { section = 1 },
-                containerColor = if (section == 1) AdminGold else AdminSurface,
-                depthColor = if (section == 1) AdminGold.darken3D(0.42f) else Color(0xFF060A15),
-                borderColor = if (section == 1) AdminGold.lighten3D(0.35f) else AdminBorder,
-                cornerRadius = 14.dp,
-                depth = if (section == 1) 4.dp else 2.dp,
-                modifier = Modifier.weight(1f)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 10.dp, vertical = 11.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        "Dishes (${uiState.menuItems.size})",
-                        fontWeight = FontWeight.ExtraBold,
-                        fontSize = 12.sp,
-                        color = if (section == 1) AdminBg else AdminInk,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp, vertical = 11.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            label,
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 11.sp,
+                            color = if (sel) AdminBg else AdminInk,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
             TakeIt3DButton(
                 onClick = {
-                    if (section == 0) {
-                        editingRestaurant = null
-                        showRestaurantDialog = true
-                    } else {
-                        if (uiState.restaurants.isEmpty()) {
-                            viewModel.showMessage("Add a restaurant first before adding dishes.")
-                        } else {
-                            editingDish = null
-                            showDishDialog = true
+                    when (section) {
+                        0 -> {
+                            editingRestaurant = null
+                            showRestaurantDialog = true
+                        }
+                        1 -> {
+                            if (uiState.restaurants.isEmpty()) {
+                                viewModel.showMessage("Add a restaurant first before adding dishes.")
+                            } else {
+                                editingDish = null
+                                showDishDialog = true
+                            }
+                        }
+                        else -> {
+                            editingCategory = null
+                            showCategoryDialog = true
                         }
                     }
                 },
@@ -138,12 +133,12 @@ fun AdminCatalogTab(
                 depth = 4.dp,
                 height = 40.dp,
                 modifier = Modifier
-                    .width(96.dp)
+                    .width(76.dp)
                     .testTag("admin_catalog_add_btn")
             ) {
-                Icon(Icons.Rounded.Add, null, modifier = Modifier.size(16.dp))
-                Spacer(Modifier.width(3.dp))
-                Text(if (section == 0) "Add" else "Dish", fontWeight = FontWeight.ExtraBold, fontSize = 13.sp)
+                Icon(Icons.Rounded.Add, "Add", modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(2.dp))
+                Text("Add", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
             }
         }
 
@@ -152,118 +147,203 @@ fun AdminCatalogTab(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            if (section == 0) {
-                items(uiState.restaurants, key = { it.id }) { r ->
-                    TakeIt3DCard(
-                        containerColor = AdminSurface,
-                        depthColor = Color(0xFF060A15),
-                        borderColor = if (r.openFlag) AdminGold.copy(alpha = 0.4f) else AdminBorder,
-                        cornerRadius = 20.dp,
-                        depth = 5.dp,
-                        shadowElevation = 10.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                FoodPhoto(
-                                    imageUrl = r.imageUrl,
-                                    fallbackKey = r.category.ifBlank { r.name },
-                                    contentDescription = r.name,
-                                    modifier = Modifier
-                                        .size(64.dp)
-                                        .clip(RoundedCornerShape(14.dp))
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(r.name, color = AdminInk, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("${r.category} • ${r.cuisine}", style = MaterialTheme.typography.bodySmall, color = AdminMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                    Text("₹${r.priceForTwo} for two • ${r.deliveryTime} • ${r.offerTag}", style = MaterialTheme.typography.labelSmall, color = AdminGold)
+            when (section) {
+                0 -> {
+                    items(uiState.restaurants, key = { it.id }) { r ->
+                        TakeIt3DCard(
+                            containerColor = AdminSurface,
+                            depthColor = Color(0xFF060A15),
+                            borderColor = if (r.openFlag) AdminGold.copy(alpha = 0.4f) else AdminBorder,
+                            cornerRadius = 20.dp,
+                            depth = 5.dp,
+                            shadowElevation = 10.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    FoodPhoto(
+                                        imageUrl = r.imageUrl,
+                                        fallbackKey = r.category.ifBlank { r.name },
+                                        contentDescription = r.name,
+                                        modifier = Modifier
+                                            .size(64.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(r.name, color = AdminInk, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("${r.category} • ${r.cuisine}", style = MaterialTheme.typography.bodySmall, color = AdminMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text("₹${r.priceForTwo} for two • ${r.deliveryTime} • ${r.offerTag}", style = MaterialTheme.typography.labelSmall, color = AdminGold)
+                                        if (r.offerImageUrl.isNotBlank()) {
+                                            Text("16:9 Offer Poster Live ✓", style = MaterialTheme.typography.labelSmall, color = AdminEmerald, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                    Switch(
+                                        checked = r.openFlag,
+                                        onCheckedChange = { viewModel.toggleRestaurantOpen(r.id, it) }
+                                    )
                                 }
-                                Switch(
-                                    checked = r.openFlag,
-                                    onCheckedChange = { viewModel.toggleRestaurantOpen(r.id, it) }
-                                )
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(
-                                    onClick = {
-                                        editingRestaurant = r
-                                        showRestaurantDialog = true
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, AdminCyan.copy(alpha = 0.55f)),
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    Icon(Icons.Rounded.Edit, null, tint = AdminCyan, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Edit & Photo", color = AdminCyan, fontWeight = FontWeight.Bold)
-                                }
-                                OutlinedButton(
-                                    onClick = { viewModel.deleteRestaurant(r.id) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, AdminCrimson.copy(alpha = 0.6f))
-                                ) {
-                                    Icon(Icons.Rounded.DeleteOutline, null, tint = AdminCrimson, modifier = Modifier.size(16.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            editingRestaurant = r
+                                            showRestaurantDialog = true
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, AdminCyan.copy(alpha = 0.55f)),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Rounded.Edit, null, tint = AdminCyan, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Edit, Offer & Photo", color = AdminCyan, fontWeight = FontWeight.Bold)
+                                    }
+                                    OutlinedButton(
+                                        onClick = { viewModel.deleteRestaurant(r.id) },
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, AdminCrimson.copy(alpha = 0.6f))
+                                    ) {
+                                        Icon(Icons.Rounded.DeleteOutline, "Delete", tint = AdminCrimson, modifier = Modifier.size(16.dp))
+                                    }
                                 }
                             }
                         }
                     }
                 }
-            } else {
-                items(uiState.menuItems, key = { it.id }) { dish ->
-                    TakeIt3DCard(
-                        containerColor = AdminSurface,
-                        depthColor = Color(0xFF060A15),
-                        borderColor = if (dish.availableFlag) AdminBorder else AdminCrimson.copy(alpha = 0.45f),
-                        cornerRadius = 20.dp,
-                        depth = 5.dp,
-                        shadowElevation = 10.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                FoodPhoto(
-                                    imageUrl = dish.imageUrl,
-                                    fallbackKey = dish.name,
-                                    contentDescription = dish.name,
-                                    modifier = Modifier
-                                        .size(62.dp)
-                                        .clip(RoundedCornerShape(14.dp))
-                                )
-                                Spacer(Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        VegMarkIcon(isVeg = dish.vegFlag)
-                                        Text(dish.name, color = AdminInk, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                1 -> {
+                    items(uiState.menuItems, key = { it.id }) { dish ->
+                        TakeIt3DCard(
+                            containerColor = AdminSurface,
+                            depthColor = Color(0xFF060A15),
+                            borderColor = if (dish.availableFlag) AdminBorder else AdminCrimson.copy(alpha = 0.45f),
+                            cornerRadius = 20.dp,
+                            depth = 5.dp,
+                            shadowElevation = 10.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    FoodPhoto(
+                                        imageUrl = dish.imageUrl,
+                                        fallbackKey = dish.name,
+                                        contentDescription = dish.name,
+                                        modifier = Modifier
+                                            .size(62.dp)
+                                            .clip(RoundedCornerShape(14.dp))
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            VegMarkIcon(isVeg = dish.vegFlag)
+                                            Text(dish.name, color = AdminInk, fontWeight = FontWeight.ExtraBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        }
+                                        Text("${dish.restaurantName} • ${dish.category}", style = MaterialTheme.typography.labelSmall, color = AdminCyan)
+                                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            Text("₹${dish.price}", style = MaterialTheme.typography.bodySmall, color = AdminGold, fontWeight = FontWeight.ExtraBold)
+                                            if (dish.originalPrice > dish.price) {
+                                                Text(
+                                                    "₹${dish.originalPrice}",
+                                                    style = MaterialTheme.typography.labelSmall.copy(textDecoration = TextDecoration.LineThrough),
+                                                    color = AdminMuted
+                                                )
+                                            }
+                                            Text("• ${if (dish.availableFlag) "In Stock" else "Sold Out"}", style = MaterialTheme.typography.labelSmall, color = if (dish.availableFlag) AdminEmerald else AdminCrimson, fontWeight = FontWeight.Bold)
+                                        }
                                     }
-                                    Text(dish.restaurantName, style = MaterialTheme.typography.labelSmall, color = AdminCyan)
-                                    Text("₹${dish.price} • ${if (dish.availableFlag) "In Stock" else "Sold Out"}", style = MaterialTheme.typography.bodySmall, color = if (dish.availableFlag) AdminEmerald else AdminCrimson, fontWeight = FontWeight.Bold)
+                                    Switch(
+                                        checked = dish.availableFlag,
+                                        onCheckedChange = { viewModel.toggleMenuItemAvailable(dish.id, it) }
+                                    )
                                 }
-                                Switch(
-                                    checked = dish.availableFlag,
-                                    onCheckedChange = { viewModel.toggleMenuItemAvailable(dish.id, it) }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            editingDish = dish
+                                            showDishDialog = true
+                                        },
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, AdminCyan.copy(alpha = 0.55f)),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Icon(Icons.Rounded.Edit, null, tint = AdminCyan, modifier = Modifier.size(16.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text("Edit Dish", color = AdminCyan, fontWeight = FontWeight.Bold)
+                                    }
+                                    OutlinedButton(
+                                        onClick = { viewModel.deleteMenuItem(dish.id) },
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, AdminCrimson.copy(alpha = 0.6f))
+                                    ) {
+                                        Icon(Icons.Rounded.DeleteOutline, "Delete", tint = AdminCrimson, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else -> {
+                    item {
+                        TakeIt3DCard(
+                            containerColor = AdminCard,
+                            depthColor = Color(0xFF060A15),
+                            borderColor = AdminCyan.copy(alpha = 0.5f),
+                            cornerRadius = 18.dp,
+                            depth = 4.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("Dynamic Home Food Categories", color = AdminGold, fontWeight = FontWeight.ExtraBold)
+                                Text(
+                                    "Categories created here populate the single-line Home strip and Restaurant/Dish dropdown menus live.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AdminMuted
                                 )
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                OutlinedButton(
-                                    onClick = {
-                                        editingDish = dish
-                                        showDishDialog = true
-                                    },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, AdminCyan.copy(alpha = 0.55f)),
-                                    modifier = Modifier.weight(1f)
+                        }
+                    }
+                    if (uiState.categories.isEmpty()) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                                Text("No custom categories yet. Tap + Add to create one!", color = AdminMuted)
+                            }
+                        }
+                    } else {
+                        items(uiState.categories, key = { it.id }) { cat ->
+                            TakeIt3DCard(
+                                containerColor = AdminSurface,
+                                depthColor = Color(0xFF060A15),
+                                borderColor = if (cat.activeFlag) AdminGold.copy(alpha = 0.45f) else AdminBorder,
+                                cornerRadius = 18.dp,
+                                depth = 4.dp,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(14.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.Rounded.Edit, null, tint = AdminCyan, modifier = Modifier.size(16.dp))
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Edit Dish", color = AdminCyan, fontWeight = FontWeight.Bold)
-                                }
-                                OutlinedButton(
-                                    onClick = { viewModel.deleteMenuItem(dish.id) },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, AdminCrimson.copy(alpha = 0.6f))
-                                ) {
-                                    Icon(Icons.Rounded.DeleteOutline, null, tint = AdminCrimson, modifier = Modifier.size(16.dp))
+                                    FoodPhoto(
+                                        imageUrl = cat.imageUrl,
+                                        fallbackKey = cat.name,
+                                        contentDescription = cat.name,
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .clip(CircleShape)
+                                    )
+                                    Spacer(Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text("${cat.emoji} ${cat.name}", color = AdminInk, fontWeight = FontWeight.ExtraBold)
+                                        Text("Order #${cat.sortOrder} • ${if (cat.activeFlag) "Active on Home" else "Hidden"}", style = MaterialTheme.typography.labelSmall, color = if (cat.activeFlag) AdminEmerald else AdminMuted)
+                                    }
+                                    Switch(
+                                        checked = cat.activeFlag,
+                                        onCheckedChange = { viewModel.saveCategory(cat.copy(activeFlag = it)) }
+                                    )
+                                    IconButton(onClick = {
+                                        editingCategory = cat
+                                        showCategoryDialog = true
+                                    }) { Icon(Icons.Rounded.Edit, "Edit", tint = AdminCyan) }
+                                    IconButton(onClick = { viewModel.deleteCategory(cat.id) }) {
+                                        Icon(Icons.Rounded.DeleteOutline, "Delete", tint = AdminCrimson)
+                                    }
                                 }
                             }
                         }
@@ -277,6 +357,7 @@ fun AdminCatalogTab(
     if (showRestaurantDialog) {
         RestaurantEditorDialog(
             initial = editingRestaurant,
+            categories = uiState.categories,
             isUploading = uiState.isUploadingPhoto,
             onUploadImage = { uri, onUrl -> viewModel.uploadImageToImgBb(uri, "takeit_rest", onUrl) },
             onDismiss = { showRestaurantDialog = false },
@@ -291,6 +372,7 @@ fun AdminCatalogTab(
         MenuDishEditorDialog(
             initial = editingDish,
             restaurants = uiState.restaurants,
+            categories = uiState.categories,
             isUploading = uiState.isUploadingPhoto,
             onUploadImage = { uri, onUrl -> viewModel.uploadImageToImgBb(uri, "takeit_dish", onUrl) },
             onDismiss = { showDishDialog = false },
@@ -300,33 +382,129 @@ fun AdminCatalogTab(
             }
         )
     }
+
+    if (showCategoryDialog) {
+        FoodCategoryEditorDialog(
+            initial = editingCategory,
+            isUploading = uiState.isUploadingPhoto,
+            onUploadImage = { uri, onUrl -> viewModel.uploadImageToImgBb(uri, "takeit_cat", onUrl) },
+            onDismiss = { showCategoryDialog = false },
+            onSave = {
+                viewModel.saveCategory(it)
+                showCategoryDialog = false
+            }
+        )
+    }
 }
 
 @Composable
-private fun RestaurantEditorDialog(
-    initial: Restaurant?,
+private fun FoodCategoryEditorDialog(
+    initial: FoodCategory?,
     isUploading: Boolean,
     onUploadImage: (android.net.Uri, (String) -> Unit) -> Unit,
     onDismiss: () -> Unit,
-    onSave: (Restaurant) -> Unit
+    onSave: (FoodCategory) -> Unit
 ) {
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
-    var cuisine by remember { mutableStateOf(initial?.cuisine ?: "North Indian, Chinese") }
-    var category by remember { mutableStateOf(initial?.category ?: "Pizza") }
-    var deliveryTime by remember { mutableStateOf(initial?.deliveryTime ?: "30 min") }
-    var priceForTwo by remember { mutableStateOf((initial?.priceForTwo ?: 200).toString()) }
-    var offerTag by remember { mutableStateOf(initial?.offerTag ?: "40% OFF") }
-    var offerCode by remember { mutableStateOf(initial?.offerCode ?: "FOOD50") }
-    var address by remember { mutableStateOf(initial?.address ?: "Greater Noida") }
+    var emoji by remember { mutableStateOf(initial?.emoji ?: "🍕") }
+    var sortOrder by remember { mutableStateOf((initial?.sortOrder ?: 1).toString()) }
     var imageUrl by remember { mutableStateOf(initial?.imageUrl.orEmpty()) }
-    var pureVeg by remember { mutableStateOf(initial?.pureVegFlag ?: false) }
-    var freeDelivery by remember { mutableStateOf(initial?.freeDeliveryFlag ?: true) }
-    var featured by remember { mutableStateOf(initial?.featuredFlag ?: true) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) {
             onUploadImage(uri) { uploadedUrl -> imageUrl = uploadedUrl }
         }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = AdminSurface,
+        titleContentColor = AdminInk,
+        title = { Text(if (initial == null) "Add Food Category" else "Edit Category", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    FoodPhoto(
+                        imageUrl = imageUrl,
+                        fallbackKey = name,
+                        contentDescription = "Category Photo",
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                    )
+                    FilledTonalButton(
+                        onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        enabled = !isUploading,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(if (isUploading) "Uploading..." else "Pick Category Photo")
+                    }
+                }
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Category Name (e.g. Momos)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = emoji, onValueChange = { emoji = it }, label = { Text("Emoji") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = sortOrder, onValueChange = { sortOrder = it.filter(Char::isDigit) }, label = { Text("Order #") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (name.isNotBlank()) {
+                        onSave(
+                            (initial ?: FoodCategory()).copy(
+                                name = name.trim(),
+                                emoji = emoji.trim().ifBlank { "🍽️" },
+                                sortOrder = sortOrder.toIntOrNull() ?: 1,
+                                imageUrl = imageUrl.trim(),
+                                activeFlag = initial?.activeFlag ?: true
+                            )
+                        )
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg)
+            ) { Text("Save Live", fontWeight = FontWeight.ExtraBold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = AdminMuted) } }
+    )
+}
+
+@Composable
+private fun RestaurantEditorDialog(
+    initial: Restaurant?,
+    categories: List<FoodCategory>,
+    isUploading: Boolean,
+    onUploadImage: (android.net.Uri, (String) -> Unit) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (Restaurant) -> Unit
+) {
+    val categoryOptions = remember(categories) {
+        val dyn = categories.map { it.name }.filter { it.isNotBlank() }
+        val base = TakeItFoodCategories.map { it.name }.filter { it != "All" }
+        (dyn + base).distinct()
+    }
+    var name by remember { mutableStateOf(initial?.name.orEmpty()) }
+    var cuisine by remember { mutableStateOf(initial?.cuisine ?: "North Indian, Chinese") }
+    var category by remember { mutableStateOf(initial?.category?.ifBlank { categoryOptions.firstOrNull() ?: "Pizza" } ?: (categoryOptions.firstOrNull() ?: "Pizza")) }
+    var catMenuExpanded by remember { mutableStateOf(false) }
+    var deliveryTime by remember { mutableStateOf(initial?.deliveryTime ?: "30 min") }
+    var priceForTwo by remember { mutableStateOf((initial?.priceForTwo ?: 200).toString()) }
+    var offerTag by remember { mutableStateOf(initial?.offerTag ?: "40% OFF") }
+    var offerCode by remember { mutableStateOf(initial?.offerCode ?: "FOOD50") }
+    var address by remember { mutableStateOf(initial?.address ?: "Greater Noida") }
+    var latitudeText by remember { mutableStateOf((initial?.latitude ?: 28.4744).toString()) }
+    var longitudeText by remember { mutableStateOf((initial?.longitude ?: 77.5040).toString()) }
+    var imageUrl by remember { mutableStateOf(initial?.imageUrl.orEmpty()) }
+    var offerImageUrl by remember { mutableStateOf(initial?.offerImageUrl.orEmpty()) }
+    var pureVeg by remember { mutableStateOf(initial?.pureVegFlag ?: false) }
+    var freeDelivery by remember { mutableStateOf(initial?.freeDeliveryFlag ?: true) }
+    var featured by remember { mutableStateOf(initial?.featuredFlag ?: true) }
+
+    val coverPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) onUploadImage(uri) { url -> imageUrl = url }
+    }
+    val offerPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) onUploadImage(uri) { url -> offerImageUrl = url }
     }
 
     AlertDialog(
@@ -349,23 +527,59 @@ private fun RestaurantEditorDialog(
                             .clip(RoundedCornerShape(12.dp))
                     )
                     FilledTonalButton(
-                        onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                        onClick = { coverPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                         enabled = !isUploading,
                         modifier = Modifier.weight(1f)
                     ) {
-                        if (isUploading) {
-                            CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Uploading...")
-                        } else {
-                            Icon(Icons.Rounded.PhotoLibrary, null, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Upload Photo (ImgBB)")
+                        Text(if (isUploading) "Uploading..." else "Cover Photo (ImgBB)")
+                    }
+                }
+                Text("16:9 Offer Deal Poster (Customer Offers Tab)", style = MaterialTheme.typography.labelSmall, color = AdminGold, fontWeight = FontWeight.Bold)
+                if (offerImageUrl.isNotBlank()) {
+                    FoodPhoto(
+                        imageUrl = offerImageUrl,
+                        fallbackKey = offerTag,
+                        contentDescription = "16:9 Offer Preview",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
+                FilledTonalButton(
+                    onClick = { offerPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    enabled = !isUploading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Rounded.Image, null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (offerImageUrl.isBlank()) "Upload 16:9 Offer Poster" else "Change 16:9 Offer Poster")
+                }
+
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Restaurant Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                // Single-Option Category Dropdown
+                Box {
+                    OutlinedButton(
+                        onClick = { catMenuExpanded = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Category: $category", color = AdminGold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Icon(Icons.Rounded.ArrowDropDown, "Select Category", tint = AdminGold)
+                    }
+                    DropdownMenu(expanded = catMenuExpanded, onDismissRequest = { catMenuExpanded = false }) {
+                        categoryOptions.forEach { opt ->
+                            DropdownMenuItem(
+                                text = { Text(opt) },
+                                onClick = {
+                                    category = opt
+                                    catMenuExpanded = false
+                                }
+                            )
                         }
                     }
                 }
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Restaurant Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Category (Pizza, Burger, Biryani...)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
                 OutlinedTextField(value = cuisine, onValueChange = { cuisine = it }, label = { Text("Cuisines") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(value = deliveryTime, onValueChange = { deliveryTime = it }, label = { Text("ETA") }, singleLine = true, modifier = Modifier.weight(1f))
@@ -376,6 +590,10 @@ private fun RestaurantEditorDialog(
                     OutlinedTextField(value = offerCode, onValueChange = { offerCode = it.uppercase() }, label = { Text("Offer Code") }, singleLine = true, modifier = Modifier.weight(1f))
                 }
                 OutlinedTextField(value = address, onValueChange = { address = it }, label = { Text("Address") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = latitudeText, onValueChange = { latitudeText = it }, label = { Text("Latitude") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = longitudeText, onValueChange = { longitudeText = it }, label = { Text("Longitude") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), modifier = Modifier.weight(1f))
+                }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Text("Pure Veg", color = AdminInk)
                     Switch(checked = pureVeg, onCheckedChange = { pureVeg = it })
@@ -404,7 +622,10 @@ private fun RestaurantEditorDialog(
                                 offerTag = offerTag.trim(),
                                 offerCode = offerCode.trim().uppercase(),
                                 address = address.trim(),
+                                latitude = latitudeText.toDoubleOrNull() ?: 28.4744,
+                                longitude = longitudeText.toDoubleOrNull() ?: 77.5040,
                                 imageUrl = imageUrl.trim(),
+                                offerImageUrl = offerImageUrl.trim(),
                                 pureVegFlag = pureVeg,
                                 freeDeliveryFlag = freeDelivery,
                                 featuredFlag = featured
@@ -423,18 +644,23 @@ private fun RestaurantEditorDialog(
 private fun MenuDishEditorDialog(
     initial: MenuItem?,
     restaurants: List<Restaurant>,
+    categories: List<FoodCategory>,
     isUploading: Boolean,
     onUploadImage: (android.net.Uri, (String) -> Unit) -> Unit,
     onDismiss: () -> Unit,
     onSave: (MenuItem) -> Unit
 ) {
+    val sectionOptions = remember(categories) {
+        (TakeItDishSections + categories.map { it.name }).filter { it.isNotBlank() }.distinct()
+    }
     var selectedRest by remember {
         mutableStateOf(restaurants.firstOrNull { it.id == initial?.restaurantId } ?: restaurants.first())
     }
     var restMenuExpanded by remember { mutableStateOf(false) }
+    var sectionMenuExpanded by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
     var description by remember { mutableStateOf(initial?.description.orEmpty()) }
-    var category by remember { mutableStateOf(initial?.category ?: "Recommended") }
+    var category by remember { mutableStateOf(initial?.category?.ifBlank { sectionOptions.first() } ?: sectionOptions.first()) }
     var price by remember { mutableStateOf((initial?.price ?: 149).toString()) }
     var originalPrice by remember { mutableStateOf((initial?.originalPrice ?: 199).toString()) }
     var imageUrl by remember { mutableStateOf(initial?.imageUrl.orEmpty()) }
@@ -462,7 +688,8 @@ private fun MenuDishEditorDialog(
                         onClick = { restMenuExpanded = true },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text("Restaurant: ${selectedRest.name}", color = AdminGold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("Restaurant: ${selectedRest.name}", color = AdminGold, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Icon(Icons.Rounded.ArrowDropDown, "Select Restaurant", tint = AdminGold)
                     }
                     DropdownMenu(expanded = restMenuExpanded, onDismissRequest = { restMenuExpanded = false }) {
                         restaurants.forEach { r ->
@@ -495,15 +722,53 @@ private fun MenuDishEditorDialog(
                 }
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Dish Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Description") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = category, onValueChange = { category = it }, label = { Text("Menu Section (Recommended, Combos...)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                // Single-Option Dish Menu Section Dropdown
+                Box {
+                    OutlinedButton(
+                        onClick = { sectionMenuExpanded = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Menu Section: $category", color = AdminCyan, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                        Icon(Icons.Rounded.ArrowDropDown, "Select Section", tint = AdminCyan)
+                    }
+                    DropdownMenu(expanded = sectionMenuExpanded, onDismissRequest = { sectionMenuExpanded = false }) {
+                        sectionOptions.forEach { sec ->
+                            DropdownMenuItem(
+                                text = { Text(sec) },
+                                onClick = {
+                                    category = sec
+                                    sectionMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Separate Selling Price & Cut MRP
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = price, onValueChange = { price = it.filter(Char::isDigit) }, label = { Text("Price ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
-                    OutlinedTextField(value = originalPrice, onValueChange = { originalPrice = it.filter(Char::isDigit) }, label = { Text("MRP ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = price, onValueChange = { price = it.filter(Char::isDigit) }, label = { Text("Selling Price ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = originalPrice, onValueChange = { originalPrice = it.filter(Char::isDigit) }, label = { Text("Cut MRP ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                    Text("Vegetarian Dish", color = AdminInk)
-                    Switch(checked = isVeg, onCheckedChange = { isVeg = it })
+
+                Text("Dietary Type", style = MaterialTheme.typography.labelMedium, color = AdminGold, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    FilterChip(
+                        selected = isVeg,
+                        onClick = { isVeg = true },
+                        leadingIcon = { VegMarkIcon(isVeg = true) },
+                        label = { Text("Veg", fontWeight = FontWeight.Bold) },
+                        modifier = Modifier.weight(1f)
+                    )
+                    FilterChip(
+                        selected = !isVeg,
+                        onClick = { isVeg = false },
+                        leadingIcon = { VegMarkIcon(isVeg = false) },
+                        label = { Text("Non-Veg", fontWeight = FontWeight.Bold) },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
+
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                     Text("Bestseller Badge", color = AdminInk)
                     Switch(checked = isBestseller, onCheckedChange = { isBestseller = it })
@@ -514,6 +779,8 @@ private fun MenuDishEditorDialog(
             Button(
                 onClick = {
                     if (name.isNotBlank()) {
+                        val selling = price.toIntOrNull() ?: 149
+                        val mrp = (originalPrice.toIntOrNull() ?: selling).coerceAtLeast(selling)
                         onSave(
                             (initial ?: MenuItem()).copy(
                                 restaurantId = selectedRest.id,
@@ -521,8 +788,8 @@ private fun MenuDishEditorDialog(
                                 name = name.trim(),
                                 description = description.trim(),
                                 category = category.trim().ifBlank { "Recommended" },
-                                price = price.toIntOrNull() ?: 149,
-                                originalPrice = originalPrice.toIntOrNull() ?: 199,
+                                price = selling,
+                                originalPrice = mrp,
                                 vegFlag = isVeg,
                                 bestsellerFlag = isBestseller,
                                 imageUrl = imageUrl.trim()
@@ -939,7 +1206,7 @@ fun AdminPeopleTab(
 }
 
 // ---------------------------------------------------------------------------
-// 4. CO-ADMIN PASSWORD & PERMISSION MANAGER (MAIN ADMIN buildolive4@gmail.com ONLY!)
+// 4. STAFF, ROLES, RESTAURANT OWNERS & DELIVERY PARTNERS MANAGER
 // ---------------------------------------------------------------------------
 
 @Composable
@@ -948,8 +1215,14 @@ fun AdminCoAdminsTab(
     viewModel: TakeItViewModel
 ) {
     val context = LocalContext.current
+    var roleFilter by remember { mutableStateOf("ALL") }
     var editingCoAdmin by remember { mutableStateOf<CoAdminAccount?>(null) }
     var showCreateDialog by remember { mutableStateOf(false) }
+
+    val visibleStaff = remember(uiState.coAdmins, roleFilter) {
+        if (roleFilter == "ALL") uiState.coAdmins
+        else uiState.coAdmins.filter { it.roleType.equals(roleFilter, ignoreCase = true) }
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -974,10 +1247,14 @@ fun AdminCoAdminsTab(
                             iconTint = AdminBg,
                             size = 40.dp
                         )
-                        Text("Main Admin Co-Admin Control", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = AdminInk)
+                        Text("Staff, Owners & Delivery Roles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = AdminInk)
                     }
                     Text(
-                        "Exclusive to $MAIN_ADMIN_EMAIL. Create Co-Admin accounts with custom passwords & exact permissions. Co-Admins sign in with their Gmail and enter the password you generate here.",
+                        if (uiState.isMainAdmin) {
+                            "Create Co-Admins, assign Restaurant Owners to manage their kitchen & 16:9 offers, or onboard Delivery Partners with custom passcodes."
+                        } else {
+                            "As Co-Admin, you can grant Restaurant Owner or Delivery Partner access with custom Gmail + password."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         color = AdminMuted
                     )
@@ -998,13 +1275,38 @@ fun AdminCoAdminsTab(
                     ) {
                         Icon(Icons.Rounded.PersonAdd, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Create New Co-Admin & Password", fontWeight = FontWeight.ExtraBold)
+                        Text("Add Staff / Owner / Partner", fontWeight = FontWeight.ExtraBold)
                     }
                 }
             }
         }
 
-        if (uiState.coAdmins.isEmpty()) {
+        item {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(
+                    listOf(
+                        "ALL" to "All (${uiState.coAdmins.size})",
+                        STAFF_ROLE_CO_ADMIN to "Co-Admins",
+                        STAFF_ROLE_RESTAURANT_OWNER to "Restaurant Owners",
+                        STAFF_ROLE_DELIVERY_PARTNER to "Delivery Partners"
+                    )
+                ) { (key, label) ->
+                    FilterChip(
+                        selected = roleFilter == key,
+                        onClick = { roleFilter = key },
+                        label = { Text(label, fontWeight = FontWeight.Bold) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = AdminCyan,
+                            selectedLabelColor = AdminBg,
+                            containerColor = AdminSurface,
+                            labelColor = AdminInk
+                        )
+                    )
+                }
+            }
+        }
+
+        if (visibleStaff.isEmpty()) {
             item {
                 TakeIt3DCard(
                     containerColor = AdminSurface,
@@ -1020,18 +1322,24 @@ fun AdminCoAdminsTab(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         TakeIt3DIconOrb(Icons.Rounded.Security, AdminCard, iconTint = AdminMuted, size = 48.dp)
-                        Text("No Co-Admins added yet", color = AdminInk, fontWeight = FontWeight.Bold)
-                        Text("Tap the button above to create a Co-Admin login & custom password.", style = MaterialTheme.typography.bodySmall, color = AdminMuted)
+                        Text("No staff accounts in this filter", color = AdminInk, fontWeight = FontWeight.Bold)
+                        Text("Tap the button above to create a login & passcode.", style = MaterialTheme.typography.bodySmall, color = AdminMuted)
                     }
                 }
             }
         } else {
-            items(uiState.coAdmins, key = { it.email.ifBlank { it.id } }) { co ->
+            items(visibleStaff, key = { it.email.ifBlank { it.id } }) { co ->
                 var showPass by remember(co.email) { mutableStateOf(false) }
+                val roleColor = when (co.roleType.uppercase()) {
+                    STAFF_ROLE_RESTAURANT_OWNER -> AdminGold
+                    STAFF_ROLE_DELIVERY_PARTNER -> AdminEmerald
+                    else -> AdminCyan
+                }
+                val canEditThis = uiState.isMainAdmin || co.roleType != STAFF_ROLE_CO_ADMIN
                 TakeIt3DCard(
                     containerColor = AdminSurface,
                     depthColor = Color(0xFF060A15),
-                    borderColor = if (co.activeFlag) AdminCyan.copy(alpha = 0.55f) else AdminCrimson,
+                    borderColor = if (co.activeFlag) roleColor.copy(alpha = 0.55f) else AdminCrimson,
                     cornerRadius = 20.dp,
                     depth = 5.dp,
                     shadowElevation = 10.dp,
@@ -1040,25 +1348,47 @@ fun AdminCoAdminsTab(
                     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             TakeIt3DIconOrb(
-                                icon = Icons.Rounded.VerifiedUser,
-                                containerColor = if (co.activeFlag) AdminCyan.copy(alpha = 0.25f) else AdminCrimson.copy(alpha = 0.25f),
+                                icon = when (co.roleType.uppercase()) {
+                                    STAFF_ROLE_RESTAURANT_OWNER -> Icons.Rounded.Storefront
+                                    STAFF_ROLE_DELIVERY_PARTNER -> Icons.Rounded.DeliveryDining
+                                    else -> Icons.Rounded.VerifiedUser
+                                },
+                                containerColor = if (co.activeFlag) roleColor.copy(alpha = 0.25f) else AdminCrimson.copy(alpha = 0.25f),
                                 depthColor = Color.Black,
-                                iconTint = if (co.activeFlag) AdminCyan else AdminCrimson,
+                                iconTint = if (co.activeFlag) roleColor else AdminCrimson,
                                 size = 40.dp
                             )
                             Spacer(Modifier.width(10.dp))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(co.name, color = AdminInk, fontWeight = FontWeight.ExtraBold, fontSize = 16.sp)
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(co.name, color = AdminInk, fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+                                    Surface(shape = RoundedCornerShape(6.dp), color = roleColor.copy(alpha = 0.18f)) {
+                                        Text(
+                                            co.roleType.replace("_", " "),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = roleColor,
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                        )
+                                    }
+                                }
                                 Text(co.email, style = MaterialTheme.typography.bodySmall, color = AdminCyan, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Text(co.roleTitle, style = MaterialTheme.typography.labelSmall, color = AdminGold)
+                                if (co.assignedRestaurantName.isNotBlank()) {
+                                    Text("Kitchen: ${co.assignedRestaurantName}", style = MaterialTheme.typography.labelSmall, color = AdminGold)
+                                } else if (co.vehicleNumber.isNotBlank() || co.phone.isNotBlank()) {
+                                    Text("${co.phone} • ${co.vehicleNumber}", style = MaterialTheme.typography.labelSmall, color = AdminEmerald)
+                                } else {
+                                    Text(co.roleTitle, style = MaterialTheme.typography.labelSmall, color = AdminGold)
+                                }
                             }
-                            Switch(
-                                checked = co.activeFlag,
-                                onCheckedChange = { viewModel.saveCoAdmin(co.copy(activeFlag = it)) }
-                            )
+                            if (canEditThis) {
+                                Switch(
+                                    checked = co.activeFlag,
+                                    onCheckedChange = { viewModel.saveCoAdmin(co.copy(activeFlag = it)) }
+                                )
+                            }
                         }
 
-                        // Passcode row with reveal + 1-tap Copy
                         Surface(shape = RoundedCornerShape(12.dp), color = AdminCard, border = BorderStroke(1.dp, AdminBorder), modifier = Modifier.fillMaxWidth()) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -1083,10 +1413,10 @@ fun AdminCoAdminsTab(
                                 }
                                 IconButton(
                                     onClick = {
-                                        val shareText = "Take It Admin Access\nGmail: ${co.email}\nPassword: ${co.passcode}\nRole: ${co.roleTitle}"
+                                        val shareText = "Take It Access (${co.roleType})\nGmail: ${co.email}\nPassword: ${co.passcode}\nRole: ${co.roleTitle}"
                                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                        cm.setPrimaryClip(ClipData.newPlainText("TakeItCoAdmin", shareText))
-                                        viewModel.showMessage("Co-Admin login details copied! Ready to share.")
+                                        cm.setPrimaryClip(ClipData.newPlainText("TakeItStaff", shareText))
+                                        viewModel.showMessage("Login credentials copied! Ready to share.")
                                     }
                                 ) {
                                     Icon(Icons.Rounded.ContentCopy, "Copy Credentials", tint = AdminGold)
@@ -1094,40 +1424,28 @@ fun AdminCoAdminsTab(
                             }
                         }
 
-                        // Permissions summary badges
-                        val perms = buildList {
-                            if (co.canManageOrders) add("Orders")
-                            if (co.canManageRestaurants) add("Menu")
-                            if (co.canManageCoupons) add("Coupons")
-                            if (co.canManageUsers) add("Users")
-                            if (co.canManageSettings) add("Controls")
-                        }
-                        Text(
-                            "Permissions: ${if (perms.isEmpty()) "Dashboard Only" else perms.joinToString(" • ")}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = AdminEmerald
-                        )
-
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = {
-                                    editingCoAdmin = co
-                                    showCreateDialog = true
-                                },
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, AdminCyan.copy(alpha = 0.55f)),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                Icon(Icons.Rounded.Edit, null, tint = AdminCyan, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(6.dp))
-                                Text("Edit Password / Access", color = AdminCyan, fontWeight = FontWeight.Bold)
-                            }
-                            OutlinedButton(
-                                onClick = { viewModel.deleteCoAdmin(co.email) },
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, AdminCrimson.copy(alpha = 0.6f))
-                            ) {
-                                Icon(Icons.Rounded.DeleteOutline, null, tint = AdminCrimson, modifier = Modifier.size(16.dp))
+                        if (canEditThis) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        editingCoAdmin = co
+                                        showCreateDialog = true
+                                    },
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, AdminCyan.copy(alpha = 0.55f)),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Icon(Icons.Rounded.Edit, null, tint = AdminCyan, modifier = Modifier.size(16.dp))
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Edit Password / Access", color = AdminCyan, fontWeight = FontWeight.Bold)
+                                }
+                                OutlinedButton(
+                                    onClick = { viewModel.deleteCoAdmin(co) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, AdminCrimson.copy(alpha = 0.6f))
+                                ) {
+                                    Icon(Icons.Rounded.DeleteOutline, "Delete", tint = AdminCrimson, modifier = Modifier.size(16.dp))
+                                }
                             }
                         }
                     }
@@ -1140,6 +1458,8 @@ fun AdminCoAdminsTab(
     if (showCreateDialog) {
         CoAdminEditorDialog(
             initial = editingCoAdmin,
+            isMainAdmin = uiState.isMainAdmin,
+            restaurants = uiState.restaurants,
             onDismiss = { showCreateDialog = false },
             onSave = {
                 viewModel.saveCoAdmin(it)
@@ -1152,12 +1472,27 @@ fun AdminCoAdminsTab(
 @Composable
 private fun CoAdminEditorDialog(
     initial: CoAdminAccount?,
+    isMainAdmin: Boolean,
+    restaurants: List<Restaurant>,
     onDismiss: () -> Unit,
     onSave: (CoAdminAccount) -> Unit
 ) {
+    val defaultRole = initial?.roleType?.ifBlank {
+        if (isMainAdmin) STAFF_ROLE_CO_ADMIN else STAFF_ROLE_RESTAURANT_OWNER
+    } ?: if (isMainAdmin) STAFF_ROLE_CO_ADMIN else STAFF_ROLE_RESTAURANT_OWNER
+
+    var roleType by remember { mutableStateOf(defaultRole) }
     var name by remember { mutableStateOf(initial?.name.orEmpty()) }
     var email by remember { mutableStateOf(initial?.email.orEmpty()) }
     var roleTitle by remember { mutableStateOf(initial?.roleTitle ?: "Operations Manager") }
+    var phone by remember { mutableStateOf(initial?.phone.orEmpty()) }
+    var vehicleNumber by remember { mutableStateOf(initial?.vehicleNumber.orEmpty()) }
+    var selectedRest by remember {
+        mutableStateOf(
+            restaurants.firstOrNull { it.id == initial?.assignedRestaurantId } ?: restaurants.firstOrNull()
+        )
+    }
+    var restDropExpanded by remember { mutableStateOf(false) }
     var passcode by remember { mutableStateOf(initial?.passcode ?: "TK@${Random.nextInt(1000, 9999)}") }
     var canOrders by remember { mutableStateOf(initial?.canManageOrders ?: true) }
     var canRestaurants by remember { mutableStateOf(initial?.canManageRestaurants ?: true) }
@@ -1169,23 +1504,106 @@ private fun CoAdminEditorDialog(
         onDismissRequest = onDismiss,
         containerColor = AdminSurface,
         titleContentColor = AdminInk,
-        title = { Text(if (initial == null) "Create Co-Admin Account" else "Edit Co-Admin", fontWeight = FontWeight.ExtraBold) },
+        title = { Text(if (initial == null) "Add Staff / Owner / Partner" else "Edit Staff Account", fontWeight = FontWeight.ExtraBold) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Co-Admin Full Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Text("Select Role", style = MaterialTheme.typography.labelMedium, color = AdminGold, fontWeight = FontWeight.Bold)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (isMainAdmin) {
+                        item {
+                            FilterChip(
+                                selected = roleType == STAFF_ROLE_CO_ADMIN,
+                                onClick = {
+                                    roleType = STAFF_ROLE_CO_ADMIN
+                                    roleTitle = "Operations Co-Admin"
+                                },
+                                label = { Text("Co-Admin") }
+                            )
+                        }
+                    }
+                    item {
+                        FilterChip(
+                            selected = roleType == STAFF_ROLE_RESTAURANT_OWNER,
+                            onClick = {
+                                roleType = STAFF_ROLE_RESTAURANT_OWNER
+                                roleTitle = "Restaurant Owner"
+                                canOrders = true
+                                canRestaurants = true
+                                canCoupons = false
+                                canUsers = false
+                                canSettings = false
+                            },
+                            label = { Text("Restaurant Owner") }
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = roleType == STAFF_ROLE_DELIVERY_PARTNER,
+                            onClick = {
+                                roleType = STAFF_ROLE_DELIVERY_PARTNER
+                                roleTitle = "Delivery Partner"
+                                canOrders = true
+                                canRestaurants = false
+                                canCoupons = false
+                                canUsers = false
+                                canSettings = false
+                            },
+                            label = { Text("Delivery Partner") }
+                        )
+                    }
+                }
+
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Full Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it.trim().lowercase() },
-                    label = { Text("Co-Admin Gmail Address") },
+                    label = { Text("Gmail Address") },
                     enabled = initial == null,
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
                     modifier = Modifier.fillMaxWidth()
                 )
-                OutlinedTextField(value = roleTitle, onValueChange = { roleTitle = it }, label = { Text("Role Title (e.g. Kitchen Manager)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = roleTitle, onValueChange = { roleTitle = it }, label = { Text("Role Title") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+
+                if (roleType == STAFF_ROLE_RESTAURANT_OWNER && restaurants.isNotEmpty()) {
+                    Box {
+                        OutlinedButton(
+                            onClick = { restDropExpanded = true },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "Assign Restaurant: ${selectedRest?.name ?: "Select"}",
+                                color = AdminGold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(Icons.Rounded.ArrowDropDown, "Choose Restaurant", tint = AdminGold)
+                        }
+                        DropdownMenu(expanded = restDropExpanded, onDismissRequest = { restDropExpanded = false }) {
+                            restaurants.forEach { r ->
+                                DropdownMenuItem(
+                                    text = { Text(r.name) },
+                                    onClick = {
+                                        selectedRest = r
+                                        restDropExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (roleType == STAFF_ROLE_DELIVERY_PARTNER) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text("Phone *") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone), modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = vehicleNumber, onValueChange = { vehicleNumber = it.uppercase() }, label = { Text("Vehicle No.") }, singleLine = true, modifier = Modifier.weight(1f))
+                    }
+                }
+
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = passcode,
@@ -1200,13 +1618,16 @@ private fun CoAdminEditorDialog(
                         Icon(Icons.Rounded.Casino, "Generate Random Password", tint = AdminGold)
                     }
                 }
-                HorizontalDivider(color = AdminBorder)
-                Text("Grant Specific Permissions", style = MaterialTheme.typography.labelMedium, color = AdminGold, fontWeight = FontWeight.Bold)
-                PermissionRow("Manage Live Orders & Dispatch", canOrders) { canOrders = it }
-                PermissionRow("Manage Restaurants & Menu", canRestaurants) { canRestaurants = it }
-                PermissionRow("Manage Promo Coupons", canCoupons) { canCoupons = it }
-                PermissionRow("Manage Customers & Tickets", canUsers) { canUsers = it }
-                PermissionRow("Edit Global App Settings", canSettings) { canSettings = it }
+
+                if (roleType == STAFF_ROLE_CO_ADMIN) {
+                    HorizontalDivider(color = AdminBorder)
+                    Text("Grant Co-Admin Permissions", style = MaterialTheme.typography.labelMedium, color = AdminGold, fontWeight = FontWeight.Bold)
+                    PermissionRow("Manage Live Orders & Dispatch", canOrders) { canOrders = it }
+                    PermissionRow("Manage Restaurants & Menu", canRestaurants) { canRestaurants = it }
+                    PermissionRow("Manage Promo Coupons", canCoupons) { canCoupons = it }
+                    PermissionRow("Manage Customers & Tickets", canUsers) { canUsers = it }
+                    PermissionRow("Edit Global Fees & Controls", canSettings) { canSettings = it }
+                }
             }
         },
         confirmButton = {
@@ -1219,7 +1640,12 @@ private fun CoAdminEditorDialog(
                                 id = cleanEmail,
                                 email = cleanEmail,
                                 name = name.trim(),
-                                roleTitle = roleTitle.trim().ifBlank { "Co-Admin" },
+                                roleTitle = roleTitle.trim().ifBlank { "Staff" },
+                                roleType = roleType,
+                                assignedRestaurantId = if (roleType == STAFF_ROLE_RESTAURANT_OWNER) selectedRest?.id.orEmpty() else "",
+                                assignedRestaurantName = if (roleType == STAFF_ROLE_RESTAURANT_OWNER) selectedRest?.name.orEmpty() else "",
+                                phone = phone.trim(),
+                                vehicleNumber = vehicleNumber.trim(),
                                 passcode = passcode.trim(),
                                 activeFlag = initial?.activeFlag ?: true,
                                 canManageOrders = canOrders,
@@ -1232,7 +1658,7 @@ private fun CoAdminEditorDialog(
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg)
-            ) { Text("Save Co-Admin", fontWeight = FontWeight.ExtraBold) }
+            ) { Text("Save Account", fontWeight = FontWeight.ExtraBold) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = AdminMuted) } }
     )
@@ -1387,6 +1813,8 @@ fun AdminSettingsTab(
     var acceptingOrders by remember(cfg.acceptingOrders) { mutableStateOf(cfg.acceptingOrders) }
     var maintenanceMode by remember(cfg.maintenanceMode) { mutableStateOf(cfg.maintenanceMode) }
 
+    var showBannerDialog by remember { mutableStateOf(false) }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
@@ -1394,7 +1822,86 @@ fun AdminSettingsTab(
     ) {
         item {
             Text("Live Customer App Controls", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = AdminInk)
-            Text("Changes push immediately to every Customer device running Take It.", style = MaterialTheme.typography.bodySmall, color = AdminMuted)
+            Text("Manage Home 3-second Hero Carousel, Delivery/Platform Fees & Promo Coupons.", style = MaterialTheme.typography.bodySmall, color = AdminMuted)
+        }
+
+        // Home 3s Auto-Rotating Hero Carousel Manager
+        item {
+            TakeIt3DCard(
+                containerColor = AdminSurface,
+                depthColor = Color(0xFF060A15),
+                borderColor = AdminGold.copy(alpha = 0.5f),
+                cornerRadius = 22.dp,
+                depth = 5.dp,
+                shadowElevation = 10.dp,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Home Hero Carousel (3s Auto-Slide)", color = AdminGold, fontWeight = FontWeight.ExtraBold)
+                            Text("${uiState.heroBanners.size} uploaded banners live", style = MaterialTheme.typography.labelSmall, color = AdminMuted)
+                        }
+                        TakeIt3DButton(
+                            onClick = { showBannerDialog = true },
+                            containerColor = AdminGold,
+                            depthColor = AdminGold.darken3D(0.42f),
+                            contentColor = AdminBg,
+                            cornerRadius = 12.dp,
+                            depth = 3.dp,
+                            height = 38.dp,
+                            modifier = Modifier
+                                .width(120.dp)
+                                .testTag("admin_add_hero_banner_btn")
+                        ) {
+                            Icon(Icons.Rounded.AddPhotoAlternate, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Add Slide", fontWeight = FontWeight.ExtraBold, fontSize = 12.sp)
+                        }
+                    }
+
+                    if (uiState.heroBanners.isNotEmpty()) {
+                        uiState.heroBanners.forEach { slide ->
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = AdminCard,
+                                border = BorderStroke(1.dp, AdminBorder),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    FoodPhoto(
+                                        imageUrl = slide.imageUrl,
+                                        fallbackKey = slide.title,
+                                        contentDescription = slide.title,
+                                        modifier = Modifier
+                                            .size(width = 72.dp, height = 46.dp)
+                                            .clip(RoundedCornerShape(10.dp))
+                                    )
+                                    Spacer(Modifier.width(10.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(slide.title.ifBlank { "Banner Slide" }, color = AdminInk, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                        Text(slide.subtitle, style = MaterialTheme.typography.labelSmall, color = AdminMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    }
+                                    Switch(
+                                        checked = slide.activeFlag,
+                                        onCheckedChange = { viewModel.saveHeroBanner(slide.copy(activeFlag = it)) }
+                                    )
+                                    IconButton(onClick = { viewModel.deleteHeroBanner(slide.id) }) {
+                                        Icon(Icons.Rounded.DeleteOutline, "Delete Slide", tint = AdminCrimson)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         item {
@@ -1431,10 +1938,21 @@ fun AdminSettingsTab(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("Fees, Taxes & Support", color = AdminGold, fontWeight = FontWeight.ExtraBold)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Fees, Taxes & Coupons", color = AdminGold, fontWeight = FontWeight.ExtraBold)
+                        if (uiState.canManageCoupons) {
+                            TextButton(onClick = { viewModel.selectAdminTab(AdminTab.OFFERS) }) {
+                                Text("Manage Coupons (${uiState.coupons.size}) →", color = AdminCyan, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedTextField(value = deliveryFee, onValueChange = { deliveryFee = it.filter(Char::isDigit) }, label = { Text("Delivery ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
-                        OutlinedTextField(value = platformFee, onValueChange = { platformFee = it.filter(Char::isDigit) }, label = { Text("Platform ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = deliveryFee, onValueChange = { deliveryFee = it.filter(Char::isDigit) }, label = { Text("Delivery Fee ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = platformFee, onValueChange = { platformFee = it.filter(Char::isDigit) }, label = { Text("Platform Fee ₹") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(value = gstPercent, onValueChange = { gstPercent = it.filter(Char::isDigit) }, label = { Text("GST %") }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.weight(1f))
@@ -1489,4 +2007,121 @@ fun AdminSettingsTab(
             Spacer(Modifier.height(24.dp))
         }
     }
+
+    if (showBannerDialog) {
+        HeroBannerEditorDialog(
+            restaurants = uiState.restaurants,
+            isUploading = uiState.isUploadingPhoto,
+            onUploadImage = { uri, onUrl -> viewModel.uploadImageToImgBb(uri, "takeit_hero", onUrl) },
+            onDismiss = { showBannerDialog = false },
+            onSave = {
+                viewModel.saveHeroBanner(it)
+                showBannerDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun HeroBannerEditorDialog(
+    restaurants: List<Restaurant>,
+    isUploading: Boolean,
+    onUploadImage: (android.net.Uri, (String) -> Unit) -> Unit,
+    onDismiss: () -> Unit,
+    onSave: (HeroBannerSlide) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var subtitle by remember { mutableStateOf("") }
+    var promoCode by remember { mutableStateOf("") }
+    var imageUrl by remember { mutableStateOf("") }
+    var selectedRest by remember { mutableStateOf<Restaurant?>(null) }
+    var restExpanded by remember { mutableStateOf(false) }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        if (uri != null) onUploadImage(uri) { url -> imageUrl = url }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = AdminSurface,
+        titleContentColor = AdminInk,
+        title = { Text("Add 3s Home Carousel Slide", fontWeight = FontWeight.ExtraBold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (imageUrl.isNotBlank()) {
+                    FoodPhoto(
+                        imageUrl = imageUrl,
+                        fallbackKey = title,
+                        contentDescription = "Hero Banner Preview",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .clip(RoundedCornerShape(12.dp))
+                    )
+                }
+                FilledTonalButton(
+                    onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    enabled = !isUploading,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(if (isUploading) "Uploading to Cloud..." else "Upload Banner Image (ImgBB)")
+                }
+                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Banner Headline *") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = subtitle, onValueChange = { subtitle = it }, label = { Text("Subtitle") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = promoCode, onValueChange = { promoCode = it.uppercase() }, label = { Text("Promo Code (Optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                if (restaurants.isNotEmpty()) {
+                    Box {
+                        OutlinedButton(onClick = { restExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                            Text(
+                                "Link Restaurant: ${selectedRest?.name ?: "All Restaurants"}",
+                                color = AdminCyan,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(Icons.Rounded.ArrowDropDown, "Select Restaurant", tint = AdminCyan)
+                        }
+                        DropdownMenu(expanded = restExpanded, onDismissRequest = { restExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text("All Restaurants") },
+                                onClick = {
+                                    selectedRest = null
+                                    restExpanded = false
+                                }
+                            )
+                            restaurants.forEach { r ->
+                                DropdownMenuItem(
+                                    text = { Text(r.name) },
+                                    onClick = {
+                                        selectedRest = r
+                                        restExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (title.isNotBlank()) {
+                        onSave(
+                            HeroBannerSlide(
+                                title = title.trim(),
+                                subtitle = subtitle.trim(),
+                                promoCode = promoCode.trim().uppercase(),
+                                imageUrl = imageUrl.trim(),
+                                restaurantId = selectedRest?.id.orEmpty(),
+                                activeFlag = true
+                            )
+                        )
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = AdminGold, contentColor = AdminBg)
+            ) { Text("Publish Slide", fontWeight = FontWeight.ExtraBold) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = AdminMuted) } }
+    )
 }

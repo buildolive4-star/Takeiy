@@ -1,5 +1,9 @@
 package com.example.takeit.ui.customer
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -8,9 +12,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
@@ -29,7 +38,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -38,28 +52,202 @@ import com.example.network.TakeItPaymentBus
 import com.example.network.TakeItPaymentGateway
 import com.example.takeit.model.*
 import com.example.takeit.theme.*
+import com.example.takeit.ui.components.LeafletAddressPickerMap
 import com.example.takeit.ui.components.TakeIt3DBackdrop
 import com.example.takeit.ui.components.TakeIt3DButton
 import com.example.takeit.ui.components.TakeIt3DCard
 import com.example.takeit.ui.components.TakeIt3DIconOrb
+import com.example.takeit.ui.components.autofetchCurrentAddress
 import com.example.takeit.ui.components.darken3D
 import com.example.takeit.ui.components.lighten3D
+import com.example.takeit.ui.components.reverseGeocodeCoordinates
 import com.example.takeit.viewmodel.TakeItUiState
 import kotlinx.coroutines.launch
+import java.util.Locale
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CustomerOrdersTab(
+fun CustomerMyOrdersScreen(
     uiState: TakeItUiState,
+    onBack: () -> Unit,
     onOpenTrack: (String) -> Unit,
     onOpenDelivered: (String) -> Unit
 ) {
+    Scaffold(
+        containerColor = TakeItBg,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("My Orders", fontWeight = FontWeight.ExtraBold)
+                        Surface(shape = RoundedCornerShape(50), color = TakeItGoldSoft, border = BorderStroke(1.dp, TakeItGold)) {
+                            Text(
+                                "${uiState.myOrders.size}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TakeItRedDark,
+                                fontWeight = FontWeight.ExtraBold,
+                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                },
+                navigationIcon = {
+                    IconButton(onClick = onBack, modifier = Modifier.testTag("my_orders_back_btn")) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        }
+    ) { padding ->
+        TakeIt3DBackdrop(TakeItRed, TakeItOrange, baseColor = TakeItBg) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                if (uiState.myOrders.isEmpty()) {
+                    item {
+                        TakeIt3DCard(
+                            containerColor = Color.White,
+                            depthColor = Color(0xFFD5DCE6),
+                            cornerRadius = 24.dp,
+                            depth = 5.dp,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(36.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                TakeIt3DIconOrb(
+                                    icon = Icons.Rounded.ReceiptLong,
+                                    containerColor = TakeItRed,
+                                    size = 64.dp
+                                )
+                                Text("No orders placed yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("Order your favorite meal and track it live here!", color = TakeItMuted, textAlign = TextAlign.Center)
+                            }
+                        }
+                    }
+                } else {
+                    items(uiState.myOrders, key = { it.id }) { order ->
+                        val statusColor = when (order.status) {
+                            "DELIVERED" -> TakeItGreen
+                            "CANCELLED", "REFUNDED" -> TakeItRed
+                            else -> TakeItOrange
+                        }
+                        TakeIt3DCard(
+                            containerColor = Color.White,
+                            depthColor = Color(0xFFD5DCE6),
+                            cornerRadius = 20.dp,
+                            depth = 5.dp,
+                            onClick = {
+                                if (order.status == "DELIVERED") onOpenDelivered(order.id) else onOpenTrack(order.id)
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(order.restaurantName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                                    Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.14f)) {
+                                        Text(
+                                            order.status.replace("_", " "),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = statusColor,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                }
+                                Text(order.itemsSummary, style = MaterialTheme.typography.bodySmall, color = TakeItMuted)
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("${order.orderNumber} • ₹${order.totalAmount} (${order.paymentMethod})", fontWeight = FontWeight.Bold, color = TakeItInk)
+                                    Text(
+                                        if (order.status == "DELIVERED") "Rate / View →" else "Live Track →",
+                                        color = TakeItRed,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private data class OrderedDishTile(
+    val restaurantId: String,
+    val restaurantName: String,
+    val dishName: String,
+    val imageUrl: String,
+    val price: Int?,
+    val isVeg: Boolean
+)
+
+@Composable
+fun CustomerHistoryTab(
+    uiState: TakeItUiState,
+    onOpenRestaurantDetail: (String) -> Unit,
+    onExploreFood: () -> Unit
+) {
+    val dishTiles = remember(uiState.myOrders, uiState.menuItems) {
+        val seen = linkedSetOf<String>()
+        val result = mutableListOf<OrderedDishTile>()
+        val qtyPrefix = Regex("^\\d+x\\s*", RegexOption.IGNORE_CASE)
+
+        uiState.myOrders.forEach { order ->
+            val rawParts = order.itemsSummary.split(",")
+                .map { it.trim().replace(qtyPrefix, "").trim() }
+                .filter { it.isNotBlank() }
+
+            rawParts.forEach { dishName ->
+                val dedupKey = "${order.restaurantId}|${dishName.lowercase()}"
+                if (seen.add(dedupKey)) {
+                    val matched = uiState.menuItems.firstOrNull { m ->
+                        (order.restaurantId.isBlank() || m.restaurantId == order.restaurantId) &&
+                            m.name.equals(dishName, ignoreCase = true)
+                    } ?: uiState.menuItems.firstOrNull { m ->
+                        m.name.equals(dishName, ignoreCase = true)
+                    }
+                    result += OrderedDishTile(
+                        restaurantId = matched?.restaurantId?.ifBlank { order.restaurantId } ?: order.restaurantId,
+                        restaurantName = order.restaurantName,
+                        dishName = dishName,
+                        imageUrl = matched?.imageUrl.orEmpty(),
+                        price = matched?.price,
+                        isVeg = matched?.vegFlag ?: true
+                    )
+                }
+            }
+        }
+        result
+    }
+
     TakeIt3DBackdrop(TakeItRed, TakeItOrange, baseColor = TakeItBg) {
-        LazyColumn(
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 120.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 0.dp, bottom = 120.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item {
+            item(span = { GridItemSpan(3) }) {
                 TakeIt3DCard(
                     containerColor = Color.White,
                     depthColor = Color(0xFFDCE2EB),
@@ -71,25 +259,32 @@ fun CustomerOrdersTab(
                         modifier = Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
-                            .padding(horizontal = 18.dp, vertical = 16.dp),
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("My Orders", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            TakeIt3DIconOrb(icon = Icons.Rounded.History, containerColor = TakeItRed, size = 38.dp)
+                            Column {
+                                Text("Dish History", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                                Text("Tap any past dish to reorder", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
+                            }
+                        }
                         Surface(shape = RoundedCornerShape(50), color = TakeItGoldSoft, border = BorderStroke(1.dp, TakeItGold)) {
                             Text(
-                                "${uiState.myOrders.size} Total",
+                                "${dishTiles.size} Dishes",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = TakeItRedDark,
                                 fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
                             )
                         }
                     }
                 }
             }
-            if (uiState.myOrders.isEmpty()) {
-                item {
+
+            if (dishTiles.isEmpty()) {
+                item(span = { GridItemSpan(3) }) {
                     TakeIt3DCard(
                         containerColor = Color.White,
                         depthColor = Color(0xFFD5DCE6),
@@ -97,73 +292,120 @@ fun CustomerOrdersTab(
                         depth = 5.dp,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 18.dp)
+                            .padding(top = 12.dp)
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(36.dp),
+                                .padding(32.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            TakeIt3DIconOrb(
-                                icon = Icons.Rounded.ReceiptLong,
-                                containerColor = TakeItRed,
-                                size = 64.dp
+                            TakeIt3DIconOrb(icon = Icons.Rounded.Fastfood, containerColor = TakeItOrange, size = 62.dp)
+                            Text("No Dish History Yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                            Text(
+                                "Dishes from every meal you order appear here in a quick 1:1 grid for instant reordering.",
+                                color = TakeItMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                                textAlign = TextAlign.Center
                             )
-                            Text("No orders placed yet", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                            Text("Order your favorite meal and track it live here!", color = TakeItMuted)
+                            TakeIt3DButton(
+                                onClick = onExploreFood,
+                                containerColor = TakeItRed,
+                                depthColor = TakeItRedDark.darken3D(0.4f),
+                                height = 46.dp,
+                                modifier = Modifier.width(180.dp)
+                            ) {
+                                Text("Explore Dishes", fontWeight = FontWeight.ExtraBold)
+                            }
                         }
                     }
                 }
             } else {
-                items(uiState.myOrders, key = { it.id }) { order ->
-                    val statusColor = when (order.status) {
-                        "DELIVERED" -> TakeItGreen
-                        "CANCELLED", "REFUNDED" -> TakeItRed
-                        else -> TakeItOrange
-                    }
+                itemsIndexed(dishTiles, key = { index, t -> "${index}_${t.restaurantId}_${t.dishName}" }) { index, tile ->
                     TakeIt3DCard(
+                        onClick = {
+                            if (tile.restaurantId.isNotBlank()) {
+                                onOpenRestaurantDetail(tile.restaurantId)
+                            } else {
+                                onExploreFood()
+                            }
+                        },
                         containerColor = Color.White,
                         depthColor = Color(0xFFD5DCE6),
-                        cornerRadius = 20.dp,
-                        depth = 5.dp,
-                        onClick = {
-                            if (order.status == "DELIVERED") onOpenDelivered(order.id) else onOpenTrack(order.id)
-                        },
+                        cornerRadius = 16.dp,
+                        depth = 4.dp,
+                        shadowElevation = 6.dp,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp)
+                            .aspectRatio(1f)
+                            .testTag("history_dish_card_$index")
                     ) {
-                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(order.restaurantName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                                Surface(shape = RoundedCornerShape(50), color = statusColor.copy(alpha = 0.14f)) {
+                        Box(modifier = Modifier.fillMaxSize()) {
+                            FoodPhoto(
+                                imageUrl = tile.imageUrl,
+                                fallbackKey = tile.dishName,
+                                contentDescription = tile.dishName,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color.Transparent,
+                                                Color.Black.copy(alpha = 0.25f),
+                                                Color.Black.copy(alpha = 0.85f)
+                                            )
+                                        )
+                                    )
+                            )
+                            VegMarkIcon(
+                                isVeg = tile.isVeg,
+                                modifier = Modifier
+                                    .align(Alignment.TopStart)
+                                    .padding(6.dp)
+                                    .background(Color.White, RoundedCornerShape(4.dp))
+                            )
+                            if (tile.price != null) {
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = TakeItGold,
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(6.dp)
+                                ) {
                                     Text(
-                                        order.status.replace("_", " "),
+                                        "₹${tile.price}",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = statusColor,
+                                        color = TakeItInk,
                                         fontWeight = FontWeight.ExtraBold,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                        fontSize = 10.sp,
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
                             }
-                            Text(order.itemsSummary, style = MaterialTheme.typography.bodySmall, color = TakeItMuted)
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            Column(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .fillMaxWidth()
+                                    .padding(8.dp)
                             ) {
-                                Text("${order.orderNumber} • ₹${order.totalAmount} (${order.paymentMethod})", fontWeight = FontWeight.Bold, color = TakeItInk)
                                 Text(
-                                    if (order.status == "DELIVERED") "Rate / View →" else "Live Track →",
-                                    color = TakeItRed,
+                                    tile.dishName,
+                                    color = Color.White,
                                     fontWeight = FontWeight.ExtraBold,
-                                    style = MaterialTheme.typography.labelMedium
+                                    fontSize = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    tile.restaurantName,
+                                    color = TakeItGoldSoft,
+                                    fontSize = 9.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -177,9 +419,14 @@ fun CustomerOrdersTab(
 @Composable
 fun CustomerOffersTab(
     uiState: TakeItUiState,
+    onOpenRestaurantDetail: (String) -> Unit,
     onApplyCouponAndOpenCart: (PromoCoupon) -> Unit
 ) {
-    val active = uiState.coupons.filter { it.activeFlag }
+    val activeCoupons = uiState.coupons.filter { it.activeFlag }
+    val offerRestaurants = remember(uiState.restaurants) {
+        uiState.restaurants.filter { it.offerImageUrl.isNotBlank() || it.offerTag.isNotBlank() }
+    }
+
     TakeIt3DBackdrop(TakeItGold, TakeItRed, baseColor = TakeItBg) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -207,18 +454,135 @@ fun CustomerOffersTab(
                             size = 38.dp
                         )
                         Spacer(Modifier.width(12.dp))
-                        Text("Live Offers & Coupons", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                        Column {
+                            Text("Live Offers & Coupons", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.ExtraBold)
+                            Text("Tap any 16:9 restaurant deal poster to order", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
+                        }
                     }
                 }
             }
-            if (active.isEmpty()) {
+
+            if (offerRestaurants.isNotEmpty()) {
                 item {
-                    Box(Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        "Restaurant Offers & Deals",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = TakeItInk,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+                items(offerRestaurants, key = { "offer_rest_${it.id}" }) { r ->
+                    TakeIt3DCard(
+                        onClick = { onOpenRestaurantDetail(r.id) },
+                        containerColor = Color.White,
+                        depthColor = Color(0xFFD5DCE6),
+                        borderColor = TakeItOrange.copy(alpha = 0.5f),
+                        cornerRadius = 22.dp,
+                        depth = 5.dp,
+                        shadowElevation = 10.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .testTag("offer_restaurant_card_${r.id}")
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .aspectRatio(16f / 9f)
+                        ) {
+                            FoodPhoto(
+                                imageUrl = r.offerImageUrl.ifBlank { r.imageUrl },
+                                fallbackKey = "${r.category} ${r.name}",
+                                contentDescription = "${r.name} offer",
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color.Transparent,
+                                                Color.Black.copy(alpha = 0.25f),
+                                                Color.Black.copy(alpha = 0.85f)
+                                            )
+                                        )
+                                    )
+                            )
+                            if (r.offerTag.isNotBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(50),
+                                    color = TakeItRed,
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(12.dp)
+                                ) {
+                                    Text(
+                                        r.offerTag,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        style = MaterialTheme.typography.labelMedium,
+                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                                    )
+                                }
+                            }
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.BottomStart)
+                                    .fillMaxWidth()
+                                    .padding(14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.Bottom
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        r.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        "${r.category} • ${r.deliveryTime}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TakeItGoldSoft
+                                    )
+                                }
+                                Surface(shape = RoundedCornerShape(50), color = Color.White) {
+                                    Text(
+                                        "View Menu →",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        color = TakeItRed,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Text(
+                    "Platform Promo Coupons",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = TakeItInk,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                )
+            }
+
+            if (activeCoupons.isEmpty()) {
+                item {
+                    Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
                         Text("No active promo codes right now. Check back soon!", color = TakeItMuted)
                     }
                 }
             } else {
-                items(active, key = { it.id }) { c ->
+                items(activeCoupons, key = { it.id }) { c ->
                     TakeIt3DCard(
                         containerColor = Color.White,
                         depthColor = Color(0xFFD5DCE6),
@@ -275,8 +639,9 @@ fun CustomerAccountTab(
     onOpenWallet: () -> Unit,
     onOpenSupport: () -> Unit,
     onOpenAbout: () -> Unit,
-    onOpenOrdersTab: () -> Unit,
+    onOpenMyOrders: () -> Unit,
     onEnterAdminCommandCenter: () -> Unit,
+    onEnterDeliveryPartner: () -> Unit,
     onSignOut: () -> Unit
 ) {
     var showEditDialog by remember { mutableStateOf(false) }
@@ -337,9 +702,16 @@ fun CustomerAccountTab(
                                     style = MaterialTheme.typography.bodySmall,
                                     color = Color.White.copy(alpha = 0.9f)
                                 )
+                                val badgeText = when {
+                                    uiState.isMainAdmin -> "👑 Main Admin Account"
+                                    uiState.adminRole == AdminRole.CO_ADMIN -> "🛡️ Co-Admin Staff"
+                                    uiState.isRestaurantOwner -> "🍽️ Restaurant Partner"
+                                    uiState.isDeliveryPartner -> "🛵 Delivery Partner"
+                                    else -> "👑 Gold Member"
+                                }
                                 Surface(shape = RoundedCornerShape(50), color = TakeItGold, shadowElevation = 3.dp) {
                                     Text(
-                                        if (uiState.isMainAdmin) "👑 Main Admin Account" else if (uiState.adminRole == AdminRole.CO_ADMIN) "🛡️ Co-Admin Staff" else "👑 Gold Member",
+                                        badgeText,
                                         style = MaterialTheme.typography.labelSmall,
                                         color = TakeItInk,
                                         fontWeight = FontWeight.ExtraBold,
@@ -361,28 +733,69 @@ fun CustomerAccountTab(
                 }
             }
 
-            // Recent Favorites Strip
+            // My Orders Card (Moved inside Profile section as requested!)
             item {
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("My Recent Orders", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
-                        TextButton(onClick = onOpenOrdersTab) {
-                            Text("View All →", color = TakeItRed, fontWeight = FontWeight.Bold)
+                        Text("My Orders", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
+                        TextButton(
+                            onClick = onOpenMyOrders,
+                            modifier = Modifier.testTag("profile_view_all_orders_btn")
+                        ) {
+                            Text("View All (${uiState.myOrders.size}) →", color = TakeItRed, fontWeight = FontWeight.Bold)
                         }
                     }
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    TakeIt3DCard(
+                        onClick = onOpenMyOrders,
+                        containerColor = Color.White,
+                        depthColor = Color(0xFFD5DCE6),
+                        cornerRadius = 20.dp,
+                        depth = 4.dp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("profile_my_orders_card")
+                    ) {
+                        val latest = uiState.myOrders.firstOrNull()
+                        Row(
+                            modifier = Modifier.padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f)) {
+                                TakeIt3DIconOrb(icon = Icons.Rounded.ReceiptLong, containerColor = TakeItRed, size = 42.dp)
+                                Column {
+                                    Text(
+                                        if (latest != null) "${latest.restaurantName} • ${latest.status.replace("_", " ")}" else "Track & Manage Your Orders",
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = TakeItInk,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        if (latest != null) "${latest.orderNumber} • ₹${latest.totalAmount}" else "Tap to view live order tracking & receipts",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TakeItMuted,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Open Orders", tint = TakeItRed)
+                        }
+                    }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         val itemsToShow = uiState.restaurants.take(5)
                         items(itemsToShow, key = { "strip_${it.id}" }) { r ->
                             Box(
                                 modifier = Modifier
-                                    .size(76.dp)
-                                    .shadow(6.dp, RoundedCornerShape(18.dp))
-                                    .clip(RoundedCornerShape(18.dp))
-                                    .border(1.5.dp, Color.White, RoundedCornerShape(18.dp))
+                                    .size(70.dp)
+                                    .shadow(5.dp, RoundedCornerShape(16.dp))
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .border(1.5.dp, Color.White, RoundedCornerShape(16.dp))
                             ) {
                                 FoodPhoto(
                                     imageUrl = r.imageUrl,
@@ -396,8 +809,8 @@ fun CustomerAccountTab(
                 }
             }
 
-            // 3D Admin Portal Card
-            if (uiState.isMainAdmin || uiState.adminRole == AdminRole.CO_ADMIN) {
+            // 3D Admin / Restaurant Owner Portal Card
+            if (uiState.isMainAdmin || uiState.adminRole == AdminRole.CO_ADMIN || uiState.isRestaurantOwner) {
                 item {
                     TakeIt3DCard(
                         containerColor = AdminBg,
@@ -416,27 +829,81 @@ fun CustomerAccountTab(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f)) {
                                 TakeIt3DIconOrb(
-                                    icon = Icons.Rounded.AdminPanelSettings,
+                                    icon = if (uiState.isRestaurantOwner) Icons.Rounded.Storefront else Icons.Rounded.AdminPanelSettings,
                                     containerColor = AdminGold,
                                     iconTint = AdminBg,
                                     size = 44.dp
                                 )
                                 Column {
                                     Text(
-                                        if (uiState.isMainAdmin) "Open Main Admin Command Center" else "Open Co-Admin Control Panel",
+                                        when {
+                                            uiState.isMainAdmin -> "Open Main Admin Command Center"
+                                            uiState.isRestaurantOwner -> "Open Restaurant Partner Panel"
+                                            else -> "Open Co-Admin Control Panel"
+                                        },
                                         color = Color.White,
                                         fontWeight = FontWeight.ExtraBold
                                     )
                                     Text(
-                                        if (uiState.isMainAdmin) "Full control + Create Co-Admin Passwords" else "Login with Main Admin password",
+                                        when {
+                                            uiState.isMainAdmin -> "Full control + Roles, Categories & Carousel"
+                                            uiState.isRestaurantOwner -> "Upload dishes, 16:9 offers & dispatch orders"
+                                            else -> "Login with Admin passcode"
+                                        },
                                         style = MaterialTheme.typography.labelSmall,
                                         color = AdminGold
                                     )
                                 }
                             }
-                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = AdminGold)
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Open Admin", tint = AdminGold)
+                        }
+                    }
+                }
+            }
+
+            // 3D Delivery Partner Portal Card
+            if (uiState.isMainAdmin || uiState.isDeliveryPartner) {
+                item {
+                    TakeIt3DCard(
+                        containerColor = DeliveryBg,
+                        depthColor = Color.Black,
+                        borderColor = DeliveryEmerald,
+                        cornerRadius = 22.dp,
+                        depth = 5.dp,
+                        onClick = onEnterDeliveryPartner,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                            .testTag("open_delivery_partner_button")
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.weight(1f)) {
+                                TakeIt3DIconOrb(
+                                    icon = Icons.Rounded.DeliveryDining,
+                                    containerColor = DeliveryEmerald,
+                                    iconTint = DeliveryBg,
+                                    size = 44.dp
+                                )
+                                Column {
+                                    Text(
+                                        "Open Delivery Partner Panel",
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold
+                                    )
+                                    Text(
+                                        "Accept Food, Ride & Parcel jobs with live Leaflet map & OTP",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = DeliveryEmerald
+                                    )
+                                }
+                            }
+                            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Open Delivery Panel", tint = DeliveryEmerald)
                         }
                     }
                 }
@@ -454,13 +921,15 @@ fun CustomerAccountTab(
                         .padding(horizontal = 16.dp, vertical = 4.dp)
                 ) {
                     Column {
+                        AccountMenuRow(Icons.Rounded.ReceiptLong, "My Orders", "${uiState.myOrders.size} orders", onOpenMyOrders)
+                        HorizontalDivider(color = TakeItBorder)
                         AccountMenuRow(Icons.Rounded.LocationOn, "My Addresses", "${uiState.addresses.size} saved", onOpenAddresses)
                         HorizontalDivider(color = TakeItBorder)
                         AccountMenuRow(Icons.Rounded.AccountBalanceWallet, "Wallet & Offers", "₹${uiState.profile.walletBalance.toInt()}", onOpenWallet)
                         HorizontalDivider(color = TakeItBorder)
                         AccountMenuRow(Icons.Rounded.SupportAgent, "Help & Support", "${uiState.myTickets.size} tickets", onOpenSupport)
                         HorizontalDivider(color = TakeItBorder)
-                        AccountMenuRow(Icons.Rounded.Info, "About Take It", "v2.0", onOpenAbout)
+                        AccountMenuRow(Icons.Rounded.Info, "About Take It", "v3.0", onOpenAbout)
                         HorizontalDivider(color = TakeItBorder)
                         AccountMenuRow(Icons.Rounded.SwitchAccount, "Switch Google Account / Sign Out", "", onSignOut, tint = TakeItRed)
                     }
@@ -535,19 +1004,67 @@ private fun AccountMenuRow(
 fun CustomerAddressesScreen(
     uiState: TakeItUiState,
     onBack: () -> Unit,
-    onSaveAddress: (label: String, full: String, landmark: String) -> Unit,
-    onSelectAddress: (label: String, full: String) -> Unit,
+    onSaveAddress: (SavedAddress) -> Unit,
+    onSelectAddress: (SavedAddress) -> Unit,
     onDeleteAddress: (String) -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     var label by remember { mutableStateOf("Home") }
-    var full by remember { mutableStateOf("") }
+    var city by remember { mutableStateOf(uiState.config.cityName.ifBlank { "Greater Noida" }) }
+    var areaStreet by remember { mutableStateOf("") }
+    var fullAddress by remember { mutableStateOf("") }
     var landmark by remember { mutableStateOf("") }
+    var mapLink by remember { mutableStateOf("") }
+    var forSomeoneElse by remember { mutableStateOf(false) }
+    var receiverName by remember { mutableStateOf("") }
+    var receiverPhone by remember { mutableStateOf("") }
+    var selectedLat by remember { mutableStateOf(uiState.activeLatitude.takeIf { it != 0.0 } ?: 28.4744) }
+    var selectedLng by remember { mutableStateOf(uiState.activeLongitude.takeIf { it != 0.0 } ?: 77.5040) }
+    var isFetchingGps by remember { mutableStateOf(false) }
+    var gpsStatus by remember { mutableStateOf<String?>(null) }
+
+    fun triggerAutofetch() {
+        isFetchingGps = true
+        gpsStatus = "Fetching current GPS coordinates..."
+        autofetchCurrentAddress(
+            context = context,
+            scope = scope,
+            onSuccess = { lat, lng, detectedCity, detectedArea, detectedFull, link ->
+                isFetchingGps = false
+                selectedLat = lat
+                selectedLng = lng
+                if (detectedCity.isNotBlank()) city = detectedCity
+                if (detectedArea.isNotBlank()) areaStreet = detectedArea
+                if (detectedFull.isNotBlank()) fullAddress = detectedFull
+                mapLink = link
+                gpsStatus = "Pinned exact GPS (${"%.4f".format(Locale.US, lat)}, ${"%.4f".format(Locale.US, lng)})"
+            },
+            onError = { err ->
+                isFetchingGps = false
+                gpsStatus = err
+            }
+        )
+    }
+
+    val locationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { perms ->
+        val granted = perms[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            perms[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        if (granted) {
+            triggerAutofetch()
+        } else {
+            gpsStatus = "Location permission denied. Tap anywhere on the map below to pin your doorstep."
+        }
+    }
 
     Scaffold(
         containerColor = TakeItBg,
         topBar = {
             TopAppBar(
-                title = { Text("My Delivery Addresses", fontWeight = FontWeight.ExtraBold) },
+                title = { Text("Delivery Location & Address", fontWeight = FontWeight.ExtraBold) },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back") } },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
@@ -561,6 +1078,98 @@ fun CustomerAddressesScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                // Interactive Leaflet OSM Map Picker + GPS Autofetch
+                item {
+                    TakeIt3DCard(
+                        containerColor = Color.White,
+                        depthColor = Color(0xFFD5DCE6),
+                        borderColor = TakeItOrange.copy(alpha = 0.45f),
+                        cornerRadius = 22.dp,
+                        depth = 5.dp,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Pin Exact Doorstep (Leaflet OSM)", fontWeight = FontWeight.ExtraBold, color = TakeItInk)
+                                Text(
+                                    "${"%.4f".format(Locale.US, selectedLat)}, ${"%.4f".format(Locale.US, selectedLng)}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TakeItMuted
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(185.dp)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .border(1.dp, TakeItBorder, RoundedCornerShape(16.dp))
+                            ) {
+                                LeafletAddressPickerMap(
+                                    selectedLat = selectedLat,
+                                    selectedLng = selectedLng,
+                                    onLocationPicked = { lat, lng ->
+                                        selectedLat = lat
+                                        selectedLng = lng
+                                        reverseGeocodeCoordinates(context, scope, lat, lng) { _, _, c, area, full, link ->
+                                            if (c.isNotBlank()) city = c
+                                            if (area.isNotBlank()) areaStreet = area
+                                            if (full.isNotBlank()) fullAddress = full
+                                            mapLink = link
+                                            gpsStatus = "Pin updated via map tap"
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+
+                            TakeIt3DButton(
+                                onClick = {
+                                    val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                    val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                                    if (fine || coarse) {
+                                        triggerAutofetch()
+                                    } else {
+                                        locationPermissionLauncher.launch(
+                                            arrayOf(
+                                                Manifest.permission.ACCESS_FINE_LOCATION,
+                                                Manifest.permission.ACCESS_COARSE_LOCATION
+                                            )
+                                        )
+                                    }
+                                },
+                                enabled = !isFetchingGps,
+                                containerColor = TakeItGreen,
+                                depthColor = TakeItGreen.darken3D(0.4f),
+                                cornerRadius = 14.dp,
+                                depth = 4.dp,
+                                height = 46.dp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("autofetch_location_btn")
+                            ) {
+                                if (isFetchingGps) {
+                                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Detecting Current GPS...", fontWeight = FontWeight.ExtraBold)
+                                } else {
+                                    Icon(Icons.Rounded.MyLocation, "Autofetch", modifier = Modifier.size(18.dp))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Autofetch Current Location (GPS)", fontWeight = FontWeight.ExtraBold)
+                                }
+                            }
+                            if (!gpsStatus.isNullOrBlank()) {
+                                Text(gpsStatus!!, style = MaterialTheme.typography.labelSmall, color = TakeItGreen, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+
+                // Structured Address Form + Ordering For Toggle
                 item {
                     TakeIt3DCard(
                         containerColor = Color.White,
@@ -569,51 +1178,176 @@ fun CustomerAddressesScreen(
                         depth = 5.dp
                     ) {
                         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text("Add New Address", fontWeight = FontWeight.ExtraBold)
+                            Text("Complete Delivery Details", fontWeight = FontWeight.ExtraBold, color = TakeItInk)
+
+                            Text("Who is this order for?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                                FilterChip(
+                                    selected = !forSomeoneElse,
+                                    onClick = { forSomeoneElse = false },
+                                    leadingIcon = { Icon(Icons.Rounded.Person, null, modifier = Modifier.size(16.dp)) },
+                                    label = { Text("Myself", fontWeight = FontWeight.Bold) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                FilterChip(
+                                    selected = forSomeoneElse,
+                                    onClick = { forSomeoneElse = true },
+                                    leadingIcon = { Icon(Icons.Rounded.Group, null, modifier = Modifier.size(16.dp)) },
+                                    label = { Text("Someone else", fontWeight = FontWeight.Bold) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            if (forSomeoneElse) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedTextField(
+                                        value = receiverName,
+                                        onValueChange = { receiverName = it },
+                                        label = { Text("Receiver Name *") },
+                                        singleLine = true,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    OutlinedTextField(
+                                        value = receiverPhone,
+                                        onValueChange = { receiverPhone = it },
+                                        label = { Text("Receiver Phone *") },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
+                            }
+
+                            Text("Save Address As", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf("Home", "Work", "Other").forEach { tag ->
                                     FilterChip(selected = label == tag, onClick = { label = tag }, label = { Text(tag) })
                                 }
                             }
-                            OutlinedTextField(value = full, onValueChange = { full = it }, label = { Text("House / Flat / Street / Sector") }, modifier = Modifier.fillMaxWidth())
-                            OutlinedTextField(value = landmark, onValueChange = { landmark = it }, label = { Text("Landmark (Optional)") }, modifier = Modifier.fillMaxWidth())
+
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedTextField(
+                                    value = city,
+                                    onValueChange = { city = it },
+                                    label = { Text("City *") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedTextField(
+                                    value = areaStreet,
+                                    onValueChange = { areaStreet = it },
+                                    label = { Text("Area / Street *") },
+                                    singleLine = true,
+                                    modifier = Modifier.weight(1.3f)
+                                )
+                            }
+                            OutlinedTextField(
+                                value = fullAddress,
+                                onValueChange = { fullAddress = it },
+                                label = { Text("Complete Address (House / Flat / Floor) *") },
+                                minLines = 2,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = landmark,
+                                onValueChange = { landmark = it },
+                                label = { Text("Nearby Landmark (Optional)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            OutlinedTextField(
+                                value = mapLink,
+                                onValueChange = { mapLink = it },
+                                label = { Text("Map / Location Link") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
                             TakeIt3DButton(
                                 onClick = {
-                                    if (full.isNotBlank()) {
-                                        onSaveAddress(label, full, landmark)
-                                        full = ""
+                                    val fullValid = fullAddress.isNotBlank() && city.isNotBlank() && areaStreet.isNotBlank()
+                                    val recValid = !forSomeoneElse || (receiverName.isNotBlank() && receiverPhone.isNotBlank())
+                                    if (fullValid && recValid) {
+                                        val structured = SavedAddress(
+                                            label = label,
+                                            fullAddress = fullAddress.trim(),
+                                            landmark = landmark.trim(),
+                                            city = city.trim(),
+                                            areaStreet = areaStreet.trim(),
+                                            mapLink = mapLink.trim(),
+                                            receiverName = if (forSomeoneElse) receiverName.trim() else "",
+                                            receiverPhone = if (forSomeoneElse) receiverPhone.trim() else "",
+                                            forSomeoneElse = forSomeoneElse,
+                                            latitude = selectedLat,
+                                            longitude = selectedLng
+                                        )
+                                        onSaveAddress(structured)
+                                        onSelectAddress(structured)
+                                        areaStreet = ""
+                                        fullAddress = ""
                                         landmark = ""
+                                        receiverName = ""
+                                        receiverPhone = ""
                                     }
                                 },
                                 containerColor = TakeItRed,
                                 depthColor = TakeItRedDark.darken3D(0.4f),
-                                height = 48.dp,
-                                modifier = Modifier.fillMaxWidth()
+                                height = 50.dp,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("save_address_button")
                             ) { Text("Save & Deliver Here", fontWeight = FontWeight.ExtraBold) }
                         }
                     }
                 }
-                items(uiState.addresses, key = { it.id }) { addr ->
-                    TakeIt3DCard(
-                        containerColor = Color.White,
-                        depthColor = Color(0xFFD5DCE6),
-                        cornerRadius = 18.dp,
-                        depth = 4.dp,
-                        onClick = { onSelectAddress(addr.label, addr.fullAddress) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(14.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
+
+                if (uiState.addresses.isNotEmpty()) {
+                    item {
+                        Text("Saved Addresses", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, color = TakeItInk)
+                    }
+                    items(uiState.addresses, key = { it.id }) { addr ->
+                        val isActive = uiState.profile.activeAddressLabel == addr.label &&
+                            uiState.profile.activeAddressLine.contains(addr.fullAddress.take(12), ignoreCase = true)
+                        TakeIt3DCard(
+                            containerColor = Color.White,
+                            depthColor = Color(0xFFD5DCE6),
+                            borderColor = if (isActive) TakeItRed else Color.White,
+                            cornerRadius = 18.dp,
+                            depth = 4.dp,
+                            onClick = { onSelectAddress(addr) },
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(addr.label, fontWeight = FontWeight.ExtraBold, color = TakeItRed)
-                                Text(addr.fullAddress, style = MaterialTheme.typography.bodySmall)
-                                if (addr.landmark.isNotBlank()) Text("Near ${addr.landmark}", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
-                            }
-                            IconButton(onClick = { onDeleteAddress(addr.id) }) {
-                                Icon(Icons.Rounded.DeleteOutline, "Delete", tint = TakeItRed)
+                            Row(
+                                modifier = Modifier.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Text(addr.label, fontWeight = FontWeight.ExtraBold, color = TakeItRed)
+                                        if (addr.forSomeoneElse && addr.receiverName.isNotBlank()) {
+                                            Surface(shape = RoundedCornerShape(50), color = TakeItGoldSoft) {
+                                                Text(
+                                                    "For ${addr.receiverName}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = TakeItRedDark,
+                                                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    Text(
+                                        listOf(addr.fullAddress, addr.areaStreet, addr.city).filter { it.isNotBlank() }.distinct().joinToString(", "),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TakeItInk
+                                    )
+                                    if (addr.landmark.isNotBlank()) {
+                                        Text("Near ${addr.landmark}", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
+                                    }
+                                }
+                                IconButton(onClick = { onDeleteAddress(addr.id) }) {
+                                    Icon(Icons.Rounded.DeleteOutline, "Delete", tint = TakeItRed)
+                                }
                             }
                         }
                     }
@@ -622,6 +1356,7 @@ fun CustomerAddressesScreen(
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

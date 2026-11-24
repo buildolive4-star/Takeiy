@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer accent halo inside 66dp safe zone -->
+    <path
+        android:fillColor="#10B981"
+        android:pathData="M54,23 A31,31 0 1,1 53.99,23 Z" />
+    <!-- Gold delivery box + speed wing emblem -->
+    <path
+        android:fillColor="#F59E0B"
+        android:pathData="M34,42 L54,32 L74,42 L74,64 L54,74 L34,64 Z" />
+    <path
+        android:fillColor="#FEF3C7"
+        android:pathData="M34,42 L54,52 L74,42 L54,32 Z" />
+    <path
+        android:fillColor="#064E3B"
+        android:pathData="M50,48 L58,44 L58,69 L50,73 Z" />
+    <!-- Speed lines -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M24,48 L31,48 L31,51 L24,51 Z M22,55 L31,55 L31,58 L22,58 Z" />
+</vector>

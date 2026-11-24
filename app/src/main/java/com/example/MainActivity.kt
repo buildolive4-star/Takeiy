@@ -50,6 +50,7 @@ import com.example.takeit.ui.components.TakeIt3DCard
 import com.example.takeit.ui.components.TakeIt3DFloatingNavBar
 import com.example.takeit.ui.components.darken3D
 import com.example.takeit.ui.customer.*
+import com.example.takeit.ui.delivery.DeliveryPartnerRoot
 import com.example.takeit.ui.ride.RapidoRideAppRoot
 import com.example.takeit.ui.transport.ParcelTransportAppRoot
 import com.example.takeit.viewmodel.TakeItUiState
@@ -77,7 +78,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handlePaymentDeepLink(intent: Intent?) {
         val data = intent?.data ?: return
-        val supportedSchemes = setOf("takeit", "takeitride", "takeittransport", "takeitadmin")
+        val supportedSchemes = setOf("takeit", "takeitride", "takeittransport", "takeitdelivery", "takeitadmin")
         if (data.scheme in supportedSchemes && data.host == "payment-result") {
             val status = data.getQueryParameter("status").orEmpty()
             val orderRef = data.getQueryParameter("orderRef").orEmpty()
@@ -143,6 +144,7 @@ fun TakeItAppEntryPoint() {
 
     when (variant) {
         TakeItAppVariant.ADMIN -> TakeItAdminTheme(content = content)
+        TakeItAppVariant.DELIVERY -> TakeItDeliveryTheme(content = content)
         TakeItAppVariant.RIDE -> TakeItRideTheme(content = content)
         TakeItAppVariant.TRANSPORT -> TakeItTransportTheme(content = content)
         TakeItAppVariant.CUSTOMER -> TakeItCustomerTheme(content = content)
@@ -208,6 +210,33 @@ private fun AuthenticatedTakeItShell(
                 }
             }
         }
+        }
+        uiState.isInDeliveryMode -> {
+            BackHandler(enabled = uiState.appVariant != TakeItAppVariant.DELIVERY) {
+                viewModel.exitDeliveryMode()
+            }
+            TakeItDeliveryTheme {
+                Box(modifier = Modifier.fillMaxSize()) {
+                    DeliveryPartnerRoot(
+                        uiState = uiState,
+                        viewModel = viewModel,
+                        onSignOut = handleSignOut
+                    )
+                    SnackbarHost(
+                        hostState = snackbarHostState,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .navigationBarsPadding()
+                            .padding(bottom = 92.dp, start = 14.dp, end = 14.dp)
+                    ) { data ->
+                        Snackbar(
+                            snackbarData = data,
+                            containerColor = DeliveryEmerald,
+                            contentColor = DeliveryBg
+                        )
+                    }
+                }
+            }
         }
         uiState.appVariant == TakeItAppVariant.RIDE -> {
             TakeItRideTheme {
@@ -321,7 +350,8 @@ private fun CustomerAppRoot(
                     items = CustomerTab.entries.map { tab ->
                         val icon = when (tab) {
                             CustomerTab.HOME -> Icons.Rounded.Home
-                            CustomerTab.ORDERS -> Icons.Rounded.ReceiptLong
+                            CustomerTab.HISTORY -> Icons.Rounded.History
+                            CustomerTab.EXPLORE -> Icons.Rounded.Explore
                             CustomerTab.OFFERS -> Icons.Rounded.LocalOffer
                             CustomerTab.ACCOUNT -> Icons.Rounded.Person
                         }
@@ -373,17 +403,25 @@ private fun CustomerAppRoot(
                                 },
                                 onOpenOffersTab = { viewModel.selectCustomerTab(CustomerTab.OFFERS) }
                             )
-                            CustomerTab.ORDERS -> CustomerOrdersTab(
+                            CustomerTab.HISTORY -> CustomerHistoryTab(
                                 uiState = uiState,
-                                onOpenTrack = { orderId ->
-                                    viewModel.navigateCustomer(CustomerScreen.TrackOrder(orderId))
+                                onOpenRestaurantDetail = { id ->
+                                    viewModel.navigateCustomer(CustomerScreen.RestaurantDetail(id))
                                 },
-                                onOpenDelivered = { orderId ->
-                                    viewModel.navigateCustomer(CustomerScreen.OrderDelivered(orderId))
-                                }
+                                onExploreFood = { viewModel.selectCustomerTab(CustomerTab.EXPLORE) }
+                            )
+                            CustomerTab.EXPLORE -> CustomerExploreTab(
+                                uiState = uiState,
+                                onOpenRestaurantDetail = { id ->
+                                    viewModel.navigateCustomer(CustomerScreen.RestaurantDetail(id))
+                                },
+                                onToggleFavorite = viewModel::toggleFavoriteRestaurant
                             )
                             CustomerTab.OFFERS -> CustomerOffersTab(
                                 uiState = uiState,
+                                onOpenRestaurantDetail = { id ->
+                                    viewModel.navigateCustomer(CustomerScreen.RestaurantDetail(id))
+                                },
                                 onApplyCouponAndOpenCart = { coupon ->
                                     viewModel.applyCoupon(coupon)
                                     if (uiState.cart.isNotEmpty()) {
@@ -400,8 +438,9 @@ private fun CustomerAppRoot(
                                 onOpenWallet = { viewModel.navigateCustomer(CustomerScreen.Wallet) },
                                 onOpenSupport = { viewModel.navigateCustomer(CustomerScreen.Support) },
                                 onOpenAbout = { viewModel.navigateCustomer(CustomerScreen.About) },
-                                onOpenOrdersTab = { viewModel.selectCustomerTab(CustomerTab.ORDERS) },
+                                onOpenMyOrders = { viewModel.navigateCustomer(CustomerScreen.MyOrders) },
                                 onEnterAdminCommandCenter = { viewModel.enterAdminMode() },
+                                onEnterDeliveryPartner = { viewModel.enterDeliveryMode() },
                                 onSignOut = onSignOut
                             )
                         }
@@ -461,10 +500,21 @@ private fun CustomerAppRoot(
                         onGoHome = viewModel::resetCustomerHome
                     )
 
+                    CustomerScreen.MyOrders -> CustomerMyOrdersScreen(
+                        uiState = uiState,
+                        onBack = viewModel::navigateCustomerBack,
+                        onOpenTrack = { orderId ->
+                            viewModel.navigateCustomer(CustomerScreen.TrackOrder(orderId))
+                        },
+                        onOpenDelivered = { orderId ->
+                            viewModel.navigateCustomer(CustomerScreen.OrderDelivered(orderId))
+                        }
+                    )
+
                     CustomerScreen.Addresses -> CustomerAddressesScreen(
                         uiState = uiState,
                         onBack = viewModel::navigateCustomerBack,
-                        onSaveAddress = viewModel::saveAddress,
+                        onSaveAddress = viewModel::saveStructuredAddress,
                         onSelectAddress = viewModel::selectActiveAddress,
                         onDeleteAddress = viewModel::deleteAddress
                     )

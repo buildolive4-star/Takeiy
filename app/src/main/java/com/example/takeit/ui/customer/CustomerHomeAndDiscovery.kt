@@ -15,8 +15,11 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ArrowForward
@@ -29,10 +32,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +55,7 @@ import com.example.takeit.ui.components.TakeIt3DIconOrb
 import com.example.takeit.ui.components.darken3D
 import com.example.takeit.ui.components.lighten3D
 import com.example.takeit.viewmodel.TakeItUiState
+import kotlinx.coroutines.delay
 
 @Composable
 fun FoodPhoto(
@@ -119,6 +125,62 @@ fun CustomerHomeTab(
         }
     }
 
+    val dynamicCategories = remember(uiState.categories) {
+        val active = uiState.categories.filter { it.activeFlag }.sortedBy { it.sortOrder }
+        if (active.isNotEmpty()) {
+            active.map { cat ->
+                FoodCategoryItem(
+                    name = cat.name,
+                    emoji = cat.emoji,
+                    fallbackDrawable = resolveFoodDrawable(cat.name),
+                    imageUrl = cat.imageUrl
+                )
+            }
+        } else {
+            TakeItFoodCategories.filter { it.name != "All" }
+        }
+    }
+
+    val bannerSlides = remember(uiState.heroBanners, uiState.config) {
+        val uploaded = uiState.heroBanners.filter { it.activeFlag }.sortedBy { it.sortOrder }
+        if (uploaded.isNotEmpty()) {
+            uploaded
+        } else {
+            listOf(
+                HeroBannerSlide(
+                    id = "builtin_offer",
+                    title = uiState.config.heroBannerTitle.ifBlank { "Flat 50% OFF" },
+                    subtitle = uiState.config.heroBannerSubtitle.ifBlank { "on your Favourite Food" },
+                    promoCode = uiState.config.heroBannerCode,
+                    imageUrl = "builtin://pizza"
+                ),
+                HeroBannerSlide(
+                    id = "builtin_welcome",
+                    title = "Hot Meals Delivered Fast",
+                    subtitle = "Top restaurants in ${uiState.config.cityName} • Live GPS tracking",
+                    promoCode = "",
+                    imageUrl = "builtin://welcome"
+                ),
+                HeroBannerSlide(
+                    id = "builtin_night",
+                    title = uiState.config.lateNightTitle.ifBlank { "Late Night Cravings?" },
+                    subtitle = uiState.config.lateNightSubtitle.ifBlank { "We're Here! Open till 3 AM" },
+                    promoCode = "",
+                    imageUrl = "builtin://feast"
+                )
+            )
+        }
+    }
+
+    val pagerState = rememberPagerState(pageCount = { bannerSlides.size })
+    LaunchedEffect(bannerSlides.size) {
+        while (bannerSlides.size > 1) {
+            delay(3000L)
+            val next = (pagerState.currentPage + 1) % bannerSlides.size
+            pagerState.animateScrollToPage(next)
+        }
+    }
+
     TakeIt3DBackdrop(
         accentPrimary = TakeItRed,
         accentSecondary = TakeItOrange,
@@ -126,26 +188,26 @@ fun CustomerHomeTab(
     ) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 120.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(bottom = 110.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            // 3D Top Brand & Location Deck
+            // Compact 3D Top Header + Compact Search Bar
             item {
                 TakeIt3DCard(
                     containerColor = Color.White,
                     depthColor = Color(0xFFE2E8F0),
                     borderColor = Color.White,
-                    cornerRadius = 26.dp,
-                    depth = 5.dp,
-                    shadowElevation = 10.dp,
+                    cornerRadius = 24.dp,
+                    depth = 4.dp,
+                    shadowElevation = 8.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .statusBarsPadding()
-                            .padding(horizontal = 16.dp, vertical = 14.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -156,14 +218,14 @@ fun CustomerHomeTab(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .weight(1f)
-                                    .clip(RoundedCornerShape(14.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .clickable { onOpenAddresses() }
                                     .padding(vertical = 2.dp)
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(46.dp)
-                                        .shadow(8.dp, CircleShape, ambientColor = TakeItOrange, spotColor = TakeItRed)
+                                        .size(38.dp)
+                                        .shadow(6.dp, CircleShape, ambientColor = TakeItOrange, spotColor = TakeItRed)
                                         .clip(CircleShape)
                                         .background(Brush.linearGradient(listOf(TakeItGold, TakeItOrange, TakeItRed)))
                                         .padding(2.dp)
@@ -177,23 +239,23 @@ fun CustomerHomeTab(
                                             .clip(CircleShape)
                                     )
                                 }
-                                Spacer(Modifier.width(10.dp))
+                                Spacer(Modifier.width(8.dp))
                                 Column {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Rounded.LocationOn, null, tint = TakeItRed, modifier = Modifier.size(16.dp))
+                                        Icon(Icons.Rounded.LocationOn, null, tint = TakeItRed, modifier = Modifier.size(15.dp))
                                         Spacer(Modifier.width(2.dp))
                                         Text(
                                             text = uiState.profile.activeAddressLabel.ifBlank { uiState.config.cityName },
-                                            style = MaterialTheme.typography.titleMedium,
+                                            style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.ExtraBold,
                                             color = TakeItInk,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
-                                        Icon(Icons.Rounded.KeyboardArrowDown, null, tint = TakeItInk, modifier = Modifier.size(18.dp))
+                                        Icon(Icons.Rounded.KeyboardArrowDown, null, tint = TakeItInk, modifier = Modifier.size(16.dp))
                                     }
                                     Text(
-                                        text = uiState.profile.activeAddressLine.ifBlank { uiState.config.cityName },
+                                        text = uiState.profile.activeAddressLine.ifBlank { "Tap to autofetch or set address" },
                                         style = MaterialTheme.typography.labelSmall,
                                         color = TakeItMuted,
                                         maxLines = 1,
@@ -202,13 +264,13 @@ fun CustomerHomeTab(
                                 }
                             }
 
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 TakeIt3DIconOrb(
                                     icon = Icons.Rounded.LocalOffer,
                                     containerColor = TakeItGold,
                                     depthColor = TakeItGold.darken3D(0.35f),
                                     iconTint = TakeItInk,
-                                    size = 44.dp,
+                                    size = 38.dp,
                                     contentDescription = "Offers",
                                     onClick = onOpenOffersTab
                                 )
@@ -218,7 +280,7 @@ fun CustomerHomeTab(
                                         containerColor = TakeItRed,
                                         depthColor = TakeItRedDark.darken3D(0.35f),
                                         iconTint = Color.White,
-                                        size = 44.dp,
+                                        size = 38.dp,
                                         contentDescription = "Cart",
                                         onClick = onOpenCart,
                                         modifier = Modifier.testTag("home_cart_button")
@@ -243,143 +305,217 @@ fun CustomerHomeTab(
                             }
                         }
 
-                        // 3D Recessed Search Input
+                        // Compact 42dp Recessed Search Input (Saves vertical viewport!)
                         Surface(
-                            shape = RoundedCornerShape(16.dp),
+                            shape = RoundedCornerShape(14.dp),
                             color = TakeItBg,
                             border = BorderStroke(1.dp, Color(0xFFDDE3EC)),
-                            shadowElevation = 2.dp
+                            shadowElevation = 2.dp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(42.dp)
                         ) {
-                            OutlinedTextField(
-                                value = uiState.searchQuery,
-                                onValueChange = onSearchChange,
-                                placeholder = { Text("Search for restaurants, biryani, pizza...", color = TakeItMuted, fontSize = 14.sp) },
-                                leadingIcon = { Icon(Icons.Rounded.Search, null, tint = TakeItRed) },
-                                trailingIcon = {
-                                    if (uiState.searchQuery.isNotBlank()) {
-                                        IconButton(onClick = { onSearchChange("") }) {
-                                            Icon(Icons.Rounded.Close, "Clear", tint = TakeItMuted)
-                                        }
-                                    }
-                                },
-                                singleLine = true,
-                                shape = RoundedCornerShape(16.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = TakeItRed,
-                                    unfocusedBorderColor = Color.Transparent,
-                                    focusedContainerColor = Color.White,
-                                    unfocusedContainerColor = TakeItBg
-                                ),
+                            Row(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("home_search_input")
-                            )
+                                    .fillMaxSize()
+                                    .padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Rounded.Search, "Search", tint = TakeItRed, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                                    if (uiState.searchQuery.isEmpty()) {
+                                        Text(
+                                            "Search restaurants, pizza, biryani...",
+                                            color = TakeItMuted,
+                                            fontSize = 13.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    BasicTextField(
+                                        value = uiState.searchQuery,
+                                        onValueChange = onSearchChange,
+                                        singleLine = true,
+                                        textStyle = TextStyle(color = TakeItInk, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                                        cursorBrush = SolidColor(TakeItRed),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .testTag("home_search_input")
+                                    )
+                                }
+                                if (uiState.searchQuery.isNotBlank()) {
+                                    IconButton(onClick = { onSearchChange("") }, modifier = Modifier.size(28.dp)) {
+                                        Icon(Icons.Rounded.Close, "Clear", tint = TakeItMuted, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            // 3D Perspective Food Delivery Welcome Showcase (1st Uploaded Image)
+            // Admin-Controlled 3-Second Auto-Rotating Hero Carousel
             item {
-                val inf = rememberInfiniteTransition(label = "homeWelcomeFood")
-                val zoom by inf.animateFloat(
-                    initialValue = 1.0f,
-                    targetValue = 1.07f,
-                    animationSpec = infiniteRepeatable(tween(3800, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-                    label = "welcomeZoom"
-                )
-                val bob by inf.animateFloat(
-                    initialValue = -5f,
-                    targetValue = 5f,
-                    animationSpec = infiniteRepeatable(tween(2400, easing = FastOutSlowInEasing), RepeatMode.Reverse),
-                    label = "welcomeBob"
-                )
-                TakeIt3DHeroBanner(
-                    borderColor = TakeItGold,
-                    depthColor = TakeItRedDark.darken3D(0.42f),
-                    cornerRadius = 26.dp,
-                    depth = 6.dp,
-                    onClick = { onOpenRestaurants("All") },
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                        .height(198.dp)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Image(
-                        painter = painterResource(R.drawable.welcome_food_delivery),
-                        contentDescription = "Welcome to Take It Food Delivery",
-                        contentScale = ContentScale.Crop,
+                    TakeIt3DHeroBanner(
+                        borderColor = TakeItOrange.copy(alpha = 0.65f),
+                        depthColor = TakeItRedDark.darken3D(0.45f),
+                        cornerRadius = 24.dp,
+                        depth = 5.dp,
+                        tiltAmplitude = 1.8f,
                         modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                scaleX = zoom
-                                scaleY = zoom
-                                translationY = bob
-                            }
-                    )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(Color.Black.copy(alpha = 0.68f), Color.Transparent)
-                                )
-                            )
-                    )
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.BottomStart)
-                            .padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
+                            .fillMaxWidth()
+                            .height(172.dp)
                     ) {
-                        Surface(
-                            shape = RoundedCornerShape(50),
-                            color = TakeItGold,
-                            shadowElevation = 4.dp
-                        ) {
-                            Text(
-                                "WELCOME TO TAKE IT",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TakeItInk,
-                                fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.padding(horizontal = 11.dp, vertical = 4.dp)
-                            )
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier.fillMaxSize()
+                        ) { page ->
+                            val slide = bannerSlides[page]
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .clickable {
+                                        if (slide.restaurantId.isNotBlank()) {
+                                            onOpenRestaurantDetail(slide.restaurantId)
+                                        } else {
+                                            onOpenRestaurants("All")
+                                        }
+                                    }
+                            ) {
+                                when (slide.imageUrl) {
+                                    "builtin://welcome" -> Image(
+                                        painter = painterResource(R.drawable.welcome_food_delivery),
+                                        contentDescription = slide.title,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                    "builtin://feast" -> Image(
+                                        painter = painterResource(R.drawable.img_food_feast_1795421416008),
+                                        contentDescription = slide.title,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                    "builtin://pizza", "" -> Image(
+                                        painter = painterResource(R.drawable.img_takeit_pizza_offer_1795427326877),
+                                        contentDescription = slide.title,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                    else -> FoodPhoto(
+                                        imageUrl = slide.imageUrl,
+                                        fallbackKey = slide.title,
+                                        contentDescription = slide.title,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                // Smooth gradient overlay so uploaded or bundled images look seamlessly integrated
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(Color.Black.copy(alpha = 0.72f), Color.Black.copy(alpha = 0.28f), Color.Transparent)
+                                            )
+                                        )
+                                )
+                                Column(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomStart)
+                                        .fillMaxWidth(0.75f)
+                                        .padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    if (slide.promoCode.isNotBlank()) {
+                                        Surface(shape = RoundedCornerShape(50), color = TakeItGold) {
+                                            Text(
+                                                "CODE: ${slide.promoCode}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = TakeItInk,
+                                                fontWeight = FontWeight.ExtraBold,
+                                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 3.dp)
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        text = slide.title.ifBlank { "Special Deal" },
+                                        style = MaterialTheme.typography.titleLarge,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (slide.subtitle.isNotBlank()) {
+                                        Text(
+                                            text = slide.subtitle,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = TakeItGoldSoft,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    Surface(shape = RoundedCornerShape(50), color = Color.White) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Order Now", style = MaterialTheme.typography.labelSmall, color = TakeItRed, fontWeight = FontWeight.ExtraBold)
+                                            Spacer(Modifier.width(4.dp))
+                                            Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = TakeItRed, modifier = Modifier.size(13.dp))
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        Text(
-                            "Craving Something Delicious?",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                        Text(
-                            "Explore hot pizzas, burgers & biryani ->",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = TakeItGold,
-                            fontWeight = FontWeight.Bold
-                        )
+
+                        if (bannerSlides.size > 1) {
+                            Row(
+                                modifier = Modifier
+                                    .align(Alignment.BottomEnd)
+                                    .padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                            ) {
+                                bannerSlides.indices.forEach { idx ->
+                                    val active = idx == pagerState.currentPage
+                                    Box(
+                                        modifier = Modifier
+                                            .height(6.dp)
+                                            .width(if (active) 18.dp else 6.dp)
+                                            .clip(CircleShape)
+                                            .background(if (active) TakeItGold else Color.White.copy(alpha = 0.55f))
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            // 3D Live Admin Announcement Bar
+            // Live Announcement Pill (compact)
             if (uiState.config.announcementText.isNotBlank()) {
                 item {
                     TakeIt3DCard(
                         containerColor = TakeItGoldSoft,
                         depthColor = TakeItGold.darken3D(0.32f),
                         borderColor = TakeItGold,
-                        cornerRadius = 16.dp,
-                        depth = 4.dp,
+                        cornerRadius = 14.dp,
+                        depth = 3.dp,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(Icons.Rounded.Campaign, null, tint = TakeItRed, modifier = Modifier.size(22.dp))
+                            Icon(Icons.Rounded.Campaign, null, tint = TakeItRed, modifier = Modifier.size(18.dp))
                             Text(
                                 uiState.config.announcementText,
                                 style = MaterialTheme.typography.labelMedium,
@@ -391,15 +527,15 @@ fun CustomerHomeTab(
                 }
             }
 
-            // 3D Live Order Tracking Slab
+            // Live Active Order Banner
             if (activeOrder != null) {
                 item {
                     TakeIt3DCard(
                         containerColor = TakeItGreen,
                         depthColor = TakeItGreen.darken3D(0.42f),
                         borderColor = TakeItGreen.lighten3D(0.35f),
-                        cornerRadius = 20.dp,
-                        depth = 5.dp,
+                        cornerRadius = 18.dp,
+                        depth = 4.dp,
                         onClick = { onOpenTrackOrder(activeOrder.id) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -407,7 +543,7 @@ fun CustomerHomeTab(
                             .testTag("active_order_banner")
                     ) {
                         Row(
-                            modifier = Modifier.padding(14.dp),
+                            modifier = Modifier.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -417,7 +553,7 @@ fun CustomerHomeTab(
                                     containerColor = Color.White,
                                     depthColor = Color(0xFFDCFCE7),
                                     iconTint = TakeItGreen,
-                                    size = 42.dp
+                                    size = 38.dp
                                 )
                                 Spacer(Modifier.width(10.dp))
                                 Column {
@@ -440,7 +576,7 @@ fun CustomerHomeTab(
                                     style = MaterialTheme.typography.labelMedium,
                                     color = TakeItGreen,
                                     fontWeight = FontWeight.ExtraBold,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp)
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
                             }
                         }
@@ -448,128 +584,57 @@ fun CustomerHomeTab(
                 }
             }
 
-            // 3D Hero Offer Banner (Admin Controlled)
-            item {
-                TakeIt3DCard(
-                    containerColor = TakeItRed,
-                    depthColor = TakeItRedDark.darken3D(0.45f),
-                    borderColor = TakeItOrange.lighten3D(0.35f),
-                    cornerRadius = 24.dp,
-                    depth = 6.dp,
-                    shadowElevation = 12.dp,
-                    onClick = { onOpenRestaurants("All") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(166.dp)
-                            .background(Brush.horizontalGradient(listOf(TakeItOrange, TakeItRed, TakeItRedDark)))
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.img_takeit_pizza_offer_1795427326877),
-                            contentDescription = "Special Offer",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .fillMaxHeight()
-                                .width(168.dp)
-                                .clip(RoundedCornerShape(topStart = 90.dp, bottomStart = 90.dp))
-                        )
-                        Column(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(0.62f)
-                                .padding(18.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(
-                                    text = uiState.config.heroBannerTitle.ifBlank { "Flat 50% OFF" },
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    lineHeight = 28.sp
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = uiState.config.heroBannerSubtitle.ifBlank { "on your Favourite Food" },
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TakeItGoldSoft,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                            Surface(
-                                shape = RoundedCornerShape(50),
-                                color = Color.White,
-                                shadowElevation = 6.dp
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(
-                                        "Order Now",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        color = TakeItRed,
-                                        fontWeight = FontWeight.ExtraBold
-                                    )
-                                    Spacer(Modifier.width(4.dp))
-                                    Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, tint = TakeItRed, modifier = Modifier.size(14.dp))
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3D Floating Circular Food Category Pods
+            // Strictly Single-Line Dynamic 3D Category Strip (LazyRow)
             item {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         "What's on your mind?",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.ExtraBold,
-                        color = TakeItInk
+                        color = TakeItInk,
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                    TakeItFoodCategories.chunked(5).forEach { rowItems ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            rowItems.forEach { cat ->
-                                Column(
-                                    horizontalAlignment = Alignment.CenterHorizontally,
-                                    modifier = Modifier
-                                        .width(64.dp)
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .clickable { onOpenRestaurants(cat.name) }
-                                        .padding(vertical = 4.dp)
-                                ) {
-                                    // 3D Pod Base + Image Orb
-                                    Box(modifier = Modifier.size(58.dp)) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(56.dp)
-                                                .offset(y = 3.dp)
-                                                .shadow(6.dp, CircleShape, clip = false)
-                                                .clip(CircleShape)
-                                                .background(TakeItOrange.darken3D(0.2f))
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .size(56.dp)
-                                                .clip(CircleShape)
-                                                .background(Color.White)
-                                                .border(2.dp, Color.White, CircleShape)
-                                        ) {
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(dynamicCategories, key = { it.name }) { cat ->
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .width(66.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable { onOpenRestaurants(cat.name) }
+                                    .padding(vertical = 2.dp)
+                            ) {
+                                Box(modifier = Modifier.size(56.dp)) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .offset(y = 3.dp)
+                                            .shadow(5.dp, CircleShape, clip = false)
+                                            .clip(CircleShape)
+                                            .background(TakeItOrange.darken3D(0.2f))
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(54.dp)
+                                            .clip(CircleShape)
+                                            .background(Color.White)
+                                            .border(2.dp, Color.White, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (cat.imageUrl.startsWith("https://")) {
+                                            FoodPhoto(
+                                                imageUrl = cat.imageUrl,
+                                                fallbackKey = cat.name,
+                                                contentDescription = cat.name,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        } else {
                                             Image(
                                                 painter = painterResource(cat.fallbackDrawable),
                                                 contentDescription = cat.name,
@@ -578,78 +643,15 @@ fun CustomerHomeTab(
                                             )
                                         }
                                     }
-                                    Spacer(Modifier.height(5.dp))
-                                    Text(
-                                        text = cat.name,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = TakeItInk,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
                                 }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3D Late Night Cravings Banner
-            item {
-                TakeIt3DCard(
-                    containerColor = TakeItNightBlue,
-                    depthColor = Color(0xFF0F0D2E),
-                    borderColor = Color(0xFF6366F1),
-                    cornerRadius = 22.dp,
-                    depth = 5.dp,
-                    onClick = { onOpenRestaurants("All") },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(114.dp)
-                            .background(Brush.horizontalGradient(listOf(TakeItNightBlue, Color(0xFF312E81), Color(0xFF581C87))))
-                    ) {
-                        Image(
-                            painter = painterResource(R.drawable.img_food_feast_1795421416008),
-                            contentDescription = "Late Night",
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .align(Alignment.CenterEnd)
-                                .fillMaxHeight()
-                                .width(128.dp)
-                                .clip(RoundedCornerShape(topStart = 70.dp, bottomStart = 70.dp))
-                        )
-                        Column(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(0.65f)
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
+                                Spacer(Modifier.height(4.dp))
                                 Text(
-                                    uiState.config.lateNightTitle.ifBlank { "Late Night Cravings?" },
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = Color.White,
-                                    fontWeight = FontWeight.ExtraBold
-                                )
-                                Text(
-                                    uiState.config.lateNightSubtitle.ifBlank { "We're Here!" },
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = TakeItGoldSoft
-                                )
-                            }
-                            Surface(shape = RoundedCornerShape(50), color = TakeItOrange, shadowElevation = 4.dp) {
-                                Text(
-                                    "Order Now →",
+                                    text = cat.name,
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = Color.White,
+                                    color = TakeItInk,
                                     fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                         }
@@ -1007,6 +1009,11 @@ fun RestaurantsListScreen(
         }
     }
 
+    val chipCategories = remember(uiState.categories) {
+        val dyn = uiState.categories.filter { it.activeFlag }.sortedBy { it.sortOrder }.map { it.name }
+        if (dyn.isNotEmpty()) listOf("All") + dyn else TakeItFoodCategories.map { it.name }
+    }
+
     Scaffold(
         containerColor = TakeItBg,
         topBar = {
@@ -1072,7 +1079,7 @@ fun RestaurantsListScreen(
                                 label = { Text("Pure Veg") }
                             )
                         }
-                        items(TakeItFoodCategories.map { it.name }) { cat ->
+                        items(chipCategories) { cat ->
                             FilterChip(
                                 selected = selectedCategory == cat,
                                 onClick = { selectedCategory = cat },
@@ -1552,6 +1559,167 @@ private fun DishMenuCard(
                             Icon(Icons.Rounded.Add, "Increase", tint = Color.White, modifier = Modifier.size(16.dp))
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CustomerExploreTab(
+    uiState: TakeItUiState,
+    onOpenRestaurantDetail: (String) -> Unit,
+    onToggleFavorite: (String) -> Unit
+) {
+    var selectedCategory by remember { mutableStateOf("All") }
+    var pureVegOnly by remember { mutableStateOf(false) }
+    var highRatingOnly by remember { mutableStateOf(false) }
+    var offersOnly by remember { mutableStateOf(false) }
+    var search by remember { mutableStateOf("") }
+
+    val chipCategories = remember(uiState.categories) {
+        val dyn = uiState.categories.filter { it.activeFlag }.sortedBy { it.sortOrder }.map { it.name }
+        if (dyn.isNotEmpty()) listOf("All") + dyn else TakeItFoodCategories.map { it.name }
+    }
+
+    val filtered = remember(uiState.restaurants, selectedCategory, pureVegOnly, highRatingOnly, offersOnly, search) {
+        uiState.restaurants.filter { r ->
+            val catOk = selectedCategory == "All" || r.category.equals(selectedCategory, ignoreCase = true) || r.cuisine.contains(selectedCategory, ignoreCase = true)
+            val vegOk = !pureVegOnly || r.pureVegFlag
+            val ratOk = !highRatingOnly || r.rating >= 4.4
+            val offOk = !offersOnly || r.offerTag.isNotBlank() || r.offerImageUrl.isNotBlank()
+            val qOk = search.isBlank() || r.name.contains(search, ignoreCase = true) || r.cuisine.contains(search, ignoreCase = true)
+            catOk && vegOk && ratOk && offOk && qOk
+        }
+    }
+
+    TakeIt3DBackdrop(TakeItRed, TakeItOrange, baseColor = TakeItBg) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 115.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                TakeIt3DCard(
+                    containerColor = Color.White,
+                    depthColor = Color(0xFFDCE2EB),
+                    cornerRadius = 24.dp,
+                    depth = 5.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .statusBarsPadding()
+                            .padding(horizontal = 16.dp, vertical = 14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            TakeIt3DIconOrb(icon = Icons.Rounded.Explore, containerColor = TakeItRed, size = 36.dp)
+                            Column {
+                                Text("Explore Kitchens & Dishes", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
+                                Text("Filter by Veg, 4.4+ ratings, offers & categories", style = MaterialTheme.typography.labelSmall, color = TakeItMuted)
+                            }
+                        }
+                        Surface(
+                            shape = RoundedCornerShape(14.dp),
+                            color = TakeItBg,
+                            border = BorderStroke(1.dp, Color(0xFFDDE3EC)),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(42.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Rounded.Search, "Search Explore", tint = TakeItRed, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                                    if (search.isEmpty()) {
+                                        Text("Search kitchens, cuisines...", color = TakeItMuted, fontSize = 13.sp)
+                                    }
+                                    BasicTextField(
+                                        value = search,
+                                        onValueChange = { search = it },
+                                        singleLine = true,
+                                        textStyle = TextStyle(color = TakeItInk, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+                                        cursorBrush = SolidColor(TakeItRed),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                                if (search.isNotBlank()) {
+                                    IconButton(onClick = { search = "" }, modifier = Modifier.size(26.dp)) {
+                                        Icon(Icons.Rounded.Close, "Clear", tint = TakeItMuted, modifier = Modifier.size(16.dp))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    item {
+                        FilterChip(
+                            selected = highRatingOnly,
+                            onClick = { highRatingOnly = !highRatingOnly },
+                            label = { Text("Ratings 4.4+") }
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = offersOnly,
+                            onClick = { offersOnly = !offersOnly },
+                            label = { Text("Offers") }
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = pureVegOnly,
+                            onClick = { pureVegOnly = !pureVegOnly },
+                            label = { Text("Pure Veg") }
+                        )
+                    }
+                    items(chipCategories) { cat ->
+                        FilterChip(
+                            selected = selectedCategory == cat,
+                            onClick = { selectedCategory = cat },
+                            label = { Text(cat) }
+                        )
+                    }
+                }
+            }
+
+            if (filtered.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No restaurants match these filters.", color = TakeItMuted)
+                    }
+                }
+            } else {
+                items(filtered, key = { "exp_${it.id}" }) { r ->
+                    FullRestaurantCard(
+                        restaurant = r,
+                        isFavorite = uiState.profile.favoriteRestaurantIds.contains(r.id),
+                        onToggleFavorite = { onToggleFavorite(r.id) },
+                        onClick = { onOpenRestaurantDetail(r.id) },
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
                 }
             }
         }

@@ -11,10 +11,15 @@ import com.google.firebase.firestore.IgnoreExtraProperties
 
 const val MAIN_ADMIN_EMAIL = "buildolive4@gmail.com"
 
+const val STAFF_ROLE_CO_ADMIN = "CO_ADMIN"
+const val STAFF_ROLE_RESTAURANT_OWNER = "RESTAURANT_OWNER"
+const val STAFF_ROLE_DELIVERY_PARTNER = "DELIVERY_PARTNER"
+
 enum class TakeItAppVariant {
     CUSTOMER,
     RIDE,
     TRANSPORT,
+    DELIVERY,
     ADMIN;
 
     companion object {
@@ -24,6 +29,7 @@ enum class TakeItAppVariant {
                 pkg.endsWith(".admin") -> return ADMIN
                 pkg.endsWith(".ride") -> return RIDE
                 pkg.endsWith(".transport") -> return TRANSPORT
+                pkg.endsWith(".delivery") -> return DELIVERY
             }
             val resMode = runCatching { context.getString(R.string.takeit_app_variant) }
                 .getOrDefault(BuildConfig.APP_BUILD_MODE)
@@ -32,7 +38,8 @@ enum class TakeItAppVariant {
             return when (resMode) {
                 "ADMIN", "ADMIN_PANEL", "CONTROL" -> ADMIN
                 "RIDE", "RAPIDO" -> RIDE
-                "TRANSPORT", "PARCEL", "DELIVERY" -> TRANSPORT
+                "TRANSPORT", "PARCEL" -> TRANSPORT
+                "DELIVERY", "DELIVERY_PARTNER", "RIDER", "COURIER" -> DELIVERY
                 else -> fromBuildConfig()
             }
         }
@@ -41,7 +48,8 @@ enum class TakeItAppVariant {
             return when (BuildConfig.APP_BUILD_MODE.trim().uppercase()) {
                 "ADMIN", "ADMIN_PANEL", "CONTROL" -> ADMIN
                 "RIDE", "RAPIDO" -> RIDE
-                "TRANSPORT", "PARCEL", "DELIVERY" -> TRANSPORT
+                "TRANSPORT", "PARCEL" -> TRANSPORT
+                "DELIVERY", "DELIVERY_PARTNER", "RIDER", "COURIER" -> DELIVERY
                 else -> CUSTOMER
             }
         }
@@ -50,7 +58,8 @@ enum class TakeItAppVariant {
 
 enum class CustomerTab(val label: String) {
     HOME("Home"),
-    ORDERS("Orders"),
+    HISTORY("History"),
+    EXPLORE("Explore"),
     OFFERS("Offers"),
     ACCOUNT("Account")
 }
@@ -69,6 +78,13 @@ enum class TransportTab(val label: String) {
     ACCOUNT("Account")
 }
 
+enum class DeliveryTab(val label: String) {
+    TASKS("Tasks"),
+    ACTIVE("Route Map"),
+    EARNINGS("History"),
+    ACCOUNT("Account")
+}
+
 sealed class CustomerScreen {
     data object MainTabs : CustomerScreen()
     data class RestaurantsList(val initialCategory: String = "All") : CustomerScreen()
@@ -76,6 +92,7 @@ sealed class CustomerScreen {
     data object Cart : CustomerScreen()
     data class TrackOrder(val orderId: String) : CustomerScreen()
     data class OrderDelivered(val orderId: String) : CustomerScreen()
+    data object MyOrders : CustomerScreen()
     data object Addresses : CustomerScreen()
     data object Wallet : CustomerScreen()
     data object Support : CustomerScreen()
@@ -88,7 +105,7 @@ enum class AdminTab(val label: String) {
     CATALOG("Menu"),
     OFFERS("Coupons"),
     PEOPLE("Users"),
-    CO_ADMINS("Co-Admins"),
+    CO_ADMINS("Staff & Roles"),
     PAYMENTS("Payments"),
     SETTINGS("Controls")
 }
@@ -96,7 +113,8 @@ enum class AdminTab(val label: String) {
 data class FoodCategoryItem(
     val name: String,
     val emoji: String,
-    @DrawableRes val fallbackDrawable: Int
+    @DrawableRes val fallbackDrawable: Int,
+    val imageUrl: String = ""
 )
 
 val TakeItFoodCategories = listOf(
@@ -112,6 +130,17 @@ val TakeItFoodCategories = listOf(
     FoodCategoryItem("All", "🍽️", R.drawable.logo_takeit_food)
 )
 
+val TakeItDishSections = listOf(
+    "Recommended",
+    "Starters",
+    "Main Course",
+    "Combos",
+    "Sides",
+    "Biryani & Rice",
+    "Desserts",
+    "Beverages"
+)
+
 @DrawableRes
 fun resolveFoodDrawable(categoryOrName: String): Int {
     val q = categoryOrName.lowercase()
@@ -122,6 +151,34 @@ fun resolveFoodDrawable(categoryOrName: String): Int {
         else -> R.drawable.img_food_feast_1795421416008
     }
 }
+
+@Keep
+@IgnoreExtraProperties
+data class FoodCategory(
+    @DocumentId val id: String = "",
+    val name: String = "",
+    val emoji: String = "🍽️",
+    val imageUrl: String = "",
+    val sortOrder: Int = 0,
+    val activeFlag: Boolean = true,
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null
+)
+
+@Keep
+@IgnoreExtraProperties
+data class HeroBannerSlide(
+    @DocumentId val id: String = "",
+    val title: String = "",
+    val subtitle: String = "",
+    val imageUrl: String = "",
+    val restaurantId: String = "",
+    val promoCode: String = "",
+    val sortOrder: Int = 0,
+    val activeFlag: Boolean = true,
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null
+)
 
 @Keep
 @IgnoreExtraProperties
@@ -153,6 +210,11 @@ data class CoAdminAccount(
     val email: String = "",
     val name: String = "",
     val roleTitle: String = "Operations Manager",
+    val roleType: String = STAFF_ROLE_CO_ADMIN, // CO_ADMIN, RESTAURANT_OWNER, DELIVERY_PARTNER
+    val assignedRestaurantId: String = "",
+    val assignedRestaurantName: String = "",
+    val phone: String = "",
+    val vehicleNumber: String = "",
     val passcode: String = "",
     val activeFlag: Boolean = true,
     val canManageOrders: Boolean = true,
@@ -180,6 +242,10 @@ data class Restaurant(
     val offerCode: String = "FOOD50",
     val address: String = "Sector 62, Greater Noida",
     val imageUrl: String = "",
+    val offerImageUrl: String = "",
+    val latitude: Double = 28.4744,
+    val longitude: Double = 77.5040,
+    val ownerEmail: String = "",
     val pureVegFlag: Boolean = false,
     val freeDeliveryFlag: Boolean = false,
     val verifiedFlag: Boolean = true,
@@ -248,6 +314,10 @@ data class FoodOrder(
     val paymentStatus: String = "PAID",
     val paymentRef: String = "",
     val deliveryAddress: String = "",
+    val deliveryLat: Double = 28.4812,
+    val deliveryLng: Double = 77.5125,
+    val pickupLat: Double = 28.4744,
+    val pickupLng: Double = 77.5040,
     val status: String = "PLACED", // PLACED, CONFIRMED, PREPARING, OUT_FOR_DELIVERY, DELIVERED, CANCELLED, REFUNDED
     val riderName: String = "Assigning Rider...",
     val riderPhone: String = "",
@@ -287,6 +357,14 @@ data class SavedAddress(
     val label: String = "Home",
     val fullAddress: String = "",
     val landmark: String = "",
+    val city: String = "",
+    val areaStreet: String = "",
+    val mapLink: String = "",
+    val receiverName: String = "",
+    val receiverPhone: String = "",
+    val forSomeoneElse: Boolean = false,
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
     val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null
 )
@@ -399,5 +477,7 @@ data class CartItem(
 enum class AdminRole {
     NONE,
     MAIN_ADMIN,
-    CO_ADMIN
+    CO_ADMIN,
+    RESTAURANT_OWNER,
+    DELIVERY_PARTNER
 }

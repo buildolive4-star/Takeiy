@@ -29,12 +29,19 @@ data class TakeItUiState(
     val adminRole: AdminRole = AdminRole.NONE,
     val activeCoAdmin: CoAdminAccount? = null,
     val isInAdminMode: Boolean = TakeItAppVariant.fromBuildConfig() == TakeItAppVariant.ADMIN,
+    val isInDeliveryMode: Boolean = TakeItAppVariant.fromBuildConfig() == TakeItAppVariant.DELIVERY,
+    val deliveryPartnerOnline: Boolean = true,
+    val deliveryTab: DeliveryTab = DeliveryTab.TASKS,
     val coAdminPasscodeVerified: Boolean = false,
     val coAdminAuthError: String? = null,
     val isCheckingCoAdmin: Boolean = false,
     // Live Synced Data
     val config: TakeItAppConfig = TakeItAppConfig(),
     val profile: TakeItUserProfile = TakeItUserProfile(),
+    val activeLatitude: Double = 28.4812,
+    val activeLongitude: Double = 77.5125,
+    val categories: List<FoodCategory> = emptyList(),
+    val heroBanners: List<HeroBannerSlide> = emptyList(),
     val restaurants: List<Restaurant> = emptyList(),
     val menuItems: List<MenuItem> = emptyList(),
     val coupons: List<PromoCoupon> = emptyList(),
@@ -70,14 +77,34 @@ data class TakeItUiState(
 ) {
     val currentCustomerScreen: CustomerScreen get() = customerBackStack.lastOrNull() ?: CustomerScreen.MainTabs
     val isMainAdmin: Boolean get() = email.trim().equals(MAIN_ADMIN_EMAIL, ignoreCase = true)
+    val isRestaurantOwner: Boolean
+        get() = adminRole == AdminRole.RESTAURANT_OWNER ||
+            activeCoAdmin?.roleType?.equals(STAFF_ROLE_RESTAURANT_OWNER, ignoreCase = true) == true
+    val isDeliveryPartner: Boolean
+        get() = adminRole == AdminRole.DELIVERY_PARTNER ||
+            activeCoAdmin?.roleType?.equals(STAFF_ROLE_DELIVERY_PARTNER, ignoreCase = true) == true
+    val assignedRestaurantId: String get() = activeCoAdmin?.assignedRestaurantId.orEmpty()
+
     val hasUnlockedAdminAccess: Boolean
-        get() = isMainAdmin || (adminRole == AdminRole.CO_ADMIN && coAdminPasscodeVerified && activeCoAdmin?.activeFlag == true)
+        get() = isMainAdmin || (
+            (adminRole == AdminRole.CO_ADMIN || adminRole == AdminRole.RESTAURANT_OWNER) &&
+                coAdminPasscodeVerified &&
+                activeCoAdmin?.activeFlag == true
+            )
+
+    val hasUnlockedDeliveryAccess: Boolean
+        get() = isMainAdmin || (
+            isDeliveryPartner &&
+                coAdminPasscodeVerified &&
+                activeCoAdmin?.activeFlag == true
+            )
 
     val canManageOrders: Boolean get() = isMainAdmin || (hasUnlockedAdminAccess && activeCoAdmin?.canManageOrders == true)
     val canManageRestaurants: Boolean get() = isMainAdmin || (hasUnlockedAdminAccess && activeCoAdmin?.canManageRestaurants == true)
     val canManageCoupons: Boolean get() = isMainAdmin || (hasUnlockedAdminAccess && activeCoAdmin?.canManageCoupons == true)
     val canManageUsers: Boolean get() = isMainAdmin || (hasUnlockedAdminAccess && activeCoAdmin?.canManageUsers == true)
     val canManageSettings: Boolean get() = isMainAdmin || (hasUnlockedAdminAccess && activeCoAdmin?.canManageSettings == true)
+    val canManageStaff: Boolean get() = isMainAdmin || (adminRole == AdminRole.CO_ADMIN && hasUnlockedAdminAccess)
 
     val cartItemCount: Int get() = cart.sumOf { it.quantity }
     val cartItemTotal: Int get() = cart.sumOf { it.menuItem.price * it.quantity }
@@ -117,7 +144,8 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
     private val _uiState = MutableStateFlow(
         TakeItUiState(
             appVariant = initialVariant,
-            isInAdminMode = initialVariant == TakeItAppVariant.ADMIN
+            isInAdminMode = initialVariant == TakeItAppVariant.ADMIN,
+            isInDeliveryMode = initialVariant == TakeItAppVariant.DELIVERY
         )
     )
     val uiState: StateFlow<TakeItUiState> = _uiState.asStateFlow()
@@ -140,7 +168,8 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
                 isAttached = true,
                 adminRole = if (isMain) AdminRole.MAIN_ADMIN else AdminRole.NONE,
                 coAdminPasscodeVerified = isMain,
-                isInAdminMode = it.appVariant == TakeItAppVariant.ADMIN
+                isInAdminMode = it.appVariant == TakeItAppVariant.ADMIN,
+                isInDeliveryMode = it.appVariant == TakeItAppVariant.DELIVERY
             )
         }
 
@@ -153,6 +182,12 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         }
         sessionJobs += viewModelScope.launch {
             repo.observeConfig().collect { cfg -> _uiState.update { it.copy(config = cfg) } }
+        }
+        sessionJobs += viewModelScope.launch {
+            repo.observeCategories().collect { list -> _uiState.update { it.copy(categories = list) } }
+        }
+        sessionJobs += viewModelScope.launch {
+            repo.observeHeroBanners().collect { list -> _uiState.update { it.copy(heroBanners = list) } }
         }
         sessionJobs += viewModelScope.launch {
             repo.observeRestaurants().collect { list -> _uiState.update { it.copy(restaurants = list) } }
@@ -178,7 +213,18 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
             repo.observeMyParcels(uid).collect { list -> _uiState.update { it.copy(myParcels = list) } }
         }
         sessionJobs += viewModelScope.launch {
-            repo.observeAddresses(uid).collect { list -> _uiState.update { it.copy(addresses = list) } }
+            repo.observeAddresses(uid).collect { list ->
+                _uiState.update { state ->
+                    val matching = list.firstOrNull { addr ->
+                        addr.label.equals(state.profile.activeAddressLabel, ignoreCase = true) && addr.latitude != 0.0
+                    } ?: list.firstOrNull { it.latitude != 0.0 }
+                    state.copy(
+                        addresses = list,
+                        activeLatitude = matching?.latitude ?: state.activeLatitude,
+                        activeLongitude = matching?.longitude ?: state.activeLongitude
+                    )
+                }
+            }
         }
         sessionJobs += viewModelScope.launch {
             repo.observeWalletTransactions(uid).collect { list -> _uiState.update { it.copy(walletTx = list) } }
@@ -191,44 +237,72 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         if (isMain) {
-            attachAdminStreams(isMainAdmin = true)
+            attachAdminStreams(role = AdminRole.MAIN_ADMIN, assignedRestId = "")
         } else {
-            // Silently check if this Gmail is registered as a Co-Admin
+            // Silently check if this Gmail is registered as Co-Admin, Restaurant Owner, or Delivery Partner
             sessionJobs += viewModelScope.launch {
                 val res = repo.fetchMyCoAdminRecord(cleanEmail)
                 val record = res.getOrNull()
                 if (record != null && record.activeFlag) {
-                    _uiState.update { it.copy(adminRole = AdminRole.CO_ADMIN, activeCoAdmin = record) }
+                    val mappedRole = when (record.roleType.uppercase()) {
+                        STAFF_ROLE_RESTAURANT_OWNER -> AdminRole.RESTAURANT_OWNER
+                        STAFF_ROLE_DELIVERY_PARTNER -> AdminRole.DELIVERY_PARTNER
+                        else -> AdminRole.CO_ADMIN
+                    }
+                    _uiState.update { it.copy(adminRole = mappedRole, activeCoAdmin = record) }
                 }
             }
         }
     }
 
-    private fun attachAdminStreams(isMainAdmin: Boolean) {
+    private fun attachAdminStreams(role: AdminRole, assignedRestId: String) {
         adminJobs.forEach { it.cancel() }
         adminJobs.clear()
 
-        adminJobs += viewModelScope.launch {
-            repo.observeAllOrders().collect { list -> _uiState.update { it.copy(allOrders = list) } }
-        }
-        adminJobs += viewModelScope.launch {
-            repo.observeAllRides().collect { list -> _uiState.update { it.copy(allRides = list) } }
-        }
-        adminJobs += viewModelScope.launch {
-            repo.observeAllParcels().collect { list -> _uiState.update { it.copy(allParcels = list) } }
-        }
-        adminJobs += viewModelScope.launch {
-            repo.observeAllUsers().collect { list -> _uiState.update { it.copy(allUsers = list) } }
-        }
-        adminJobs += viewModelScope.launch {
-            repo.observeAllTickets().collect { list -> _uiState.update { it.copy(allTickets = list) } }
-        }
-        if (isMainAdmin) {
-            adminJobs += viewModelScope.launch {
-                repo.observeCoAdmins().collect { list -> _uiState.update { it.copy(coAdmins = list) } }
+        when (role) {
+            AdminRole.RESTAURANT_OWNER -> {
+                if (assignedRestId.isNotBlank()) {
+                    adminJobs += viewModelScope.launch {
+                        repo.observeOrdersForRestaurant(assignedRestId).collect { list ->
+                            _uiState.update { it.copy(allOrders = list) }
+                        }
+                    }
+                }
             }
+            AdminRole.DELIVERY_PARTNER -> {
+                adminJobs += viewModelScope.launch {
+                    repo.observeAllOrders().collect { list -> _uiState.update { it.copy(allOrders = list) } }
+                }
+                adminJobs += viewModelScope.launch {
+                    repo.observeAllRides().collect { list -> _uiState.update { it.copy(allRides = list) } }
+                }
+                adminJobs += viewModelScope.launch {
+                    repo.observeAllParcels().collect { list -> _uiState.update { it.copy(allParcels = list) } }
+                }
+            }
+            AdminRole.MAIN_ADMIN, AdminRole.CO_ADMIN -> {
+                adminJobs += viewModelScope.launch {
+                    repo.observeAllOrders().collect { list -> _uiState.update { it.copy(allOrders = list) } }
+                }
+                adminJobs += viewModelScope.launch {
+                    repo.observeAllRides().collect { list -> _uiState.update { it.copy(allRides = list) } }
+                }
+                adminJobs += viewModelScope.launch {
+                    repo.observeAllParcels().collect { list -> _uiState.update { it.copy(allParcels = list) } }
+                }
+                adminJobs += viewModelScope.launch {
+                    repo.observeAllUsers().collect { list -> _uiState.update { it.copy(allUsers = list) } }
+                }
+                adminJobs += viewModelScope.launch {
+                    repo.observeAllTickets().collect { list -> _uiState.update { it.copy(allTickets = list) } }
+                }
+                adminJobs += viewModelScope.launch {
+                    repo.observeCoAdmins().collect { list -> _uiState.update { it.copy(coAdmins = list) } }
+                }
+                refreshRazorpayLedger()
+            }
+            AdminRole.NONE -> Unit
         }
-        refreshRazorpayLedger()
     }
 
     fun detachSession() {
@@ -238,7 +312,8 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         adminJobs.clear()
         _uiState.value = TakeItUiState(
             appVariant = initialVariant,
-            isInAdminMode = initialVariant == TakeItAppVariant.ADMIN
+            isInAdminMode = initialVariant == TakeItAppVariant.ADMIN,
+            isInDeliveryMode = initialVariant == TakeItAppVariant.DELIVERY
         )
     }
 
@@ -254,6 +329,19 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
 
     fun selectTransportTab(tab: TransportTab) {
         _uiState.update { it.copy(transportTab = tab) }
+    }
+
+    fun selectDeliveryTab(tab: DeliveryTab) {
+        _uiState.update { it.copy(deliveryTab = tab) }
+    }
+
+    fun toggleDeliveryOnline(online: Boolean) {
+        _uiState.update {
+            it.copy(
+                deliveryPartnerOnline = online,
+                snackbarMessage = if (online) "You are ONLINE — accepting live delivery jobs" else "You are OFFLINE"
+            )
+        }
     }
 
     fun navigateCustomer(screen: CustomerScreen) {
@@ -279,9 +367,10 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun enterAdminMode() {
-        _uiState.update { it.copy(isInAdminMode = true) }
-        if (_uiState.value.hasUnlockedAdminAccess) {
-            attachAdminStreams(_uiState.value.isMainAdmin)
+        _uiState.update { it.copy(isInAdminMode = true, isInDeliveryMode = false) }
+        val s = _uiState.value
+        if (s.hasUnlockedAdminAccess) {
+            attachAdminStreams(s.adminRole, s.assignedRestaurantId)
         }
     }
 
@@ -289,12 +378,24 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         _uiState.update { it.copy(isInAdminMode = false) }
     }
 
+    fun enterDeliveryMode() {
+        _uiState.update { it.copy(isInDeliveryMode = true, isInAdminMode = false) }
+        val s = _uiState.value
+        if (s.hasUnlockedDeliveryAccess) {
+            attachAdminStreams(if (s.isMainAdmin) AdminRole.MAIN_ADMIN else AdminRole.DELIVERY_PARTNER, "")
+        }
+    }
+
+    fun exitDeliveryMode() {
+        _uiState.update { it.copy(isInDeliveryMode = false) }
+    }
+
     fun verifyCoAdminPasscode(passcodeInput: String) {
         val state = _uiState.value
         val email = state.email.trim().lowercase()
         if (email == MAIN_ADMIN_EMAIL) {
             _uiState.update { it.copy(coAdminPasscodeVerified = true, coAdminAuthError = null) }
-            attachAdminStreams(isMainAdmin = true)
+            attachAdminStreams(AdminRole.MAIN_ADMIN, "")
             return
         }
         viewModelScope.launch {
@@ -306,7 +407,7 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.update {
                         it.copy(
                             isCheckingCoAdmin = false,
-                            coAdminAuthError = "Access denied. Only Main Admin ($MAIN_ADMIN_EMAIL) or authorized Co-Admins can enter."
+                            coAdminAuthError = "Access denied. Only Main Admin ($MAIN_ADMIN_EMAIL) or registered Partners/Staff can enter."
                         )
                     }
                 }
@@ -314,7 +415,7 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.update {
                         it.copy(
                             isCheckingCoAdmin = false,
-                            coAdminAuthError = "Your Co-Admin access has been suspended by Main Admin."
+                            coAdminAuthError = "Your account access has been suspended by Admin."
                         )
                     }
                 }
@@ -322,22 +423,28 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
                     _uiState.update {
                         it.copy(
                             isCheckingCoAdmin = false,
-                            coAdminAuthError = "Incorrect Co-Admin password. Ask Main Admin ($MAIN_ADMIN_EMAIL) for your password."
+                            coAdminAuthError = "Incorrect password. Ask Admin ($MAIN_ADMIN_EMAIL) or your Co-Admin for your passcode."
                         )
                     }
                 }
                 else -> {
+                    val mappedRole = when (record.roleType.uppercase()) {
+                        STAFF_ROLE_RESTAURANT_OWNER -> AdminRole.RESTAURANT_OWNER
+                        STAFF_ROLE_DELIVERY_PARTNER -> AdminRole.DELIVERY_PARTNER
+                        else -> AdminRole.CO_ADMIN
+                    }
                     _uiState.update {
                         it.copy(
                             isCheckingCoAdmin = false,
-                            adminRole = AdminRole.CO_ADMIN,
+                            adminRole = mappedRole,
                             activeCoAdmin = record,
                             coAdminPasscodeVerified = true,
-                            coAdminAuthError = null
+                            coAdminAuthError = null,
+                            isInDeliveryMode = it.isInDeliveryMode || (mappedRole == AdminRole.DELIVERY_PARTNER && it.appVariant != TakeItAppVariant.ADMIN)
                         )
                     }
-                    attachAdminStreams(isMainAdmin = false)
-                    showMessage("Welcome Co-Admin ${record.name} (${record.roleTitle})")
+                    attachAdminStreams(mappedRole, record.assignedRestaurantId)
+                    showMessage("Welcome ${record.name} (${record.roleTitle})")
                 }
             }
         }
@@ -412,22 +519,36 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun saveAddress(label: String, fullAddress: String, landmark: String) {
-        if (fullAddress.isBlank()) {
-            showMessage("Please enter full address")
+    fun saveStructuredAddress(address: SavedAddress) {
+        if (address.fullAddress.isBlank()) {
+            showMessage("Please enter complete address")
             return
         }
         viewModelScope.launch {
-            repo.saveAddress(label, fullAddress, landmark)
-                .onSuccess { showMessage("Address saved & selected!") }
+            repo.saveAddress(address)
+                .onSuccess {
+                    if (address.latitude != 0.0 && address.longitude != 0.0) {
+                        _uiState.update { it.copy(activeLatitude = address.latitude, activeLongitude = address.longitude) }
+                    }
+                    showMessage("Address saved & selected!")
+                }
                 .onFailure { showMessage(it.localizedMessage ?: "Failed to save address") }
         }
     }
 
-    fun selectActiveAddress(label: String, fullAddress: String) {
+    fun selectActiveAddress(address: SavedAddress) {
+        val line = listOf(address.fullAddress, address.areaStreet, address.city)
+            .filter { it.isNotBlank() }
+            .distinct()
+            .joinToString(", ")
         viewModelScope.launch {
-            repo.updateMyProfile(activeAddressLabel = label, activeAddressLine = fullAddress)
-                .onSuccess { showMessage("Delivering to $label") }
+            repo.updateMyProfile(activeAddressLabel = address.label, activeAddressLine = line)
+                .onSuccess {
+                    if (address.latitude != 0.0 && address.longitude != 0.0) {
+                        _uiState.update { it.copy(activeLatitude = address.latitude, activeLongitude = address.longitude) }
+                    }
+                    showMessage("Delivering to ${address.label}")
+                }
         }
     }
 
@@ -485,6 +606,7 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         val deliveryAddr = listOf(state.profile.activeAddressLabel, state.profile.activeAddressLine)
             .filter { it.isNotBlank() }.joinToString(" • ").ifBlank { state.config.cityName }
 
+        val matchedRestaurant = state.restaurants.firstOrNull { it.id == state.cartRestaurantId }
         val order = FoodOrder(
             orderNumber = orderNum,
             userId = state.uid,
@@ -505,6 +627,10 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
             paymentStatus = paymentStatus,
             paymentRef = paymentRef,
             deliveryAddress = deliveryAddr,
+            deliveryLat = state.activeLatitude,
+            deliveryLng = state.activeLongitude,
+            pickupLat = matchedRestaurant?.latitude ?: 28.4744,
+            pickupLng = matchedRestaurant?.longitude ?: 77.5040,
             status = "PLACED",
             otp = otp
         )
@@ -677,25 +803,129 @@ class TakeItViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun saveCategory(category: FoodCategory) {
+        if (category.name.isBlank()) {
+            showMessage("Category name cannot be empty")
+            return
+        }
+        viewModelScope.launch {
+            repo.saveCategory(category)
+                .onSuccess { showMessage("Category '${category.name}' is live!") }
+                .onFailure { showMessage(it.localizedMessage ?: "Failed to save category") }
+        }
+    }
+
+    fun deleteCategory(categoryId: String) {
+        viewModelScope.launch {
+            repo.deleteCategory(categoryId)
+                .onSuccess { showMessage("Category removed.") }
+        }
+    }
+
+    fun saveHeroBanner(banner: HeroBannerSlide) {
+        viewModelScope.launch {
+            repo.saveHeroBanner(banner)
+                .onSuccess { showMessage("Home carousel banner synced live!") }
+                .onFailure { showMessage(it.localizedMessage ?: "Failed to save banner") }
+        }
+    }
+
+    fun deleteHeroBanner(bannerId: String) {
+        viewModelScope.launch {
+            repo.deleteHeroBanner(bannerId)
+                .onSuccess { showMessage("Hero banner removed.") }
+        }
+    }
+
     fun saveCoAdmin(account: CoAdminAccount) {
-        if (!_uiState.value.isMainAdmin) {
-            showMessage("Only Main Admin ($MAIN_ADMIN_EMAIL) can manage Co-Admins.")
+        val state = _uiState.value
+        val role = account.roleType.uppercase()
+        val allowed = state.isMainAdmin ||
+            (state.canManageStaff && (role == STAFF_ROLE_RESTAURANT_OWNER || role == STAFF_ROLE_DELIVERY_PARTNER))
+        if (!allowed) {
+            showMessage("Only Main Admin ($MAIN_ADMIN_EMAIL) can manage Co-Admins. Co-Admins can add Restaurant Owners & Delivery Partners.")
             return
         }
         viewModelScope.launch {
             repo.saveCoAdmin(account)
-                .onSuccess { showMessage("Co-Admin ${account.name} saved! Share password with ${account.email}") }
-                .onFailure { showMessage(it.localizedMessage ?: "Failed to save Co-Admin") }
+                .onSuccess { showMessage("${account.name} (${account.roleTitle}) saved! Share password with ${account.email}") }
+                .onFailure { showMessage(it.localizedMessage ?: "Failed to save account") }
         }
     }
 
-    fun deleteCoAdmin(email: String) {
-        if (!_uiState.value.isMainAdmin) return
+    fun deleteCoAdmin(account: CoAdminAccount) {
+        val state = _uiState.value
+        val allowed = state.isMainAdmin ||
+            (state.canManageStaff && account.roleType in listOf(STAFF_ROLE_RESTAURANT_OWNER, STAFF_ROLE_DELIVERY_PARTNER))
+        if (!allowed) {
+            showMessage("Only Main Admin can remove Co-Admins.")
+            return
+        }
         viewModelScope.launch {
-            repo.deleteCoAdmin(email)
-                .onSuccess { showMessage("Co-Admin removed.") }
+            repo.deleteCoAdmin(account.email)
+                .onSuccess { showMessage("Account removed.") }
                 .onFailure { showMessage(it.localizedMessage ?: "Delete failed") }
         }
+    }
+
+    // --- DELIVERY PARTNER WORKFLOWS ---
+
+    fun deliveryClaimOrder(order: FoodOrder) {
+        val state = _uiState.value
+        val pName = state.activeCoAdmin?.name?.ifBlank { state.displayName } ?: state.displayName
+        val pPhone = state.activeCoAdmin?.phone?.ifBlank { state.profile.phone } ?: state.profile.phone
+        val pVeh = state.activeCoAdmin?.vehicleNumber?.ifBlank { "Take It Bike" } ?: "Take It Bike"
+        adminUpdateOrderStatus(
+            orderId = order.id,
+            status = "OUT_FOR_DELIVERY",
+            riderName = pName,
+            riderPhone = pPhone,
+            riderVehicle = pVeh,
+            etaMinutes = order.etaMinutes.coerceIn(10, 45)
+        )
+    }
+
+    fun deliveryCompleteOrderWithOtp(order: FoodOrder, enteredOtp: String, onSuccess: () -> Unit) {
+        if (enteredOtp.trim() != order.otp.trim()) {
+            showMessage("Wrong Customer OTP! Ask customer for the 4-digit OTP shown in their app.")
+            return
+        }
+        adminUpdateOrderStatus(orderId = order.id, status = "DELIVERED", etaMinutes = 0)
+        onSuccess()
+    }
+
+    fun deliveryClaimRide(ride: RideBooking) {
+        val state = _uiState.value
+        val cName = state.activeCoAdmin?.name?.ifBlank { state.displayName } ?: state.displayName
+        val cPhone = state.activeCoAdmin?.phone?.ifBlank { state.profile.phone } ?: state.profile.phone
+        val cVeh = state.activeCoAdmin?.vehicleNumber?.ifBlank { "UP16 TK 2026" } ?: "UP16 TK 2026"
+        adminUpdateRide(ride.id, "CAPTAIN_ASSIGNED", cName, cPhone, cVeh, 4)
+    }
+
+    fun deliveryCompleteRideWithOtp(ride: RideBooking, enteredOtp: String, onSuccess: () -> Unit) {
+        if (enteredOtp.trim() != ride.otp.trim()) {
+            showMessage("Wrong Ride OTP! Ask rider for 4-digit OTP.")
+            return
+        }
+        adminUpdateRide(ride.id, "COMPLETED", etaMinutes = 0)
+        onSuccess()
+    }
+
+    fun deliveryClaimParcel(parcel: ParcelOrder) {
+        val state = _uiState.value
+        val pName = state.activeCoAdmin?.name?.ifBlank { state.displayName } ?: state.displayName
+        val pPhone = state.activeCoAdmin?.phone?.ifBlank { state.profile.phone } ?: state.profile.phone
+        val pVeh = state.activeCoAdmin?.vehicleNumber?.ifBlank { "UP16 CR 1102" } ?: "UP16 CR 1102"
+        adminUpdateParcel(parcel.id, "PARTNER_ASSIGNED", pName, pPhone, pVeh, 20)
+    }
+
+    fun deliveryCompleteParcelWithOtp(parcel: ParcelOrder, enteredOtp: String, onSuccess: () -> Unit) {
+        if (enteredOtp.trim() != parcel.otp.trim()) {
+            showMessage("Wrong Delivery OTP! Ask recipient for 4-digit OTP.")
+            return
+        }
+        adminUpdateParcel(parcel.id, "DELIVERED", etaMinutes = 0)
+        onSuccess()
     }
 
     fun uploadImageToImgBb(uri: Uri, prefix: String, onUploaded: (String) -> Unit) {

@@ -43,6 +43,7 @@ import com.example.takeit.ui.components.TakeIt3DCard
 import com.example.takeit.ui.components.TakeIt3DIconOrb
 import com.example.takeit.ui.components.darken3D
 import com.example.takeit.ui.components.lighten3D
+import com.example.takeit.ui.restaurant.RestaurantPartnerRoot
 import com.example.takeit.viewmodel.TakeItUiState
 import com.example.takeit.viewmodel.TakeItViewModel
 
@@ -52,6 +53,15 @@ fun AdminCommandCenterRoot(
     viewModel: TakeItViewModel,
     onSignOut: () -> Unit
 ) {
+    if (uiState.isRestaurantOwner) {
+        RestaurantPartnerRoot(
+            uiState = uiState,
+            viewModel = viewModel,
+            onSignOut = onSignOut
+        )
+        return
+    }
+
     if (!uiState.hasUnlockedAdminAccess) {
         AdminAccessGateScreen(
             uiState = uiState,
@@ -70,7 +80,8 @@ fun AdminCommandCenterRoot(
         uiState.canManageRestaurants,
         uiState.canManageCoupons,
         uiState.canManageUsers,
-        uiState.canManageSettings
+        uiState.canManageSettings,
+        uiState.canManageStaff
     ) {
         buildList {
             add(AdminTab.OVERVIEW)
@@ -78,7 +89,7 @@ fun AdminCommandCenterRoot(
             if (uiState.canManageRestaurants) add(AdminTab.CATALOG)
             if (uiState.canManageCoupons) add(AdminTab.OFFERS)
             if (uiState.canManageUsers) add(AdminTab.PEOPLE)
-            if (uiState.isMainAdmin) add(AdminTab.CO_ADMINS)
+            if (uiState.canManageStaff) add(AdminTab.CO_ADMINS)
             if (uiState.isMainAdmin || uiState.canManageOrders) add(AdminTab.PAYMENTS)
             if (uiState.canManageSettings) add(AdminTab.SETTINGS)
         }
@@ -168,6 +179,26 @@ fun AdminCommandCenterRoot(
                                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                                 )
                             }
+                        }
+
+                        if (uiState.isMainAdmin || uiState.isDeliveryPartner) {
+                            FilledTonalButton(
+                                onClick = { viewModel.enterDeliveryMode() },
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 9.dp, vertical = 6.dp),
+                                colors = ButtonDefaults.filledTonalButtonColors(
+                                    containerColor = Color(0xFF064E3B),
+                                    contentColor = AdminEmerald
+                                ),
+                                modifier = Modifier
+                                    .height(38.dp)
+                                    .testTag("admin_switch_to_delivery_btn")
+                            ) {
+                                Icon(Icons.Rounded.DeliveryDining, contentDescription = "Delivery Panel", modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Delivery", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.width(6.dp))
                         }
 
                         if (uiState.appVariant == TakeItAppVariant.CUSTOMER) {
@@ -395,7 +426,7 @@ private fun AdminAccessGateScreen(
                     )
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        "Enter the Co-Admin password created for your Gmail by Main Admin ($MAIN_ADMIN_EMAIL).",
+                        "Enter the Staff / Co-Admin password created for your Gmail by Main Admin ($MAIN_ADMIN_EMAIL).",
                         style = MaterialTheme.typography.bodySmall,
                         color = AdminMuted,
                         textAlign = TextAlign.Center
@@ -719,7 +750,7 @@ fun AdminOverviewTab(
                                 Text("Seed Starter Menu", fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
-                        if (uiState.isMainAdmin) {
+                        if (uiState.canManageStaff) {
                             TakeIt3DButton(
                                 onClick = { viewModel.selectAdminTab(AdminTab.CO_ADMINS) },
                                 containerColor = AdminCard,
@@ -734,7 +765,7 @@ fun AdminOverviewTab(
                             ) {
                                 Icon(Icons.Rounded.PersonAdd, null, tint = AdminCyan, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Co-Admins (${uiState.coAdmins.size})", color = AdminCyan, fontWeight = FontWeight.Bold, maxLines = 1)
+                                Text("Staff & Roles (${uiState.coAdmins.size})", color = AdminCyan, fontWeight = FontWeight.Bold, maxLines = 1)
                             }
                         }
                     }

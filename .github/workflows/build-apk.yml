@@ -1,4 +1,4 @@
-name: "Build & Download Take It Suite (Food, Ride, Transport, Admin)"
+name: "Build & Download Take It Suite (Food, Ride, Transport, Admin, Delivery)"
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-takeit-apks:
-    name: "Build 4 Take It APKs (Food + Ride + Transport + Admin) & Auto Sync Firebase"
+    name: "Build 5 Take It APKs (Food + Ride + Transport + Admin + Delivery) & Auto Sync Firebase"
     runs-on: ubuntu-latest
 
     steps:
@@ -234,12 +234,13 @@ jobs:
                               data = json.loads(base64.b64decode(cfg_b64).decode("utf-8"))
                               print("Downloaded freshly synced Customer google-services.json from Firebase Management API!")
 
-                  # Auto-create & sync all 3 companion Android Apps (<pkg>.ride, <pkg>.transport, <pkg>.admin) so all 4 apps install side-by-side on ONE phone!
+                  # Auto-create & sync all 4 companion Android Apps (<pkg>.ride, <pkg>.transport, <pkg>.admin, <pkg>.delivery) so all 5 apps install side-by-side on ONE phone!
                   base_pkg = selected_pkg or "com.aistudio.zipora.kxrqmt"
                   companions = [
                       ("ride", "Take It Ride"),
                       ("transport", "Take It Transport"),
                       ("admin", "Take It Admin"),
+                      ("delivery", "Take It Delivery"),
                   ]
                   apps_list = []
                   try:
@@ -336,12 +337,13 @@ jobs:
                   if os.path.exists(key_path):
                       os.remove(key_path)
 
-          # Ensure /tmp/google-services-{ride,transport,admin}.json always contain a valid client entry
+          # Ensure /tmp/google-services-{ride,transport,admin,delivery}.json always contain a valid client entry
           base_pkg = selected_pkg or "com.aistudio.zipora.kxrqmt"
           ride_pkg = f"{base_pkg}.ride"
           transport_pkg = f"{base_pkg}.transport"
           admin_pkg = f"{base_pkg}.admin"
-          for suffix, comp_pkg in (("ride", ride_pkg), ("transport", transport_pkg), ("admin", admin_pkg)):
+          delivery_pkg = f"{base_pkg}.delivery"
+          for suffix, comp_pkg in (("ride", ride_pkg), ("transport", transport_pkg), ("admin", admin_pkg), ("delivery", delivery_pkg)):
               out_path = f"/tmp/google-services-{suffix}.json"
               if not os.path.exists(out_path):
                   comp_fallback = json.loads(json.dumps(data))
@@ -383,6 +385,7 @@ jobs:
                   f.write(f"RIDE_APP_ID={ride_pkg}\n")
                   f.write(f"TRANSPORT_APP_ID={transport_pkg}\n")
                   f.write(f"ADMIN_APP_ID={admin_pkg}\n")
+                  f.write(f"DELIVERY_APP_ID={delivery_pkg}\n")
           PY
 
       - name: Auto-Deploy Firestore Security Rules to Client Firebase
@@ -558,7 +561,7 @@ jobs:
             echo "PEXELS_API_KEY secret not set; using offline fallback placeholder."
           fi
 
-      - name: Build All 4 Standalone APKs (Food, Ride, Transport, Admin)
+      - name: "Build All 5 Standalone APKs (Food, Ride, Transport, Admin, Delivery)"
         run: |
           mkdir -p release-apk
           CUST_APP_ID_ARG=""
@@ -568,73 +571,88 @@ jobs:
           RIDE_PKG="${RIDE_APP_ID:-com.aistudio.zipora.kxrqmt.ride}"
           TRANSPORT_PKG="${TRANSPORT_APP_ID:-com.aistudio.zipora.kxrqmt.transport}"
           ADMIN_PKG="${ADMIN_APP_ID:-com.aistudio.zipora.kxrqmt.admin}"
+          DELIVERY_PKG="${DELIVERY_APP_ID:-com.aistudio.zipora.kxrqmt.delivery}"
 
-          echo "=== [1/4] Building TakeIt-Customer.apk (Food Delivery: ${CLIENT_APP_ID:-default}) ==="
+          echo "=== [1/5] Building TakeIt-Customer.apk (Food Delivery: ${CLIENT_APP_ID:-default}) ==="
           [ -f /tmp/google-services-customer.json ] && cp /tmp/google-services-customer.json app/google-services.json
           gradle :app:assembleDebug $CUST_APP_ID_ARG -PtakeItAppMode=CUSTOMER -PtakeItAppLabel="Take It" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Customer.apk
 
-          echo "=== [2/4] Building TakeIt-Ride.apk (Rapido Ride: $RIDE_PKG) ==="
+          echo "=== [2/5] Building TakeIt-Ride.apk (Rapido Ride: $RIDE_PKG) ==="
           rm -rf app/build
           [ -f /tmp/google-services-ride.json ] && cp /tmp/google-services-ride.json app/google-services.json
           gradle :app:assembleDebug -PtakeItAppId=$RIDE_PKG -PtakeItAppMode=RIDE -PtakeItAppLabel="Take It Ride" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Ride.apk
 
-          echo "=== [3/4] Building TakeIt-Transport.apk (Parcel & Truck Transport: $TRANSPORT_PKG) ==="
+          echo "=== [3/5] Building TakeIt-Transport.apk (Parcel & Truck Transport: $TRANSPORT_PKG) ==="
           rm -rf app/build
           [ -f /tmp/google-services-transport.json ] && cp /tmp/google-services-transport.json app/google-services.json
           gradle :app:assembleDebug -PtakeItAppId=$TRANSPORT_PKG -PtakeItAppMode=TRANSPORT -PtakeItAppLabel="Take It Transport" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Transport.apk
 
-          echo "=== [4/4] Building TakeIt-Admin.apk (Executive Command Center: $ADMIN_PKG) ==="
+          echo "=== [4/5] Building TakeIt-Admin.apk (Executive Command Center: $ADMIN_PKG) ==="
           rm -rf app/build
           [ -f /tmp/google-services-admin.json ] && cp /tmp/google-services-admin.json app/google-services.json
           gradle :app:assembleDebug -PtakeItAppId=$ADMIN_PKG -PtakeItAppMode=ADMIN -PtakeItAppLabel="Take It Admin" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Admin.apk
 
+          echo "=== [5/5] Building TakeIt-Delivery.apk (3D Delivery Partner App: $DELIVERY_PKG) ==="
+          rm -rf app/build
+          [ -f /tmp/google-services-delivery.json ] && cp /tmp/google-services-delivery.json app/google-services.json
+          gradle :app:assembleDebug -PtakeItAppId=$DELIVERY_PKG -PtakeItAppMode=DELIVERY -PtakeItAppLabel="Take It Delivery" --no-daemon --no-build-cache --no-configuration-cache --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk release-apk/TakeIt-Delivery.apk
+
           ls -lh release-apk/
 
-      - name: Upload 1/4 TakeIt-Customer.apk
+      - name: Upload 1/5 TakeIt-Customer.apk
         uses: actions/upload-artifact@v4
         with:
           name: 1-TakeIt-Customer-APK
           path: release-apk/TakeIt-Customer.apk
           retention-days: 30
 
-      - name: Upload 2/4 TakeIt-Ride.apk
+      - name: Upload 2/5 TakeIt-Ride.apk
         uses: actions/upload-artifact@v4
         with:
           name: 2-TakeIt-Ride-APK
           path: release-apk/TakeIt-Ride.apk
           retention-days: 30
 
-      - name: Upload 3/4 TakeIt-Transport.apk
+      - name: Upload 3/5 TakeIt-Transport.apk
         uses: actions/upload-artifact@v4
         with:
           name: 3-TakeIt-Transport-APK
           path: release-apk/TakeIt-Transport.apk
           retention-days: 30
 
-      - name: Upload 4/4 TakeIt-Admin.apk
+      - name: Upload 4/5 TakeIt-Admin.apk
         uses: actions/upload-artifact@v4
         with:
           name: 4-TakeIt-Admin-APK
           path: release-apk/TakeIt-Admin.apk
           retention-days: 30
 
-      - name: "Publish All 4 Take It APKs to Latest Release"
+      - name: Upload 5/5 TakeIt-Delivery.apk
+        uses: actions/upload-artifact@v4
+        with:
+          name: 5-TakeIt-Delivery-APK
+          path: release-apk/TakeIt-Delivery.apk
+          retention-days: 30
+
+      - name: "Publish All 5 Take It APKs to Latest Release"
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-apk
-          name: "Take It Suite - 4 Standalone Apps (Food, Ride, Transport, Admin)"
+          name: "Take It Suite - 5 Standalone Apps (Food, Ride, Transport, Admin, Delivery)"
           body: |
-            ### Download & Install All 4 Distinct Take It Apps Side-by-Side
-            1. **TakeIt-Customer.apk** — Full **Take It Food Delivery** App (Animated Food Welcome, Zomato-grade UI, Sticky Payment Button, Live Tracking)
-            2. **TakeIt-Ride.apk** — Distinct **Take It Ride** (Rapido-style Bike Moto, Auto, Mini Cab, Prime Sedan + Animated Ride Welcome + Live Captain OTP)
-            3. **TakeIt-Transport.apk** — Distinct **Take It Transport** (2W Parcel, 3W Cargo, Tata Ace Mini Truck, 8ft Pickup + Animated Transport Welcome + Live OTP)
-            4. **TakeIt-Admin.apk** — Distinct Obsidian/Gold **Take It Executive Admin Command Center** (`buildolive4@gmail.com` Main Admin + Co-Admin Password System + Live Food/Ride/Parcel Dispatch + Razorpay Ledger)
+            ### Download & Install All 5 Distinct Take It Apps Side-by-Side
+            1. **TakeIt-Customer.apk** — Full **Take It Food Delivery** App (3D UI, Single-Line Categories, 3s Hero Carousel, Leaflet Map, 3x3 Dish History, 16:9 Offers)
+            2. **TakeIt-Ride.apk** — Distinct **Take It Ride** (Rapido-style Bike Moto, Auto, Mini Cab, Prime Sedan + Live Captain OTP)
+            3. **TakeIt-Transport.apk** — Distinct **Take It Transport** (2W Parcel, 3W Cargo, Tata Ace Mini Truck, 8ft Pickup + Live OTP)
+            4. **TakeIt-Admin.apk** — Distinct Obsidian/Gold **Take It Executive Command Center** (`buildolive4@gmail.com` Main Admin + Co-Admin + Restaurant Partner Passwords + Fees & Coupons)
+            5. **TakeIt-Delivery.apk** — Distinct Emerald/3D **Take It Delivery Partner App** (Food + Ride + Parcel Dispatch, Leaflet Route Navigation, Customer OTP Verification & Earnings)
 
-            - Forced **Google Account Chooser** enabled across all 4 apps
+            - Forced **Google Account Chooser** enabled across all 5 apps
             - Auto-synced APK SHA-1/SHA-256 & deployed Firestore Security Rules
             - Built automatically on commit `${{ github.sha }}`
           files: |
@@ -642,5 +660,6 @@ jobs:
             release-apk/TakeIt-Ride.apk
             release-apk/TakeIt-Transport.apk
             release-apk/TakeIt-Admin.apk
+            release-apk/TakeIt-Delivery.apk
           make_latest: true
         continue-on-error: true

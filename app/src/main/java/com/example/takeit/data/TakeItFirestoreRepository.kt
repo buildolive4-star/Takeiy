@@ -97,6 +97,30 @@ class TakeItFirestoreRepository(context: Context) {
                 emit(emptyList())
             }
 
+    fun observeCategories(): Flow<List<FoodCategory>> =
+        db.collection("takeit_categories")
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<FoodCategory>() }
+                    .sortedWith(compareBy<FoodCategory> { it.sortOrder }.thenBy { it.name })
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
+    fun observeHeroBanners(): Flow<List<HeroBannerSlide>> =
+        db.collection("takeit_hero_banners")
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<HeroBannerSlide>() }
+                    .sortedBy { it.sortOrder }
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
     fun observeMyOrders(uid: String): Flow<List<FoodOrder>> =
         db.collection("takeit_orders")
             .whereEqualTo("userId", uid)
@@ -112,6 +136,19 @@ class TakeItFirestoreRepository(context: Context) {
 
     fun observeAllOrders(): Flow<List<FoodOrder>> =
         db.collection("takeit_orders")
+            .snapshots(MetadataChanges.INCLUDE)
+            .map { qs ->
+                qs.documents.mapNotNull { it.toSafeObject<FoodOrder>() }
+                    .sortedByDescending { it.createdAt?.seconds ?: 0L }
+            }
+            .catch { e ->
+                if (e is CancellationException) throw e
+                emit(emptyList())
+            }
+
+    fun observeOrdersForRestaurant(restaurantId: String): Flow<List<FoodOrder>> =
+        db.collection("takeit_orders")
+            .whereEqualTo("restaurantId", restaurantId)
             .snapshots(MetadataChanges.INCLUDE)
             .map { qs ->
                 qs.documents.mapNotNull { it.toSafeObject<FoodOrder>() }
@@ -290,20 +327,35 @@ class TakeItFirestoreRepository(context: Context) {
         }
     }
 
-    suspend fun saveAddress(label: String, fullAddress: String, landmark: String): Result<Unit> {
+    suspend fun saveAddress(address: SavedAddress): Result<Unit> {
         val uid = requireUid()
         val id = cleanId("addr")
+        val label = address.label.trim().ifBlank { "Home" }.take(55)
+        val fullAddress = address.fullAddress.trim().take(320)
         return try {
             val payload = mapOf(
                 "userId" to uid,
-                "label" to label.trim().ifBlank { "Home" }.take(60),
-                "fullAddress" to fullAddress.trim().take(250),
-                "landmark" to landmark.trim().take(150),
+                "label" to label,
+                "fullAddress" to fullAddress,
+                "landmark" to address.landmark.trim().take(150),
+                "city" to address.city.trim().take(75),
+                "areaStreet" to address.areaStreet.trim().take(115),
+                "mapLink" to address.mapLink.trim().take(320),
+                "receiverName" to address.receiverName.trim().take(85),
+                "receiverPhone" to address.receiverPhone.trim().take(28),
+                "forSomeoneElse" to address.forSomeoneElse,
+                "latitude" to address.latitude.coerceIn(-90.0, 90.0),
+                "longitude" to address.longitude.coerceIn(-180.0, 180.0),
                 "createdAt" to FieldValue.serverTimestamp(),
                 "updatedAt" to FieldValue.serverTimestamp()
             )
             db.collection("takeit_users").document(uid).collection("addresses").document(id).set(payload).await()
-            updateMyProfile(activeAddressLabel = label, activeAddressLine = fullAddress)
+            val displayLine = listOf(fullAddress, address.areaStreet, address.city)
+                .filter { it.isNotBlank() }
+                .distinct()
+                .joinToString(", ")
+                .take(320)
+            updateMyProfile(activeAddressLabel = label, activeAddressLine = displayLine)
             Result.success(Unit)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
@@ -379,7 +431,11 @@ class TakeItFirestoreRepository(context: Context) {
                 "paymentMethod" to order.paymentMethod,
                 "paymentStatus" to order.paymentStatus,
                 "paymentRef" to order.paymentRef.take(100),
-                "deliveryAddress" to order.deliveryAddress.ifBlank { "Greater Noida" }.take(280),
+                "deliveryAddress" to order.deliveryAddress.ifBlank { "Greater Noida" }.take(340),
+                "deliveryLat" to order.deliveryLat.coerceIn(-90.0, 90.0),
+                "deliveryLng" to order.deliveryLng.coerceIn(-180.0, 180.0),
+                "pickupLat" to order.pickupLat.coerceIn(-90.0, 90.0),
+                "pickupLng" to order.pickupLng.coerceIn(-180.0, 180.0),
                 "status" to "PLACED",
                 "riderName" to "Assigning Rider...",
                 "riderPhone" to "",
@@ -529,6 +585,110 @@ class TakeItFirestoreRepository(context: Context) {
         }
     }
 
+    suspend fun saveCategory(category: FoodCategory): Result<String> {
+        requireUid()
+        val isNew = category.id.isBlank()
+        val id = if (isNew) cleanId("cat") else category.id
+        return try {
+            val ref = db.collection("takeit_categories").document(id)
+            if (isNew) {
+                ref.set(
+                    mapOf(
+                        "name" to category.name.trim().take(55),
+                        "emoji" to category.emoji.trim().ifBlank { "🍽️" }.take(14),
+                        "imageUrl" to category.imageUrl.trim().take(550),
+                        "sortOrder" to category.sortOrder.coerceIn(0, 999),
+                        "activeFlag" to category.activeFlag,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            } else {
+                ref.update(
+                    mapOf(
+                        "name" to category.name.trim().take(55),
+                        "emoji" to category.emoji.trim().ifBlank { "🍽️" }.take(14),
+                        "imageUrl" to category.imageUrl.trim().take(550),
+                        "sortOrder" to category.sortOrder.coerceIn(0, 999),
+                        "activeFlag" to category.activeFlag,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            }
+            Result.success(id)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("saveCategory", "takeit_categories/$id", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteCategory(categoryId: String): Result<Unit> {
+        requireUid()
+        return try {
+            db.collection("takeit_categories").document(categoryId).delete().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("deleteCategory", "takeit_categories/$categoryId", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun saveHeroBanner(banner: HeroBannerSlide): Result<String> {
+        requireUid()
+        val isNew = banner.id.isBlank()
+        val id = if (isNew) cleanId("ban") else banner.id
+        return try {
+            val ref = db.collection("takeit_hero_banners").document(id)
+            if (isNew) {
+                ref.set(
+                    mapOf(
+                        "title" to banner.title.trim().take(110),
+                        "subtitle" to banner.subtitle.trim().take(170),
+                        "imageUrl" to banner.imageUrl.trim().take(550),
+                        "restaurantId" to banner.restaurantId.trim().take(120),
+                        "promoCode" to banner.promoCode.trim().uppercase().take(35),
+                        "sortOrder" to banner.sortOrder.coerceIn(0, 999),
+                        "activeFlag" to banner.activeFlag,
+                        "createdAt" to FieldValue.serverTimestamp(),
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            } else {
+                ref.update(
+                    mapOf(
+                        "title" to banner.title.trim().take(110),
+                        "subtitle" to banner.subtitle.trim().take(170),
+                        "imageUrl" to banner.imageUrl.trim().take(550),
+                        "restaurantId" to banner.restaurantId.trim().take(120),
+                        "promoCode" to banner.promoCode.trim().uppercase().take(35),
+                        "sortOrder" to banner.sortOrder.coerceIn(0, 999),
+                        "activeFlag" to banner.activeFlag,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )
+                ).await()
+            }
+            Result.success(id)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("saveHeroBanner", "takeit_hero_banners/$id", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun deleteHeroBanner(bannerId: String): Result<Unit> {
+        requireUid()
+        return try {
+            db.collection("takeit_hero_banners").document(bannerId).delete().await()
+            Result.success(Unit)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            logError("deleteHeroBanner", "takeit_hero_banners/$bannerId", e)
+            Result.failure(e)
+        }
+    }
+
     suspend fun saveRestaurant(restaurant: Restaurant): Result<String> {
         requireUid()
         val isNew = restaurant.id.isBlank()
@@ -549,6 +709,10 @@ class TakeItFirestoreRepository(context: Context) {
                         "offerCode" to restaurant.offerCode.uppercase().take(35),
                         "address" to restaurant.address.take(220),
                         "imageUrl" to restaurant.imageUrl.trim().take(550),
+                        "offerImageUrl" to restaurant.offerImageUrl.trim().take(550),
+                        "latitude" to restaurant.latitude.coerceIn(-90.0, 90.0),
+                        "longitude" to restaurant.longitude.coerceIn(-180.0, 180.0),
+                        "ownerEmail" to restaurant.ownerEmail.trim().lowercase().take(115),
                         "pureVegFlag" to restaurant.pureVegFlag,
                         "freeDeliveryFlag" to restaurant.freeDeliveryFlag,
                         "verifiedFlag" to restaurant.verifiedFlag,
@@ -572,6 +736,10 @@ class TakeItFirestoreRepository(context: Context) {
                         "offerCode" to restaurant.offerCode.uppercase().take(35),
                         "address" to restaurant.address.take(220),
                         "imageUrl" to restaurant.imageUrl.trim().take(550),
+                        "offerImageUrl" to restaurant.offerImageUrl.trim().take(550),
+                        "latitude" to restaurant.latitude.coerceIn(-90.0, 90.0),
+                        "longitude" to restaurant.longitude.coerceIn(-180.0, 180.0),
+                        "ownerEmail" to restaurant.ownerEmail.trim().lowercase().take(115),
                         "pureVegFlag" to restaurant.pureVegFlag,
                         "freeDeliveryFlag" to restaurant.freeDeliveryFlag,
                         "verifiedFlag" to restaurant.verifiedFlag,
@@ -878,6 +1046,12 @@ class TakeItFirestoreRepository(context: Context) {
     suspend fun saveCoAdmin(account: CoAdminAccount): Result<Unit> {
         requireUid()
         val emailKey = account.email.trim().lowercase()
+        val creator = Firebase.auth.currentUser?.email?.trim()?.lowercase()?.ifBlank { MAIN_ADMIN_EMAIL } ?: MAIN_ADMIN_EMAIL
+        val safeRoleType = when (account.roleType.uppercase()) {
+            STAFF_ROLE_RESTAURANT_OWNER -> STAFF_ROLE_RESTAURANT_OWNER
+            STAFF_ROLE_DELIVERY_PARTNER -> STAFF_ROLE_DELIVERY_PARTNER
+            else -> STAFF_ROLE_CO_ADMIN
+        }
         return try {
             val ref = db.collection("takeit_co_admins").document(emailKey)
             val exists = ref.get().await().exists()
@@ -886,7 +1060,12 @@ class TakeItFirestoreRepository(context: Context) {
                     mapOf(
                         "email" to emailKey,
                         "name" to account.name.trim().take(75),
-                        "roleTitle" to account.roleTitle.trim().ifBlank { "Co-Admin" }.take(55),
+                        "roleTitle" to account.roleTitle.trim().ifBlank { "Staff" }.take(55),
+                        "roleType" to safeRoleType,
+                        "assignedRestaurantId" to account.assignedRestaurantId.trim().take(120),
+                        "assignedRestaurantName" to account.assignedRestaurantName.trim().take(110),
+                        "phone" to account.phone.trim().take(28),
+                        "vehicleNumber" to account.vehicleNumber.trim().take(36),
                         "passcode" to account.passcode.trim().take(38),
                         "activeFlag" to account.activeFlag,
                         "canManageOrders" to account.canManageOrders,
@@ -894,7 +1073,7 @@ class TakeItFirestoreRepository(context: Context) {
                         "canManageCoupons" to account.canManageCoupons,
                         "canManageUsers" to account.canManageUsers,
                         "canManageSettings" to account.canManageSettings,
-                        "createdBy" to MAIN_ADMIN_EMAIL,
+                        "createdBy" to creator,
                         "createdAt" to FieldValue.serverTimestamp(),
                         "updatedAt" to FieldValue.serverTimestamp()
                     )
@@ -903,7 +1082,12 @@ class TakeItFirestoreRepository(context: Context) {
                 ref.update(
                     mapOf(
                         "name" to account.name.trim().take(75),
-                        "roleTitle" to account.roleTitle.trim().ifBlank { "Co-Admin" }.take(55),
+                        "roleTitle" to account.roleTitle.trim().ifBlank { "Staff" }.take(55),
+                        "roleType" to safeRoleType,
+                        "assignedRestaurantId" to account.assignedRestaurantId.trim().take(120),
+                        "assignedRestaurantName" to account.assignedRestaurantName.trim().take(110),
+                        "phone" to account.phone.trim().take(28),
+                        "vehicleNumber" to account.vehicleNumber.trim().take(36),
                         "passcode" to account.passcode.trim().take(38),
                         "activeFlag" to account.activeFlag,
                         "canManageOrders" to account.canManageOrders,
@@ -945,6 +1129,25 @@ class TakeItFirestoreRepository(context: Context) {
             if (!force && !existing.isEmpty) return Result.success(0)
 
             saveAppConfig(TakeItAppConfig())
+
+            val existingCats = db.collection("takeit_categories").limit(1).get().await()
+            if (existingCats.isEmpty) {
+                TakeItFoodCategories.filter { it.name != "All" }.forEachIndexed { idx, cat ->
+                    val cid = "cat_${cat.name.lowercase().replace(" ", "_")}"
+                    db.collection("takeit_categories").document(cid).set(
+                        mapOf(
+                            "name" to cat.name,
+                            "emoji" to cat.emoji,
+                            "imageUrl" to "",
+                            "sortOrder" to idx,
+                            "activeFlag" to true,
+                            "createdAt" to FieldValue.serverTimestamp(),
+                            "updatedAt" to FieldValue.serverTimestamp()
+                        ),
+                        SetOptions.merge()
+                    ).await()
+                }
+            }
 
             val starterRestaurants = listOf(
                 Restaurant(id = "rest_pizza_world", name = "Pizza World", cuisine = "Italian, Wood-Fired Pizza, Sides", category = "Pizza", rating = 4.5, ratingCount = "10K+", deliveryTime = "28 min", priceForTwo = 200, offerTag = "50% OFF", offerCode = "FOOD50", address = "Alpha 1, Greater Noida", pureVegFlag = true, freeDeliveryFlag = true, verifiedFlag = true, openFlag = true, featuredFlag = true),
